@@ -2,6 +2,22 @@
    Brainfy – Core Script
    ========================= */
 
+/* ---------- Navigation ---------- */
+window.goTo = function (view) {
+  const views = document.querySelectorAll(".view");
+
+  views.forEach(v => v.classList.add("hidden"));
+
+  const target = document.getElementById(view + "View");
+  if (target) {
+    setTimeout(() => target.classList.remove("hidden"), 20);
+  }
+};
+
+window.addEventListener("load", () => {
+  goTo("splash");
+});
+
 /* ---------- Elements ---------- */
 const startBtn = document.getElementById("startBtn");
 const focusRoom = document.getElementById("focusRoom");
@@ -11,28 +27,25 @@ const sessionsText = document.getElementById("sessionsText");
 const modeText = document.getElementById("modeText");
 
 /* ---------- Time Settings ---------- */
-const FOCUS_TIME = 25 * 60; // 25 minutes
-const BREAK_TIME = 5 * 60;  // 5 minutes
+const FOCUS_TIME = 25 * 60;
+const BREAK_TIME = 5 * 60;
 
 /* ---------- State ---------- */
 let time = FOCUS_TIME;
 let interval = null;
 let mode = "focus";
 
-/* ---------- Load Saved Sessions ---------- */
-let sessions = localStorage.getItem("sessions")
-  ? parseInt(localStorage.getItem("sessions"))
-  : 0;
+/* ---------- Sessions ---------- */
+let sessions = parseInt(localStorage.getItem("sessions")) || 0;
+if (sessionsText) sessionsText.textContent = `Sessions completed: ${sessions}`;
+if (modeText) modeText.textContent = "Focus";
 
-sessionsText.textContent = `Sessions completed: ${sessions}`;
-modeText.textContent = "Focus";
-
-/* ---------- Utility Functions ---------- */
+/* ---------- Timer Utils ---------- */
 function updateTimer() {
-  const minutes = Math.floor(time / 60);
-  const seconds = time % 60;
-  timerDisplay.textContent =
-    `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+  if (!timerDisplay) return;
+  const m = Math.floor(time / 60);
+  const s = time % 60;
+  timerDisplay.textContent = `${m}:${s < 10 ? "0" : ""}${s}`;
 }
 
 function playSound(type) {
@@ -45,16 +58,9 @@ function playSound(type) {
   audio.play();
 }
 
-function vibrate(type = "soft") {
-  if (!navigator.vibrate) return;
-
-  if (type === "soft") {
-    navigator.vibrate([15]);
-  } else if (type === "firm") {
-    navigator.vibrate([20, 30, 20]);
-  }
+function vibrate(pattern = [15]) {
+  if (navigator.vibrate) navigator.vibrate(pattern);
 }
-
 
 /* ---------- Timer Logic ---------- */
 function startTimer() {
@@ -64,39 +70,39 @@ function startTimer() {
     if (time > 0) {
       time--;
       updateTimer();
-    } else {
-      clearInterval(interval);
-      interval = null;
+      return;
+    }
 
-      if (mode === "focus") {
-        // Focus finished → Break
-        sessions++;
-        localStorage.setItem("sessions", sessions);
+    clearInterval(interval);
+    interval = null;
+
+    if (mode === "focus") {
+      sessions++;
+      localStorage.setItem("sessions", sessions);
+      if (sessionsText)
         sessionsText.textContent = `Sessions completed: ${sessions}`;
 
-        playSound("focus");
-        vibrate();
+      playSound("focus");
+      vibrate();
 
-        mode = "break";
-        time = BREAK_TIME;
-        modeText.textContent = "Break";
-        startTimer();
-      } else {
-        // Break finished → Focus
-        playSound("break");
-        vibrate();
+      mode = "break";
+      time = BREAK_TIME;
+      if (modeText) modeText.textContent = "Break";
+      startTimer();
+    } else {
+      playSound("break");
+      vibrate([20, 30, 20]);
 
-        mode = "focus";
-        time = FOCUS_TIME;
-        modeText.textContent = "Focus";
-        startTimer();
-      }
+      mode = "focus";
+      time = FOCUS_TIME;
+      if (modeText) modeText.textContent = "Focus";
+      startTimer();
     }
   }, 1000);
 }
 
-/* ---------- Events ---------- */
-if (startBtn) {
+/* ---------- Focus Events ---------- */
+if (startBtn && focusRoom) {
   startBtn.addEventListener("click", () => {
     focusRoom.classList.remove("hidden");
     startBtn.style.display = "none";
@@ -105,120 +111,64 @@ if (startBtn) {
   });
 }
 
-
 if (resetBtn) {
   resetBtn.addEventListener("click", () => {
     clearInterval(interval);
     interval = null;
     mode = "focus";
     time = FOCUS_TIME;
-    modeText.textContent = "Focus";
+    if (modeText) modeText.textContent = "Focus";
     updateTimer();
   });
 }
 
-/* ---------- Init ---------- */
 updateTimer();
 
 /* =========================
-   Liquid Glass Interaction
-========================= */
-
-const card = document.querySelector(".card");
-
-function liquidPulse() {
-  card.classList.add("active");
-  setTimeout(() => {
-    card.classList.remove("active");
-  }, 300);
-}
-
-// Apply to all buttons
-document.querySelectorAll("button").forEach(btn => {
-  btn.addEventListener("click", liquidPulse);
-});
-
-/* =========================
-   Liquid Ripple (Tap-based)
-========================= */
-document.querySelectorAll("button").forEach(button => {
-  button.addEventListener("click", e => {
-    const rect = button.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    button.style.setProperty("--x", `${x}px`);
-    button.style.setProperty("--y", `${y}px`);
-
-    button.classList.add("ripple");
-    setTimeout(() => button.classList.remove("ripple"), 600);
-  });
-});
-/* =========================
-   Smart Notes – Auto Save
+   Smart Notes
 ========================= */
 
 const notesInput = document.getElementById("notesInput");
-
-// Load saved notes
-const savedNotes = localStorage.getItem("brainfy_notes");
-if (savedNotes) {
-  notesInput.value = savedNotes;
-}
-
-// Save as user types (debounced feel)
-let notesTimer = null;
+const preview = document.getElementById("notesPreview");
 
 if (notesInput) {
+  notesInput.value = localStorage.getItem("brainfy_notes") || "";
+
   notesInput.addEventListener("input", () => {
-    clearTimeout(notesTimer);
-    notesTimer = setTimeout(() => {
-      localStorage.setItem("brainfy_notes", notesInput.value);
-    }, 300);
+    localStorage.setItem("brainfy_notes", notesInput.value);
+    updatePreview();
   });
 }
 
-/* =========================
-   Live Markdown Preview
-========================= */
-
-const preview = document.getElementById("notesPreview");
-
 function parseMarkdown(text) {
   return text
-    .replace(/^### (.*$)/gim, "<h3>$1</h3>")
-    .replace(/^## (.*$)/gim, "<h2>$1</h2>")
-    .replace(/^# (.*$)/gim, "<h1>$1</h1>")
+    .replace(/^### (.*)$/gim, "<h3>$1</h3>")
+    .replace(/^## (.*)$/gim, "<h2>$1</h2>")
+    .replace(/^# (.*)$/gim, "<h1>$1</h1>")
     .replace(/\*\*(.*?)\*\*/gim, "<strong>$1</strong>")
-    .replace(/^- (.*$)/gim, "<ul><li>$1</li></ul>")
-    .replace(/\n$/gim, "<br>");
+    .replace(/^- (.*)$/gim, "<ul><li>$1</li></ul>")
+    .replace(/\n/gim, "<br>");
 }
 
 function updatePreview() {
-
+  if (!preview || !notesInput) return;
   preview.innerHTML = parseMarkdown(notesInput.value);
   preview.classList.add("visible");
 }
 
-// Initial render
 updatePreview();
 
-notesInput.addEventListener("input", () => {
-  updatePreview();
-});
 /* =========================
-   Flashcards Logic
+   Flashcards
 ========================= */
 
 const questionInput = document.getElementById("questionInput");
 const answerInput = document.getElementById("answerInput");
 const addCardBtn = document.getElementById("addCardBtn");
-
 const flashcardView = document.querySelector(".flashcard-view");
 const flashcard = document.getElementById("flashcard");
 const cardQuestion = document.getElementById("cardQuestion");
 const cardAnswer = document.getElementById("cardAnswer");
-
 const prevBtn = document.getElementById("prevCard");
 const nextBtn = document.getElementById("nextCard");
 const flipBtn = document.getElementById("flipCard");
@@ -231,90 +181,57 @@ function saveCards() {
 }
 
 function showCard() {
-  if (!cards.length) return;
+  if (!cards.length || !flashcardView) return;
 
   flashcardView.classList.remove("hidden");
   flashcard.classList.remove("flipped");
-
   cardQuestion.textContent = cards[current].q;
   cardAnswer.textContent = cards[current].a;
 }
-
-addCardBtn.addEventListener("click", () => {
-  if (!questionInput.value || !answerInput.value) return;
-
-  cards.push({
-    q: questionInput.value,
-    a: answerInput.value
-  });
-
-  saveCards();
-  questionInput.value = "";
-  answerInput.value = "";
-  current = cards.length - 1;
-  showCard();
-});
 
 if (addCardBtn) {
   addCardBtn.addEventListener("click", () => {
     if (!questionInput.value || !answerInput.value) return;
     cards.push({ q: questionInput.value, a: answerInput.value });
     saveCards();
+    current = cards.length - 1;
     questionInput.value = "";
     answerInput.value = "";
-    current = cards.length - 1;
     showCard();
   });
 }
 
-
-prevBtn.addEventListener("click", () => {
+if (flipBtn) flipBtn.addEventListener("click", () => flashcard.classList.toggle("flipped"));
+if (prevBtn) prevBtn.addEventListener("click", () => {
   if (!cards.length) return;
   current = (current - 1 + cards.length) % cards.length;
   showCard();
 });
-
-nextBtn.addEventListener("click", () => {
+if (nextBtn) nextBtn.addEventListener("click", () => {
   if (!cards.length) return;
   current = (current + 1) % cards.length;
   showCard();
 });
 
-if (cards.length) {
-  showCard();
-}
-/* App Navigation */
-function goTo(view) {
-  document.querySelectorAll(".view").forEach(v =>
-    v.classList.add("hidden")
-  );
-  document.getElementById(view + "View").classList.remove("hidden");
-}
-// Make sure navigation works everywhere
-window.goTo = function (view) {
-  const views = document.querySelectorAll(".view");
+showCard();
 
-  views.forEach(v => {
-    v.classList.add("hidden");
+/* =========================
+   Liquid Glass Effects
+========================= */
+
+const card = document.querySelector(".card");
+
+document.querySelectorAll("button").forEach(btn => {
+  btn.addEventListener("click", e => {
+    if (card) {
+      card.classList.add("active");
+      setTimeout(() => card.classList.remove("active"), 300);
+    }
+
+    const rect = btn.getBoundingClientRect();
+    btn.style.setProperty("--x", `${e.clientX - rect.left}px`);
+    btn.style.setProperty("--y", `${e.clientY - rect.top}px`);
+    btn.classList.add("ripple");
+    setTimeout(() => btn.classList.remove("ripple"), 600);
   });
-
-  const target = document.getElementById(view + "View");
-
-  if (target) {
-    // Small timeout lets CSS transition apply cleanly
-    setTimeout(() => {
-      target.classList.remove("hidden");
-    }, 20);
-  }
-};
-
-
-  const target = document.getElementById(view + "View");
-  if (target) {
-    target.classList.remove("hidden");
-  }
-};
-// Ensure splash is shown first
-window.addEventListener("load", () => {
-  goTo("splash");
 });
