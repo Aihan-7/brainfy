@@ -292,12 +292,29 @@ function goTo(view) {
 }
 // Make sure navigation works everywhere
 window.goTo = function (view) {
-  document.querySelectorAll(".view").forEach(v =>
-    v.classList.add("hidden")
-  );
+  const views = document.querySelectorAll(".view");
+
+  views.forEach(v => {
+    v.classList.add("hidden");
+  });
+
+  const target = document.getElementById(view + "View");
+
+  if (target) {
+    // Small timeout lets CSS transition apply cleanly
+    setTimeout(() => {
+      target.classList.remove("hidden");
+    }, 20);
+  }
+};
+
 
   const target = document.getElementById(view + "View");
   if (target) {
     target.classList.remove("hidden");
   }
 };
+// Ensure splash is shown first
+window.addEventListener("load", () => {
+  goTo("splash");
+});
