@@ -466,3 +466,23 @@ textarea::placeholder {
   margin-bottom: 12px;
   cursor: pointer;
 }
+/* =========================
+   View Transitions (iOS-style)
+========================= */
+
+.view {
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+
+.view:not(.hidden) {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.hidden {
+  display: none;
+}
