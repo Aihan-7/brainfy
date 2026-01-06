@@ -332,3 +332,10 @@ textarea::placeholder {
     grid-template-columns: 1fr;
   }
 }
+/* Subtle empty preview hint */
+.preview:empty::before {
+  content: "Preview";
+  color: #475569;
+  font-size: 0.85rem;
+  font-style: italic;
+}
