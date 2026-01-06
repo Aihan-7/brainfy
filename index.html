@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brainfy</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="container">
+    <div class="card">
+
+      <h1>Brainfy</h1>
+      <p>Focus deeply. Study calmly.</p>
+
+      <button id="startBtn">Start Focus Room</button>
+
+      <div id="focusRoom" class="hidden">
+        <h2 id="modeText">Focus</h2>
+        <h2 id="timer">25:00</h2>
+        <p id="sessionsText">Sessions completed: 0</p>
+        <button id="resetBtn">Reset</button>
+        <div class="notes">
+  <h3>Notes</h3>
+
+  <div class="notes-split">
+    <textarea
+      id="notesInput"
+      placeholder="Write notes using Markdown…
+
+# Heading
+## Subheading
+- Bullet point
+**bold**
+"
+    ></textarea>
+
+    <div id="notesPreview" class="preview">
+      <p class="preview-placeholder">Live preview will appear here…</p>
+    </div>
+  </div>
+</div>
+
+
+      </div>
+
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
