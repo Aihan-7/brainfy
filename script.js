@@ -198,3 +198,71 @@ updatePreview();
 notesInput.addEventListener("input", () => {
   updatePreview();
 });
+/* =========================
+   Flashcards Logic
+========================= */
+
+const questionInput = document.getElementById("questionInput");
+const answerInput = document.getElementById("answerInput");
+const addCardBtn = document.getElementById("addCardBtn");
+
+const flashcardView = document.querySelector(".flashcard-view");
+const flashcard = document.getElementById("flashcard");
+const cardQuestion = document.getElementById("cardQuestion");
+const cardAnswer = document.getElementById("cardAnswer");
+
+const prevBtn = document.getElementById("prevCard");
+const nextBtn = document.getElementById("nextCard");
+const flipBtn = document.getElementById("flipCard");
+
+let cards = JSON.parse(localStorage.getItem("brainfy_cards")) || [];
+let current = 0;
+
+function saveCards() {
+  localStorage.setItem("brainfy_cards", JSON.stringify(cards));
+}
+
+function showCard() {
+  if (!cards.length) return;
+
+  flashcardView.classList.remove("hidden");
+  flashcard.classList.remove("flipped");
+
+  cardQuestion.textContent = cards[current].q;
+  cardAnswer.textContent = cards[current].a;
+}
+
+addCardBtn.addEventListener("click", () => {
+  if (!questionInput.value || !answerInput.value) return;
+
+  cards.push({
+    q: questionInput.value,
+    a: answerInput.value
+  });
+
+  saveCards();
+  questionInput.value = "";
+  answerInput.value = "";
+  current = cards.length - 1;
+  showCard();
+});
+
+flipBtn.addEventListener("click", () => {
+  flashcard.classList.toggle("flipped");
+});
+
+prevBtn.addEventListener("click", () => {
+  if (!cards.length) return;
+  current = (current - 1 + cards.length) % cards.length;
+  showCard();
+});
+
+nextBtn.addEventListener("click", () => {
+  if (!cards.length) return;
+  current = (current + 1) % cards.length;
+  showCard();
+});
+
+if (cards.length) {
+  showCard();
+}
