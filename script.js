@@ -187,12 +187,6 @@ function parseMarkdown(text) {
 }
 
 function updatePreview() {
-  if (!notesInput.value.trim()) {
-    preview.innerHTML =
-      '<p class="preview-placeholder">Live preview will appear here…</p>';
-    preview.classList.remove("visible");
-    return;
-  }
 
   preview.innerHTML = parseMarkdown(notesInput.value);
   preview.classList.add("visible");
