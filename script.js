@@ -96,21 +96,26 @@ function startTimer() {
 }
 
 /* ---------- Events ---------- */
-startBtn.addEventListener("click", () => {
-  focusRoom.classList.remove("hidden");
-  startBtn.style.display = "none";
-  updateTimer();
-  startTimer();
-});
+if (startBtn) {
+  startBtn.addEventListener("click", () => {
+    focusRoom.classList.remove("hidden");
+    startBtn.style.display = "none";
+    updateTimer();
+    startTimer();
+  });
+}
 
-resetBtn.addEventListener("click", () => {
-  clearInterval(interval);
-  interval = null;
-  mode = "focus";
-  time = FOCUS_TIME;
-  modeText.textContent = "Focus";
-  updateTimer();
-});
+
+if (resetBtn) {
+  resetBtn.addEventListener("click", () => {
+    clearInterval(interval);
+    interval = null;
+    mode = "focus";
+    time = FOCUS_TIME;
+    modeText.textContent = "Focus";
+    updateTimer();
+  });
+}
 
 /* ---------- Init ---------- */
 updateTimer();
@@ -164,12 +169,15 @@ if (savedNotes) {
 // Save as user types (debounced feel)
 let notesTimer = null;
 
-notesInput.addEventListener("input", () => {
-  clearTimeout(notesTimer);
-  notesTimer = setTimeout(() => {
-    localStorage.setItem("brainfy_notes", notesInput.value);
-  }, 300);
-});
+if (notesInput) {
+  notesInput.addEventListener("input", () => {
+    clearTimeout(notesTimer);
+    notesTimer = setTimeout(() => {
+      localStorage.setItem("brainfy_notes", notesInput.value);
+    }, 300);
+  });
+}
+
 /* =========================
    Live Markdown Preview
 ========================= */
@@ -247,9 +255,18 @@ addCardBtn.addEventListener("click", () => {
   showCard();
 });
 
-flipBtn.addEventListener("click", () => {
-  flashcard.classList.toggle("flipped");
-});
+if (addCardBtn) {
+  addCardBtn.addEventListener("click", () => {
+    if (!questionInput.value || !answerInput.value) return;
+    cards.push({ q: questionInput.value, a: answerInput.value });
+    saveCards();
+    questionInput.value = "";
+    answerInput.value = "";
+    current = cards.length - 1;
+    showCard();
+  });
+}
+
 
 prevBtn.addEventListener("click", () => {
   if (!cards.length) return;
