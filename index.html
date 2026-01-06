@@ -11,25 +11,38 @@
   <div class="container">
     <div class="card">
 
-      <!-- Title -->
-      <h1>Brainfy</h1>
-      <p>Focus deeply. Study calmly.</p>
-
-      <!-- Navigation -->
-      <div class="nav">
-        <button class="nav-btn active" onclick="showView('home')">Home</button>
-        <button class="nav-btn" onclick="showView('focus')">Focus</button>
-        <button class="nav-btn" onclick="showView('notes')">Notes</button>
-        <button class="nav-btn" onclick="showView('cards')">Cards</button>
+      <!-- SPLASH -->
+      <div id="splashView" class="view">
+        <h1>Brainfy</h1>
+        <p>Focus deeply. Study calmly.</p>
+        <button onclick="goTo('home')">Enter Brainfy</button>
       </div>
 
-      <!-- HOME VIEW -->
-      <div id="homeView" class="view">
-        <p>Select a space to begin.</p>
+      <!-- HOME / DASHBOARD -->
+      <div id="homeView" class="view hidden">
+        <h2 class="section-title">Spaces</h2>
+
+        <div class="grid">
+          <div class="tile" onclick="goTo('focus')">
+            <span class="icon">🎯</span>
+            <span>Focus</span>
+          </div>
+
+          <div class="tile" onclick="goTo('notes')">
+            <span class="icon">📝</span>
+            <span>Notes</span>
+          </div>
+
+          <div class="tile" onclick="goTo('cards')">
+            <span class="icon">🃏</span>
+            <span>Flashcards</span>
+          </div>
+        </div>
       </div>
 
-      <!-- FOCUS VIEW -->
+      <!-- FOCUS SPACE -->
       <div id="focusView" class="view hidden">
+        <button class="back" onclick="goTo('home')">← Home</button>
 
         <button id="startBtn">Start Focus Room</button>
 
@@ -39,43 +52,39 @@
           <p id="sessionsText">Sessions completed: 0</p>
           <button id="resetBtn">Reset</button>
         </div>
-
       </div>
 
-      <!-- NOTES VIEW -->
+      <!-- NOTES SPACE -->
       <div id="notesView" class="view hidden">
+        <button class="back" onclick="goTo('home')">← Home</button>
 
         <div class="notes">
           <h3>Notes</h3>
-
           <div class="notes-split">
             <textarea
               id="notesInput"
               placeholder="Write notes using Markdown...
 
 # Heading
-## Subheading
-- Bullet point
+- Bullet
 **bold**"
             ></textarea>
 
             <div id="notesPreview" class="preview"></div>
           </div>
         </div>
-
       </div>
 
-      <!-- FLASHCARDS VIEW -->
+      <!-- FLASHCARDS SPACE -->
       <div id="cardsView" class="view hidden">
+        <button class="back" onclick="goTo('home')">← Home</button>
 
         <div class="flashcards">
           <h3>Flashcards</h3>
 
-          <div class="flashcard-inputs">
-            <input id="questionInput" type="text" placeholder="Question" />
-            <input id="answerInput" type="text" placeholder="Answer" />
-            <button id="addCardBtn">Add Flashcard</button>
-          </div>
+          <input id="questionInput" placeholder="Question" />
+          <input id="answerInput" placeholder="Answer" />
+          <button id="addCardBtn">Add Flashcard</button>
 
           <div class="flashcard-view hidden">
             <div class="flashcard" id="flashcard">
@@ -90,13 +99,7 @@
             </div>
           </div>
         </div>
-
       </div>
-
-      <!-- Footer -->
-      <p style="margin-top:16px; font-size:0.8rem; color:#64748b;">
-        Built for calm focus • Brainfy
-      </p>
 
     </div>
   </div>
