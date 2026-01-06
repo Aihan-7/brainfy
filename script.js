@@ -273,3 +273,14 @@ function goTo(view) {
   );
   document.getElementById(view + "View").classList.remove("hidden");
 }
+// Make sure navigation works everywhere
+window.goTo = function (view) {
+  document.querySelectorAll(".view").forEach(v =>
+    v.classList.add("hidden")
+  );
+
+  const target = document.getElementById(view + "View");
+  if (target) {
+    target.classList.remove("hidden");
+  }
+};
