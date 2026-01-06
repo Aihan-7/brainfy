@@ -1,75 +1,101 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Brainfy</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
   <div class="container">
     <div class="card">
 
+      <!-- Title -->
       <h1>Brainfy</h1>
       <p>Focus deeply. Study calmly.</p>
 
-      <button id="startBtn">Start Focus Room</button>
-
-      <div id="focusRoom" class="hidden">
-        <h2 id="modeText">Focus</h2>
-        <h2 id="timer">25:00</h2>
-        <p id="sessionsText">Sessions completed: 0</p>
-        <button id="resetBtn">Reset</button>
+      <!-- Navigation -->
+      <div class="nav">
+        <button class="nav-btn active" onclick="showView('home')">Home</button>
+        <button class="nav-btn" onclick="showView('focus')">Focus</button>
+        <button class="nav-btn" onclick="showView('notes')">Notes</button>
+        <button class="nav-btn" onclick="showView('cards')">Cards</button>
       </div>
 
-      <!-- Notes -->
-      <div class="notes">
-        <h3>Notes</h3>
+      <!-- HOME VIEW -->
+      <div id="homeView" class="view">
+        <p>Select a space to begin.</p>
+      </div>
 
-        <div class="notes-split">
-          <textarea
-            id="notesInput"
-            placeholder="Write notes using Markdown...
+      <!-- FOCUS VIEW -->
+      <div id="focusView" class="view hidden">
+
+        <button id="startBtn">Start Focus Room</button>
+
+        <div id="focusRoom" class="hidden">
+          <h2 id="modeText">Focus</h2>
+          <h2 id="timer">25:00</h2>
+          <p id="sessionsText">Sessions completed: 0</p>
+          <button id="resetBtn">Reset</button>
+        </div>
+
+      </div>
+
+      <!-- NOTES VIEW -->
+      <div id="notesView" class="view hidden">
+
+        <div class="notes">
+          <h3>Notes</h3>
+
+          <div class="notes-split">
+            <textarea
+              id="notesInput"
+              placeholder="Write notes using Markdown...
 
 # Heading
 ## Subheading
 - Bullet point
 **bold**"
-          ></textarea>
+            ></textarea>
 
-          <div id="notesPreview" class="preview">
             <div id="notesPreview" class="preview"></div>
           </div>
         </div>
+
       </div>
-      <!-- Flashcards -->
-<div class="flashcards">
-  <h3>Flashcards</h3>
 
-  <div class="flashcard-inputs">
-    <input id="questionInput" type="text" placeholder="Question" />
-    <input id="answerInput" type="text" placeholder="Answer" />
-    <button id="addCardBtn">Add Flashcard</button>
-  </div>
+      <!-- FLASHCARDS VIEW -->
+      <div id="cardsView" class="view hidden">
 
-  <div class="flashcard-view hidden">
-    <div class="flashcard" id="flashcard">
-      <div class="front" id="cardQuestion"></div>
-      <div class="back" id="cardAnswer"></div>
-    </div>
+        <div class="flashcards">
+          <h3>Flashcards</h3>
 
-    <div class="flashcard-controls">
-      <button id="prevCard">Prev</button>
-      <button id="flipCard">Flip</button>
-      <button id="nextCard">Next</button>
-    </div>
-  </div>
-</div>
+          <div class="flashcard-inputs">
+            <input id="questionInput" type="text" placeholder="Question" />
+            <input id="answerInput" type="text" placeholder="Answer" />
+            <button id="addCardBtn">Add Flashcard</button>
+          </div>
 
+          <div class="flashcard-view hidden">
+            <div class="flashcard" id="flashcard">
+              <div class="front" id="cardQuestion"></div>
+              <div class="back" id="cardAnswer"></div>
+            </div>
 
+            <div class="flashcard-controls">
+              <button id="prevCard">Prev</button>
+              <button id="flipCard">Flip</button>
+              <button id="nextCard">Next</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
       <p style="margin-top:16px; font-size:0.8rem; color:#64748b;">
-        Built for calm focus • Feedback: aihan@mifthas.com
+        Built for calm focus • Brainfy
       </p>
 
     </div>
