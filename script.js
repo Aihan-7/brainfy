@@ -266,3 +266,10 @@ nextBtn.addEventListener("click", () => {
 if (cards.length) {
   showCard();
 }
+/* App Navigation */
+function goTo(view) {
+  document.querySelectorAll(".view").forEach(v =>
+    v.classList.add("hidden")
+  );
+  document.getElementById(view + "View").classList.remove("hidden");
+}
