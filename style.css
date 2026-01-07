@@ -42,7 +42,7 @@ body {
   position: relative;
   width: 100%;
   max-width: 480px;
-  min-height: 360px; /* 👈 THIS IS THE KEY */
+  min-height: 290px; /* 👈 THIS IS THE KEY */
   padding: 32px;
 
   border-radius: 28px;
