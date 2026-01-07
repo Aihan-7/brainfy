@@ -42,7 +42,7 @@ body {
   position: relative;
   width: 100%;
   max-width: 480px;
-  min-height: 520px; /* 👈 THIS IS THE KEY */
+  min-height: 360px; /* 👈 THIS IS THE KEY */
   padding: 32px;
 
   border-radius: 28px;
@@ -545,4 +545,17 @@ textarea::placeholder {
   padding: 14px;
   border-radius: 16px;
   font-size: 1rem;
+}
+/* Compact splash screen */
+#splashView {
+  justify-content: center;
+  padding-bottom: 24px;
+}
+/* Spacious interior views */
+#homeView,
+#focusView,
+#notesView,
+#cardsView {
+  justify-content: flex-start;
+  padding-top: 32px;
 }
