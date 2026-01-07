@@ -412,3 +412,14 @@ textarea::placeholder {
     transition: none !important;
   }
 }
+/* Hide back button by default */
+.back-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Show only inside space views */
+.space-view .back-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
