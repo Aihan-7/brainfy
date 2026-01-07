@@ -1,9 +1,10 @@
 /* =========================
-   Brainfy – Core Script (Polished)
-   ========================= */
+   Brainfy – Core Script (v3)
+   Aligned with HTML Structure
+========================= */
 
 /* =========================
-   Constants & Storage Keys
+   Constants & Storage
 ========================= */
 
 const STORAGE = {
@@ -17,13 +18,16 @@ const FOCUS_TIME = 25 * 60;
 const BREAK_TIME = 5 * 60;
 
 /* =========================
-   Navigation (iOS-style)
+   Navigation (Views Only)
 ========================= */
 
 let currentView = "splash";
 
 window.goTo = function (view) {
-  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.querySelectorAll(".view").forEach(v =>
+    v.classList.remove("active")
+  );
+
   const target = document.getElementById(view + "View");
   if (!target) return;
 
@@ -55,16 +59,23 @@ const resetBtn = document.getElementById("resetBtn");
 const timerDisplay = document.getElementById("timer");
 const modeText = document.getElementById("modeText");
 const sessionsText = document.getElementById("sessionsText");
+const focusRoom = document.getElementById("focusRoom");
 
 /* =========================
    Session Tracking
 ========================= */
 
-let sessionCount = parseInt(localStorage.getItem(STORAGE.SESSION_COUNT)) || 0;
-let sessionsData = JSON.parse(localStorage.getItem(STORAGE.SESSIONS)) || [];
+let sessionCount =
+  parseInt(localStorage.getItem(STORAGE.SESSION_COUNT)) || 0;
+
+let sessionsData =
+  JSON.parse(localStorage.getItem(STORAGE.SESSIONS)) || [];
+
 let currentSession = null;
 
-if (sessionsText) sessionsText.textContent = `Sessions completed: ${sessionCount}`;
+if (sessionsText)
+  sessionsText.textContent = `Sessions completed: ${sessionCount}`;
+
 if (modeText) modeText.textContent = "Focus";
 
 function startNewSession() {
@@ -79,14 +90,16 @@ function startNewSession() {
 
 function saveCurrentSession() {
   if (!currentSession) return;
+
   currentSession.endTime = Date.now();
   sessionsData.push(currentSession);
   localStorage.setItem(STORAGE.SESSIONS, JSON.stringify(sessionsData));
+
   currentSession = null;
 }
 
 /* =========================
-   Timer Functions
+   Timer Logic
 ========================= */
 
 function updateTimerUI() {
@@ -112,21 +125,21 @@ function switchMode() {
 
     sessionCount++;
     localStorage.setItem(STORAGE.SESSION_COUNT, sessionCount);
-    if (sessionsText) sessionsText.textContent = `Sessions completed: ${sessionCount}`;
+    sessionsText.textContent = `Sessions completed: ${sessionCount}`;
 
     playSound("https://actions.google.com/sounds/v1/alarms/soft_bell.ogg");
     vibrate();
 
     timerState.mode = "break";
     timerState.timeLeft = BREAK_TIME;
-    if (modeText) modeText.textContent = "Break";
+    modeText.textContent = "Break";
   } else {
     playSound("https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg");
     vibrate([20, 30, 20]);
 
     timerState.mode = "focus";
     timerState.timeLeft = FOCUS_TIME;
-    if (modeText) modeText.textContent = "Focus";
+    modeText.textContent = "Focus";
   }
 }
 
@@ -145,21 +158,22 @@ function startTimer() {
   if (timerState.running) return;
 
   timerState.running = true;
-  startBtn && (startBtn.disabled = true);
+  startBtn.disabled = true;
 
   timerState.interval = setInterval(tick, 1000);
 }
 
 function resetTimer() {
   clearInterval(timerState.interval);
-  timerState.running = false;
   timerState.interval = null;
+  timerState.running = false;
 
   timerState.mode = "focus";
   timerState.timeLeft = FOCUS_TIME;
 
-  if (modeText) modeText.textContent = "Focus";
-  startBtn && (startBtn.disabled = false);
+  modeText.textContent = "Focus";
+  startBtn.disabled = false;
+
   updateTimerUI();
 }
 
@@ -172,6 +186,9 @@ startBtn?.addEventListener("click", () => {
   timerState.timeLeft = FOCUS_TIME;
   updateTimerUI();
   startTimer();
+
+  /* 🔑 IMPORTANT: show focus UI */
+  focusRoom?.classList.remove("hidden");
 });
 
 resetBtn?.addEventListener("click", resetTimer);
@@ -209,7 +226,9 @@ function updatePreview() {
 }
 
 if (notesInput) {
-  notesInput.value = localStorage.getItem(STORAGE.NOTES_DRAFT) || "";
+  notesInput.value =
+    localStorage.getItem(STORAGE.NOTES_DRAFT) || "";
+
   updatePreview();
 
   notesInput.addEventListener("input", () => {
@@ -220,7 +239,7 @@ if (notesInput) {
 }
 
 /* =========================
-   Flashcards (Future-proof)
+   Flashcards
 ========================= */
 
 const questionInput = document.getElementById("questionInput");
@@ -232,8 +251,11 @@ const cardAnswer = document.getElementById("cardAnswer");
 const prevBtn = document.getElementById("prevCard");
 const nextBtn = document.getElementById("nextCard");
 const flipBtn = document.getElementById("flipCard");
+const flashcardView = document.querySelector(".flashcard-view");
 
-let cards = JSON.parse(localStorage.getItem(STORAGE.CARDS)) || [];
+let cards =
+  JSON.parse(localStorage.getItem(STORAGE.CARDS)) || [];
+
 let currentCardIndex = 0;
 
 function saveCards() {
@@ -241,11 +263,15 @@ function saveCards() {
 }
 
 function showCard() {
-  if (!cards.length || !flashcard) return;
+  if (!cards.length) return;
+
   const card = cards[currentCardIndex];
   cardQuestion.textContent = card.q;
   cardAnswer.textContent = card.a;
   flashcard.classList.remove("flipped");
+
+  /* 🔑 IMPORTANT: show flashcard UI */
+  flashcardView?.classList.remove("hidden");
 }
 
 addCardBtn?.addEventListener("click", () => {
@@ -262,27 +288,35 @@ addCardBtn?.addEventListener("click", () => {
 
   saveCards();
   currentCardIndex = cards.length - 1;
+
   questionInput.value = "";
   answerInput.value = "";
+
   showCard();
 });
 
-flipBtn?.addEventListener("click", () => flashcard.classList.toggle("flipped"));
+flipBtn?.addEventListener("click", () =>
+  flashcard.classList.toggle("flipped")
+);
+
 prevBtn?.addEventListener("click", () => {
   if (!cards.length) return;
-  currentCardIndex = (currentCardIndex - 1 + cards.length) % cards.length;
+  currentCardIndex =
+    (currentCardIndex - 1 + cards.length) % cards.length;
   showCard();
 });
+
 nextBtn?.addEventListener("click", () => {
   if (!cards.length) return;
-  currentCardIndex = (currentCardIndex + 1) % cards.length;
+  currentCardIndex =
+    (currentCardIndex + 1) % cards.length;
   showCard();
 });
 
 showCard();
 
 /* =========================
-   Liquid Button Ripple
+   Button Ripple Effect
 ========================= */
 
 document.querySelectorAll("button").forEach(btn => {
