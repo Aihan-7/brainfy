@@ -1,6 +1,6 @@
 /* =========================
-   Brainfy – Core Script (v3)
-   Aligned with HTML Structure
+   Brainfy – Core Script (v4)
+   Card-aware & Polished
 ========================= */
 
 /* =========================
@@ -18,12 +18,19 @@ const FOCUS_TIME = 25 * 60;
 const BREAK_TIME = 5 * 60;
 
 /* =========================
-   Navigation (Views Only)
+   DOM Elements (Global)
+========================= */
+
+const card = document.querySelector(".card");
+
+/* =========================
+   Navigation (Views + Card Modes)
 ========================= */
 
 let currentView = "splash";
 
 window.goTo = function (view) {
+  // Switch views
   document.querySelectorAll(".view").forEach(v =>
     v.classList.remove("active")
   );
@@ -32,10 +39,23 @@ window.goTo = function (view) {
   if (!target) return;
 
   currentView = view;
+
+  // Card size logic (IMPORTANT)
+  if (view === "home") {
+    card?.classList.remove("compact");
+    card?.classList.add("spacious");
+  }
+
+  if (view === "splash") {
+    card?.classList.remove("spacious");
+    card?.classList.add("compact");
+  }
+
   requestAnimationFrame(() => target.classList.add("active"));
 };
 
 window.addEventListener("load", () => {
+  card?.classList.add("compact");
   goTo("splash");
 });
 
@@ -51,7 +71,7 @@ const timerState = {
 };
 
 /* =========================
-   DOM Elements
+   Timer DOM
 ========================= */
 
 const startBtn = document.getElementById("startBtn");
@@ -94,7 +114,6 @@ function saveCurrentSession() {
   currentSession.endTime = Date.now();
   sessionsData.push(currentSession);
   localStorage.setItem(STORAGE.SESSIONS, JSON.stringify(sessionsData));
-
   currentSession = null;
 }
 
@@ -159,7 +178,6 @@ function startTimer() {
 
   timerState.running = true;
   startBtn.disabled = true;
-
   timerState.interval = setInterval(tick, 1000);
 }
 
@@ -173,7 +191,6 @@ function resetTimer() {
 
   modeText.textContent = "Focus";
   startBtn.disabled = false;
-
   updateTimerUI();
 }
 
@@ -187,7 +204,7 @@ startBtn?.addEventListener("click", () => {
   updateTimerUI();
   startTimer();
 
-  /* 🔑 IMPORTANT: show focus UI */
+  // Reveal focus UI
   focusRoom?.classList.remove("hidden");
 });
 
@@ -221,8 +238,9 @@ function parseMarkdown(text) {
 
 function updatePreview() {
   if (!notesInput || !notesPreview) return;
-  const safe = escapeHTML(notesInput.value);
-  notesPreview.innerHTML = parseMarkdown(safe);
+  notesPreview.innerHTML = parseMarkdown(
+    escapeHTML(notesInput.value)
+  );
 }
 
 if (notesInput) {
@@ -265,12 +283,11 @@ function saveCards() {
 function showCard() {
   if (!cards.length) return;
 
-  const card = cards[currentCardIndex];
-  cardQuestion.textContent = card.q;
-  cardAnswer.textContent = card.a;
+  const cardData = cards[currentCardIndex];
+  cardQuestion.textContent = cardData.q;
+  cardAnswer.textContent = cardData.a;
   flashcard.classList.remove("flipped");
 
-  /* 🔑 IMPORTANT: show flashcard UI */
   flashcardView?.classList.remove("hidden");
 }
 
