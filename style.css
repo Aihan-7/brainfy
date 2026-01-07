@@ -559,3 +559,7 @@ textarea::placeholder {
   justify-content: flex-start;
   padding-top: 32px;
 }
+#splashView button {
+  width: 100%;
+  max-width: 320px;   /* 👈 adjust this number */
+}
