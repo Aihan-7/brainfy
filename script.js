@@ -2,21 +2,27 @@
    Brainfy – Core Script
    ========================= */
 
-/* ---------- Navigation ---------- */
+/* =========================
+   App Navigation (iOS-style)
+========================= */
+
 window.goTo = function (view) {
   const views = document.querySelectorAll(".view");
 
-  views.forEach(v => v.classList.add("hidden"));
+  views.forEach(v => v.classList.remove("active"));
 
   const target = document.getElementById(view + "View");
   if (target) {
-    setTimeout(() => target.classList.remove("hidden"), 20);
+    requestAnimationFrame(() => {
+      target.classList.add("active");
+    });
   }
 };
 
 window.addEventListener("load", () => {
   goTo("splash");
 });
+
 
 /* ---------- Elements ---------- */
 const startBtn = document.getElementById("startBtn");
