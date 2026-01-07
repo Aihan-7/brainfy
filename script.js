@@ -41,6 +41,31 @@ let time = FOCUS_TIME;
 let interval = null;
 let mode = "focus";
 
+/* =========================
+   Study Sessions
+========================= */
+
+let currentSession = null;
+
+// Load all past sessions
+let sessionsData = JSON.parse(localStorage.getItem("brainfy_sessions")) || [];
+
+function startNewSession() {
+  currentSession = {
+    id: Date.now(),
+    startTime: new Date().toISOString(),
+    notes: ""
+  };
+}
+
+function saveCurrentSession() {
+  if (!currentSession) return;
+
+  sessionsData.push(currentSession);
+  localStorage.setItem("brainfy_sessions", JSON.stringify(sessionsData));
+  currentSession = null;
+}
+
 /* ---------- Sessions ---------- */
 let sessions = parseInt(localStorage.getItem("sessions")) || 0;
 if (sessionsText) sessionsText.textContent = `Sessions completed: ${sessions}`;
@@ -83,19 +108,21 @@ function startTimer() {
     interval = null;
 
     if (mode === "focus") {
-      sessions++;
-      localStorage.setItem("sessions", sessions);
-      if (sessionsText)
-        sessionsText.textContent = `Sessions completed: ${sessions}`;
+  // Save study session
+  saveCurrentSession();
 
-      playSound("focus");
-      vibrate();
+  sessions++;
+  localStorage.setItem("sessions", sessions);
+  sessionsText.textContent = `Sessions completed: ${sessions}`;
 
-      mode = "break";
-      time = BREAK_TIME;
-      if (modeText) modeText.textContent = "Break";
-      startTimer();
-    } else {
+  playSound("focus");
+  vibrate();
+
+  mode = "break";
+  time = BREAK_TIME;
+  modeText.textContent = "Break";
+  startTimer();
+}else {
       playSound("break");
       vibrate([20, 30, 20]);
 
@@ -110,12 +137,16 @@ function startTimer() {
 /* ---------- Focus Events ---------- */
 if (startBtn && focusRoom) {
   startBtn.addEventListener("click", () => {
+    startNewSession();              // 👈 NEW
+    notesInput.value = "";          // fresh notes
+
     focusRoom.classList.remove("hidden");
     startBtn.style.display = "none";
     updateTimer();
     startTimer();
   });
 }
+
 
 if (resetBtn) {
   resetBtn.addEventListener("click", () => {
