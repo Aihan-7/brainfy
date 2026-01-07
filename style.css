@@ -673,4 +673,23 @@ textarea::placeholder {
 .intent-sheet input::placeholder {
   color: #64748b;
 }
+/* =========================
+   Focus Active State
+========================= */
+
+/* Hide start button during focus */
+.card.focus-active #startBtn {
+  display: none;
+}
+
+/* Hide back button during focus */
+.card.focus-active .back-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Center focus room properly */
+.card.focus-active #focusRoom {
+  margin-top: 0;
+}
 
