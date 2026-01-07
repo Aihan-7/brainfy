@@ -1,23 +1,34 @@
 /* =========================
-   Brainfy – Clean Core Script
-   Stable Version
+   Brainfy – Core Script (Polished)
    ========================= */
+
+/* =========================
+   Constants & Storage Keys
+========================= */
+
+const STORAGE = {
+  SESSION_COUNT: "brainfy_session_count",
+  SESSIONS: "brainfy_sessions",
+  CARDS: "brainfy_cards",
+  NOTES_DRAFT: "brainfy_notes_draft"
+};
+
+const FOCUS_TIME = 25 * 60;
+const BREAK_TIME = 5 * 60;
 
 /* =========================
    Navigation (iOS-style)
 ========================= */
 
-window.goTo = function (view) {
-  document.querySelectorAll(".view").forEach(v => {
-    v.classList.remove("active");
-  });
+let currentView = "splash";
 
+window.goTo = function (view) {
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   const target = document.getElementById(view + "View");
-  if (target) {
-    requestAnimationFrame(() => {
-      target.classList.add("active");
-    });
-  }
+  if (!target) return;
+
+  currentView = view;
+  requestAnimationFrame(() => target.classList.add("active"));
 };
 
 window.addEventListener("load", () => {
@@ -25,46 +36,52 @@ window.addEventListener("load", () => {
 });
 
 /* =========================
-   Focus Timer
+   Timer State
+========================= */
+
+const timerState = {
+  mode: "focus",
+  timeLeft: FOCUS_TIME,
+  running: false,
+  interval: null
+};
+
+/* =========================
+   DOM Elements
 ========================= */
 
 const startBtn = document.getElementById("startBtn");
-const timerDisplay = document.getElementById("timer");
 const resetBtn = document.getElementById("resetBtn");
+const timerDisplay = document.getElementById("timer");
 const modeText = document.getElementById("modeText");
 const sessionsText = document.getElementById("sessionsText");
 
-const FOCUS_TIME = 25 * 60;
-const BREAK_TIME = 5 * 60;
-
-let time = FOCUS_TIME;
-let interval = null;
-let mode = "focus";
-
-/* Sessions count */
-let sessions = parseInt(localStorage.getItem("sessions")) || 0;
-if (sessionsText) sessionsText.textContent = `Sessions completed: ${sessions}`;
-if (modeText) modeText.textContent = "Focus";
-
 /* =========================
-   Session Storage
+   Session Tracking
 ========================= */
 
-let sessionsData = JSON.parse(localStorage.getItem("brainfy_sessions")) || [];
+let sessionCount = parseInt(localStorage.getItem(STORAGE.SESSION_COUNT)) || 0;
+let sessionsData = JSON.parse(localStorage.getItem(STORAGE.SESSIONS)) || [];
 let currentSession = null;
+
+if (sessionsText) sessionsText.textContent = `Sessions completed: ${sessionCount}`;
+if (modeText) modeText.textContent = "Focus";
 
 function startNewSession() {
   currentSession = {
     id: Date.now(),
-    startTime: new Date().toISOString(),
+    mode: "focus",
+    startTime: Date.now(),
+    endTime: null,
     notes: ""
   };
 }
 
 function saveCurrentSession() {
   if (!currentSession) return;
+  currentSession.endTime = Date.now();
   sessionsData.push(currentSession);
-  localStorage.setItem("brainfy_sessions", JSON.stringify(sessionsData));
+  localStorage.setItem(STORAGE.SESSIONS, JSON.stringify(sessionsData));
   currentSession = null;
 }
 
@@ -72,94 +89,108 @@ function saveCurrentSession() {
    Timer Functions
 ========================= */
 
-function updateTimer() {
+function updateTimerUI() {
   if (!timerDisplay) return;
-  const m = Math.floor(time / 60);
-  const s = time % 60;
+  const m = Math.floor(timerState.timeLeft / 60);
+  const s = timerState.timeLeft % 60;
   timerDisplay.textContent = `${m}:${s < 10 ? "0" : ""}${s}`;
 }
 
 function playSound(url) {
   const audio = new Audio(url);
   audio.volume = 0.6;
-  audio.play();
+  audio.play().catch(() => {});
 }
 
 function vibrate(pattern = [15]) {
   if (navigator.vibrate) navigator.vibrate(pattern);
 }
 
+function switchMode() {
+  if (timerState.mode === "focus") {
+    saveCurrentSession();
+
+    sessionCount++;
+    localStorage.setItem(STORAGE.SESSION_COUNT, sessionCount);
+    if (sessionsText) sessionsText.textContent = `Sessions completed: ${sessionCount}`;
+
+    playSound("https://actions.google.com/sounds/v1/alarms/soft_bell.ogg");
+    vibrate();
+
+    timerState.mode = "break";
+    timerState.timeLeft = BREAK_TIME;
+    if (modeText) modeText.textContent = "Break";
+  } else {
+    playSound("https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg");
+    vibrate([20, 30, 20]);
+
+    timerState.mode = "focus";
+    timerState.timeLeft = FOCUS_TIME;
+    if (modeText) modeText.textContent = "Focus";
+  }
+}
+
+function tick() {
+  if (!timerState.running) return;
+
+  if (timerState.timeLeft > 0) {
+    timerState.timeLeft--;
+    requestAnimationFrame(updateTimerUI);
+  } else {
+    switchMode();
+  }
+}
+
 function startTimer() {
-  if (interval) return;
+  if (timerState.running) return;
 
-  interval = setInterval(() => {
-    if (time > 0) {
-      time--;
-      updateTimer();
-      return;
-    }
+  timerState.running = true;
+  startBtn && (startBtn.disabled = true);
 
-    clearInterval(interval);
-    interval = null;
+  timerState.interval = setInterval(tick, 1000);
+}
 
-    if (mode === "focus") {
-      saveCurrentSession();
+function resetTimer() {
+  clearInterval(timerState.interval);
+  timerState.running = false;
+  timerState.interval = null;
 
-      sessions++;
-      localStorage.setItem("sessions", sessions);
-      if (sessionsText) sessionsText.textContent = `Sessions completed: ${sessions}`;
+  timerState.mode = "focus";
+  timerState.timeLeft = FOCUS_TIME;
 
-      playSound("https://actions.google.com/sounds/v1/alarms/soft_bell.ogg");
-      vibrate();
-
-      mode = "break";
-      time = BREAK_TIME;
-      if (modeText) modeText.textContent = "Break";
-      startTimer();
-    } else {
-      playSound("https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg");
-      vibrate([20, 30, 20]);
-
-      mode = "focus";
-      time = FOCUS_TIME;
-      if (modeText) modeText.textContent = "Focus";
-      startTimer();
-    }
-  }, 1000);
+  if (modeText) modeText.textContent = "Focus";
+  startBtn && (startBtn.disabled = false);
+  updateTimerUI();
 }
 
 /* =========================
-   Focus Events
+   Timer Events
 ========================= */
 
-if (startBtn) {
-  startBtn.addEventListener("click", () => {
-    startNewSession();
-    time = FOCUS_TIME;
-    updateTimer();
-    startTimer();
-  });
-}
+startBtn?.addEventListener("click", () => {
+  startNewSession();
+  timerState.timeLeft = FOCUS_TIME;
+  updateTimerUI();
+  startTimer();
+});
 
-if (resetBtn) {
-  resetBtn.addEventListener("click", () => {
-    clearInterval(interval);
-    interval = null;
-    mode = "focus";
-    time = FOCUS_TIME;
-    if (modeText) modeText.textContent = "Focus";
-    updateTimer();
-  });
-}
+resetBtn?.addEventListener("click", resetTimer);
 
-updateTimer();
+updateTimerUI();
 
 /* =========================
-   Notes
+   Notes (Safe Markdown)
 ========================= */
 
 const notesInput = document.getElementById("notesInput");
 const notesPreview = document.getElementById("notesPreview");
+
+function escapeHTML(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
 
 function parseMarkdown(text) {
   return text
@@ -173,20 +204,23 @@ function parseMarkdown(text) {
 
 function updatePreview() {
   if (!notesInput || !notesPreview) return;
-  notesPreview.innerHTML = parseMarkdown(notesInput.value);
+  const safe = escapeHTML(notesInput.value);
+  notesPreview.innerHTML = parseMarkdown(safe);
 }
 
 if (notesInput) {
+  notesInput.value = localStorage.getItem(STORAGE.NOTES_DRAFT) || "";
+  updatePreview();
+
   notesInput.addEventListener("input", () => {
-    updatePreview();
+    localStorage.setItem(STORAGE.NOTES_DRAFT, notesInput.value);
     if (currentSession) currentSession.notes = notesInput.value;
+    updatePreview();
   });
 }
 
-updatePreview();
-
 /* =========================
-   Flashcards
+   Flashcards (Future-proof)
 ========================= */
 
 const questionInput = document.getElementById("questionInput");
@@ -199,48 +233,56 @@ const prevBtn = document.getElementById("prevCard");
 const nextBtn = document.getElementById("nextCard");
 const flipBtn = document.getElementById("flipCard");
 
-let cards = JSON.parse(localStorage.getItem("brainfy_cards")) || [];
-let current = 0;
+let cards = JSON.parse(localStorage.getItem(STORAGE.CARDS)) || [];
+let currentCardIndex = 0;
 
 function saveCards() {
-  localStorage.setItem("brainfy_cards", JSON.stringify(cards));
+  localStorage.setItem(STORAGE.CARDS, JSON.stringify(cards));
 }
 
 function showCard() {
-  if (!cards.length) return;
-  cardQuestion.textContent = cards[current].q;
-  cardAnswer.textContent = cards[current].a;
+  if (!cards.length || !flashcard) return;
+  const card = cards[currentCardIndex];
+  cardQuestion.textContent = card.q;
+  cardAnswer.textContent = card.a;
   flashcard.classList.remove("flipped");
 }
 
-if (addCardBtn) {
-  addCardBtn.addEventListener("click", () => {
-    if (!questionInput.value || !answerInput.value) return;
-    cards.push({ q: questionInput.value, a: answerInput.value });
-    saveCards();
-    current = cards.length - 1;
-    questionInput.value = "";
-    answerInput.value = "";
-    showCard();
-  });
-}
+addCardBtn?.addEventListener("click", () => {
+  if (!questionInput.value || !answerInput.value) return;
 
-if (flipBtn) flipBtn.addEventListener("click", () => flashcard.classList.toggle("flipped"));
-if (prevBtn) prevBtn.addEventListener("click", () => {
-  if (!cards.length) return;
-  current = (current - 1 + cards.length) % cards.length;
+  cards.push({
+    id: Date.now(),
+    q: questionInput.value,
+    a: answerInput.value,
+    strength: 0,
+    lastReviewed: null,
+    sourceSessionId: currentSession?.id || null
+  });
+
+  saveCards();
+  currentCardIndex = cards.length - 1;
+  questionInput.value = "";
+  answerInput.value = "";
   showCard();
 });
-if (nextBtn) nextBtn.addEventListener("click", () => {
+
+flipBtn?.addEventListener("click", () => flashcard.classList.toggle("flipped"));
+prevBtn?.addEventListener("click", () => {
   if (!cards.length) return;
-  current = (current + 1) % cards.length;
+  currentCardIndex = (currentCardIndex - 1 + cards.length) % cards.length;
+  showCard();
+});
+nextBtn?.addEventListener("click", () => {
+  if (!cards.length) return;
+  currentCardIndex = (currentCardIndex + 1) % cards.length;
   showCard();
 });
 
 showCard();
 
 /* =========================
-   Liquid Glass Button Effects
+   Liquid Button Ripple
 ========================= */
 
 document.querySelectorAll("button").forEach(btn => {
