@@ -1,6 +1,6 @@
 /* =========================
    Brainfy – Core Script
-   Intent-Driven Study
+   Intent-Driven + Focus State
 ========================= */
 
 /* =========================
@@ -22,11 +22,9 @@ const BREAK_TIME = 5 * 60;
 ========================= */
 
 const card = document.querySelector(".card");
-
-/* Views */
 const views = document.querySelectorAll(".view");
 
-/* Focus */
+/* Focus UI */
 const startBtn = document.getElementById("startBtn");
 const resetBtn = document.getElementById("resetBtn");
 const focusRoom = document.getElementById("focusRoom");
@@ -56,7 +54,7 @@ const flipBtn = document.getElementById("flipCard");
 const flashcardView = document.querySelector(".flashcard-view");
 
 /* =========================
-   Navigation
+   Navigation + Card Modes
 ========================= */
 
 let currentView = "splash";
@@ -69,7 +67,7 @@ window.goTo = function (view) {
 
   currentView = view;
 
-  /* Card sizing */
+  // Card sizing
   if (view === "home") {
     card.classList.remove("compact");
     card.classList.add("spacious");
@@ -87,6 +85,20 @@ window.addEventListener("load", () => {
   card.classList.add("compact");
   goTo("splash");
 });
+
+/* =========================
+   Focus State Helpers
+========================= */
+
+function enterFocusMode() {
+  card.classList.add("focus-active");
+}
+
+function exitFocusMode() {
+  card.classList.remove("focus-active");
+  focusRoom.classList.add("hidden");
+  intentSheet.classList.add("hidden");
+}
 
 /* =========================
    Timer State
@@ -111,8 +123,9 @@ let sessions =
 
 let currentSession = null;
 
-if (sessionsText)
+if (sessionsText) {
   sessionsText.textContent = `Sessions completed: ${sessionCount}`;
+}
 
 function startSession(intent) {
   currentSession = {
@@ -183,11 +196,12 @@ function resetTimer() {
   timer.mode = "focus";
   timer.timeLeft = FOCUS_TIME;
   modeText.textContent = "Focus";
+  exitFocusMode();
   updateTimerUI();
 }
 
 /* =========================
-   Focus Flow (Intent-Driven)
+   Intent-Driven Focus Flow
 ========================= */
 
 startBtn?.addEventListener("click", () => {
@@ -196,14 +210,16 @@ startBtn?.addEventListener("click", () => {
 });
 
 beginFocusBtn?.addEventListener("click", () => {
-  const intent = intentInput.value.trim();
+  const intent = intentInput.value.trim() || "Focus";
 
-  startSession(intent || "Focus");
-  modeText.textContent = intent || "Focus";
+  startSession(intent);
+  modeText.textContent = intent;
 
   intentInput.value = "";
   intentSheet.classList.add("hidden");
   focusRoom.classList.remove("hidden");
+
+  enterFocusMode();
 
   timer.timeLeft = FOCUS_TIME;
   updateTimerUI();
@@ -239,7 +255,9 @@ if (notesInput) {
   notesInput.addEventListener("input", () => {
     localStorage.setItem(STORAGE.NOTES_DRAFT, notesInput.value);
     if (currentSession) currentSession.notes = notesInput.value;
-    notesPreview.innerHTML = parseMarkdown(escapeHTML(notesInput.value));
+    notesPreview.innerHTML = parseMarkdown(
+      escapeHTML(notesInput.value)
+    );
   });
 }
 
