@@ -1,15 +1,16 @@
 /* =========================
-   Brainfy – Core Script
+   Brainfy – Clean Core Script
+   Stable Version
    ========================= */
 
 /* =========================
-   App Navigation (iOS-style)
+   Navigation (iOS-style)
 ========================= */
 
 window.goTo = function (view) {
-  const views = document.querySelectorAll(".view");
-
-  views.forEach(v => v.classList.remove("active"));
+  document.querySelectorAll(".view").forEach(v => {
+    v.classList.remove("active");
+  });
 
   const target = document.getElementById(view + "View");
   if (target) {
@@ -23,32 +24,34 @@ window.addEventListener("load", () => {
   goTo("splash");
 });
 
+/* =========================
+   Focus Timer
+========================= */
 
-/* ---------- Elements ---------- */
 const startBtn = document.getElementById("startBtn");
-const focusRoom = document.getElementById("focusRoom");
 const timerDisplay = document.getElementById("timer");
 const resetBtn = document.getElementById("resetBtn");
-const sessionsText = document.getElementById("sessionsText");
 const modeText = document.getElementById("modeText");
+const sessionsText = document.getElementById("sessionsText");
 
-/* ---------- Time Settings ---------- */
 const FOCUS_TIME = 25 * 60;
 const BREAK_TIME = 5 * 60;
 
-/* ---------- State ---------- */
 let time = FOCUS_TIME;
 let interval = null;
 let mode = "focus";
 
+/* Sessions count */
+let sessions = parseInt(localStorage.getItem("sessions")) || 0;
+if (sessionsText) sessionsText.textContent = `Sessions completed: ${sessions}`;
+if (modeText) modeText.textContent = "Focus";
+
 /* =========================
-   Study Sessions
+   Session Storage
 ========================= */
 
-let currentSession = null;
-
-// Load all past sessions
 let sessionsData = JSON.parse(localStorage.getItem("brainfy_sessions")) || [];
+let currentSession = null;
 
 function startNewSession() {
   currentSession = {
@@ -60,18 +63,15 @@ function startNewSession() {
 
 function saveCurrentSession() {
   if (!currentSession) return;
-
   sessionsData.push(currentSession);
   localStorage.setItem("brainfy_sessions", JSON.stringify(sessionsData));
   currentSession = null;
 }
 
-/* ---------- Sessions ---------- */
-let sessions = parseInt(localStorage.getItem("sessions")) || 0;
-if (sessionsText) sessionsText.textContent = `Sessions completed: ${sessions}`;
-if (modeText) modeText.textContent = "Focus";
+/* =========================
+   Timer Functions
+========================= */
 
-/* ---------- Timer Utils ---------- */
 function updateTimer() {
   if (!timerDisplay) return;
   const m = Math.floor(time / 60);
@@ -79,12 +79,8 @@ function updateTimer() {
   timerDisplay.textContent = `${m}:${s < 10 ? "0" : ""}${s}`;
 }
 
-function playSound(type) {
-  const audio = new Audio(
-    type === "focus"
-      ? "https://actions.google.com/sounds/v1/alarms/soft_bell.ogg"
-      : "https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg"
-  );
+function playSound(url) {
+  const audio = new Audio(url);
   audio.volume = 0.6;
   audio.play();
 }
@@ -93,7 +89,6 @@ function vibrate(pattern = [15]) {
   if (navigator.vibrate) navigator.vibrate(pattern);
 }
 
-/* ---------- Timer Logic ---------- */
 function startTimer() {
   if (interval) return;
 
@@ -108,22 +103,21 @@ function startTimer() {
     interval = null;
 
     if (mode === "focus") {
-  // Save study session
-  saveCurrentSession();
+      saveCurrentSession();
 
-  sessions++;
-  localStorage.setItem("sessions", sessions);
-  sessionsText.textContent = `Sessions completed: ${sessions}`;
+      sessions++;
+      localStorage.setItem("sessions", sessions);
+      if (sessionsText) sessionsText.textContent = `Sessions completed: ${sessions}`;
 
-  playSound("focus");
-  vibrate();
+      playSound("https://actions.google.com/sounds/v1/alarms/soft_bell.ogg");
+      vibrate();
 
-  mode = "break";
-  time = BREAK_TIME;
-  modeText.textContent = "Break";
-  startTimer();
-}else {
-      playSound("break");
+      mode = "break";
+      time = BREAK_TIME;
+      if (modeText) modeText.textContent = "Break";
+      startTimer();
+    } else {
+      playSound("https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg");
       vibrate([20, 30, 20]);
 
       mode = "focus";
@@ -134,19 +128,18 @@ function startTimer() {
   }, 1000);
 }
 
-/* ---------- Focus Events ---------- */
-if (startBtn && focusRoom) {
-  startBtn.addEventListener("click", () => {
-    startNewSession();              // 👈 NEW
-    notesInput.value = "";          // fresh notes
+/* =========================
+   Focus Events
+========================= */
 
-    focusRoom.classList.remove("hidden");
-    startBtn.style.display = "none";
+if (startBtn) {
+  startBtn.addEventListener("click", () => {
+    startNewSession();
+    time = FOCUS_TIME;
     updateTimer();
     startTimer();
   });
 }
-
 
 if (resetBtn) {
   resetBtn.addEventListener("click", () => {
@@ -162,20 +155,11 @@ if (resetBtn) {
 updateTimer();
 
 /* =========================
-   Smart Notes
+   Notes
 ========================= */
 
 const notesInput = document.getElementById("notesInput");
-const preview = document.getElementById("notesPreview");
-
-if (notesInput) {
-  notesInput.value = localStorage.getItem("brainfy_notes") || "";
-
-  notesInput.addEventListener("input", () => {
-    localStorage.setItem("brainfy_notes", notesInput.value);
-    updatePreview();
-  });
-}
+const notesPreview = document.getElementById("notesPreview");
 
 function parseMarkdown(text) {
   return text
@@ -188,9 +172,15 @@ function parseMarkdown(text) {
 }
 
 function updatePreview() {
-  if (!preview || !notesInput) return;
-  preview.innerHTML = parseMarkdown(notesInput.value);
-  preview.classList.add("visible");
+  if (!notesInput || !notesPreview) return;
+  notesPreview.innerHTML = parseMarkdown(notesInput.value);
+}
+
+if (notesInput) {
+  notesInput.addEventListener("input", () => {
+    updatePreview();
+    if (currentSession) currentSession.notes = notesInput.value;
+  });
 }
 
 updatePreview();
@@ -202,7 +192,6 @@ updatePreview();
 const questionInput = document.getElementById("questionInput");
 const answerInput = document.getElementById("answerInput");
 const addCardBtn = document.getElementById("addCardBtn");
-const flashcardView = document.querySelector(".flashcard-view");
 const flashcard = document.getElementById("flashcard");
 const cardQuestion = document.getElementById("cardQuestion");
 const cardAnswer = document.getElementById("cardAnswer");
@@ -218,12 +207,10 @@ function saveCards() {
 }
 
 function showCard() {
-  if (!cards.length || !flashcardView) return;
-
-  flashcardView.classList.remove("hidden");
-  flashcard.classList.remove("flipped");
+  if (!cards.length) return;
   cardQuestion.textContent = cards[current].q;
   cardAnswer.textContent = cards[current].a;
+  flashcard.classList.remove("flipped");
 }
 
 if (addCardBtn) {
@@ -253,18 +240,11 @@ if (nextBtn) nextBtn.addEventListener("click", () => {
 showCard();
 
 /* =========================
-   Liquid Glass Effects
+   Liquid Glass Button Effects
 ========================= */
-
-const card = document.querySelector(".card");
 
 document.querySelectorAll("button").forEach(btn => {
   btn.addEventListener("click", e => {
-    if (card) {
-      card.classList.add("active");
-      setTimeout(() => card.classList.remove("active"), 300);
-    }
-
     const rect = btn.getBoundingClientRect();
     btn.style.setProperty("--x", `${e.clientX - rect.left}px`);
     btn.style.setProperty("--y", `${e.clientY - rect.top}px`);
