@@ -1,21 +1,13 @@
 /* =========================
    Brainfy – Core Script
-   Intent-Driven + Focus State
+   FINAL STABLE VERSION
 ========================= */
 
 /* =========================
    Constants
 ========================= */
 
-const STORAGE = {
-  SESSION_COUNT: "brainfy_session_count",
-  SESSIONS: "brainfy_sessions",
-  CARDS: "brainfy_cards",
-  NOTES_DRAFT: "brainfy_notes_draft"
-};
-
 const FOCUS_TIME = 25 * 60;
-const BREAK_TIME = 5 * 60;
 
 /* =========================
    DOM
@@ -24,18 +16,21 @@ const BREAK_TIME = 5 * 60;
 const card = document.querySelector(".card");
 const views = document.querySelectorAll(".view");
 
-/* Focus UI */
-const startBtn = document.getElementById("startBtn");
-const resetBtn = document.getElementById("resetBtn");
-const focusRoom = document.getElementById("focusRoom");
-const timerDisplay = document.getElementById("timer");
-const modeText = document.getElementById("modeText");
-const sessionsText = document.getElementById("sessionsText");
+/* Navigation buttons */
+const enterBtn = document.getElementById("enterBtn");
+const spaceBtns = document.querySelectorAll("[data-go]");
+const backBtns = document.querySelectorAll(".back-btn");
 
-/* Intent */
+/* Focus */
+const startBtn = document.getElementById("startBtn");
 const intentSheet = document.getElementById("intentSheet");
 const intentInput = document.getElementById("intentInput");
 const beginFocusBtn = document.getElementById("beginFocusBtn");
+const focusRoom = document.getElementById("focusRoom");
+const modeText = document.getElementById("modeText");
+const timerDisplay = document.getElementById("timer");
+const resetBtn = document.getElementById("resetBtn");
+const sessionsText = document.getElementById("sessionsText");
 
 /* Notes */
 const notesInput = document.getElementById("notesInput");
@@ -54,154 +49,75 @@ const flipBtn = document.getElementById("flipCard");
 const flashcardView = document.querySelector(".flashcard-view");
 
 /* =========================
-   Navigation + Card Modes
+   Navigation
 ========================= */
 
-let currentView = "splash";
-
-window.goTo = function (view) {
+function goTo(view) {
   views.forEach(v => v.classList.remove("active"));
+  document.getElementById(view + "View")?.classList.add("active");
 
-  const target = document.getElementById(view + "View");
-  if (!target) return;
-
-  currentView = view;
-
-  // Card sizing
-  if (view === "home") {
+  if (view === "splash") {
+    card.classList.add("compact");
+    card.classList.remove("spacious");
+  } else {
     card.classList.remove("compact");
     card.classList.add("spacious");
   }
-
-  if (view === "splash") {
-    card.classList.remove("spacious");
-    card.classList.add("compact");
-  }
-
-  requestAnimationFrame(() => target.classList.add("active"));
-};
+}
 
 window.addEventListener("load", () => {
   card.classList.add("compact");
   goTo("splash");
 });
 
-/* =========================
-   Focus State Helpers
-========================= */
+enterBtn?.addEventListener("click", () => goTo("home"));
 
-function enterFocusMode() {
-  card.classList.add("focus-active");
-}
+spaceBtns.forEach(btn => {
+  btn.addEventListener("click", () => {
+    goTo(btn.dataset.go);
+  });
+});
 
-function exitFocusMode() {
-  card.classList.remove("focus-active");
-  focusRoom.classList.add("hidden");
-  intentSheet.classList.add("hidden");
-}
-
-/* =========================
-   Timer State
-========================= */
-
-const timer = {
-  mode: "focus",
-  timeLeft: FOCUS_TIME,
-  running: false,
-  interval: null
-};
+backBtns.forEach(btn => {
+  btn.addEventListener("click", () => {
+    if (card.classList.contains("focus-active")) return;
+    goTo("home");
+  });
+});
 
 /* =========================
-   Sessions
+   Focus State
 ========================= */
 
-let sessionCount =
-  parseInt(localStorage.getItem(STORAGE.SESSION_COUNT)) || 0;
+let timer = null;
+let timeLeft = FOCUS_TIME;
+let sessions = 0;
 
-let sessions =
-  JSON.parse(localStorage.getItem(STORAGE.SESSIONS)) || [];
-
-let currentSession = null;
-
-if (sessionsText) {
-  sessionsText.textContent = `Sessions completed: ${sessionCount}`;
-}
-
-function startSession(intent) {
-  currentSession = {
-    id: Date.now(),
-    intent,
-    startTime: Date.now(),
-    endTime: null,
-    notes: ""
-  };
-}
-
-function saveSession() {
-  if (!currentSession) return;
-  currentSession.endTime = Date.now();
-  sessions.push(currentSession);
-  localStorage.setItem(STORAGE.SESSIONS, JSON.stringify(sessions));
-  currentSession = null;
-}
-
-/* =========================
-   Timer Logic
-========================= */
-
-function updateTimerUI() {
-  const m = Math.floor(timer.timeLeft / 60);
-  const s = timer.timeLeft % 60;
+function updateTimer() {
+  const m = Math.floor(timeLeft / 60);
+  const s = timeLeft % 60;
   timerDisplay.textContent = `${m}:${s < 10 ? "0" : ""}${s}`;
 }
 
-function switchMode() {
-  if (timer.mode === "focus") {
-    saveSession();
-
-    sessionCount++;
-    localStorage.setItem(STORAGE.SESSION_COUNT, sessionCount);
-    sessionsText.textContent = `Sessions completed: ${sessionCount}`;
-
-    timer.mode = "break";
-    timer.timeLeft = BREAK_TIME;
-    modeText.textContent = "Break";
-  } else {
-    timer.mode = "focus";
-    timer.timeLeft = FOCUS_TIME;
-    modeText.textContent = currentSession?.intent || "Focus";
-  }
+function enterFocusMode(intent) {
+  card.classList.add("focus-active");
+  modeText.textContent = intent;
+  focusRoom.classList.remove("hidden");
 }
 
-function tick() {
-  if (!timer.running) return;
-
-  if (timer.timeLeft > 0) {
-    timer.timeLeft--;
-    requestAnimationFrame(updateTimerUI);
-  } else {
-    switchMode();
-  }
-}
-
-function startTimer() {
-  if (timer.running) return;
-  timer.running = true;
-  timer.interval = setInterval(tick, 1000);
-}
-
-function resetTimer() {
-  clearInterval(timer.interval);
-  timer.running = false;
-  timer.mode = "focus";
-  timer.timeLeft = FOCUS_TIME;
+function exitFocusMode() {
+  clearInterval(timer);
+  timer = null;
+  timeLeft = FOCUS_TIME;
+  card.classList.remove("focus-active");
+  focusRoom.classList.add("hidden");
+  intentSheet.classList.add("hidden");
   modeText.textContent = "Focus";
-  exitFocusMode();
-  updateTimerUI();
+  updateTimer();
 }
 
 /* =========================
-   Intent-Driven Focus Flow
+   Focus Flow (Intent)
 ========================= */
 
 startBtn?.addEventListener("click", () => {
@@ -212,26 +128,32 @@ startBtn?.addEventListener("click", () => {
 beginFocusBtn?.addEventListener("click", () => {
   const intent = intentInput.value.trim() || "Focus";
 
-  startSession(intent);
-  modeText.textContent = intent;
-
   intentInput.value = "";
   intentSheet.classList.add("hidden");
-  focusRoom.classList.remove("hidden");
 
-  enterFocusMode();
+  enterFocusMode(intent);
 
-  timer.timeLeft = FOCUS_TIME;
-  updateTimerUI();
-  startTimer();
+  timeLeft = FOCUS_TIME;
+  updateTimer();
+
+  timer = setInterval(() => {
+    if (timeLeft <= 0) {
+      sessions++;
+      sessionsText.textContent = `Sessions completed: ${sessions}`;
+      exitFocusMode();
+      return;
+    }
+    timeLeft--;
+    updateTimer();
+  }, 1000);
 });
 
-resetBtn?.addEventListener("click", resetTimer);
+resetBtn?.addEventListener("click", exitFocusMode);
 
-updateTimerUI();
+updateTimer();
 
 /* =========================
-   Notes (Safe Markdown)
+   Notes (Minimal Markdown)
 ========================= */
 
 function escapeHTML(str) {
@@ -249,12 +171,7 @@ function parseMarkdown(text) {
 }
 
 if (notesInput) {
-  notesInput.value =
-    localStorage.getItem(STORAGE.NOTES_DRAFT) || "";
-
   notesInput.addEventListener("input", () => {
-    localStorage.setItem(STORAGE.NOTES_DRAFT, notesInput.value);
-    if (currentSession) currentSession.notes = notesInput.value;
     notesPreview.innerHTML = parseMarkdown(
       escapeHTML(notesInput.value)
     );
@@ -265,14 +182,8 @@ if (notesInput) {
    Flashcards
 ========================= */
 
-let cards =
-  JSON.parse(localStorage.getItem(STORAGE.CARDS)) || [];
-
+let cards = [];
 let cardIndex = 0;
-
-function saveCards() {
-  localStorage.setItem(STORAGE.CARDS, JSON.stringify(cards));
-}
 
 function showCard() {
   if (!cards.length) return;
@@ -287,13 +198,10 @@ addCardBtn?.addEventListener("click", () => {
   if (!questionInput.value || !answerInput.value) return;
 
   cards.push({
-    id: Date.now(),
     q: questionInput.value,
-    a: answerInput.value,
-    sourceIntent: currentSession?.intent || null
+    a: answerInput.value
   });
 
-  saveCards();
   cardIndex = cards.length - 1;
   questionInput.value = "";
   answerInput.value = "";
@@ -315,19 +223,25 @@ nextBtn?.addEventListener("click", () => {
   cardIndex = (cardIndex + 1) % cards.length;
   showCard();
 });
-
-showCard();
-
 /* =========================
-   Button Ripple
+   Button Ripple Effect
 ========================= */
 
 document.querySelectorAll("button").forEach(btn => {
   btn.addEventListener("click", e => {
+    // Skip disabled or hidden buttons
+    if (btn.disabled || btn.offsetParent === null) return;
+
     const rect = btn.getBoundingClientRect();
     btn.style.setProperty("--x", `${e.clientX - rect.left}px`);
     btn.style.setProperty("--y", `${e.clientY - rect.top}px`);
+
+    btn.classList.remove("ripple"); // reset if spam-clicked
+    void btn.offsetWidth;           // force reflow
     btn.classList.add("ripple");
-    setTimeout(() => btn.classList.remove("ripple"), 600);
+
+    setTimeout(() => {
+      btn.classList.remove("ripple");
+    }, 600);
   });
 });
