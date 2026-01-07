@@ -467,25 +467,33 @@ textarea::placeholder {
   cursor: pointer;
 }
 /* =========================
-   View Transitions (iOS-style)
+   iOS-style View Transitions
 ========================= */
 
 .view {
+  position: absolute;
+  inset: 0;
+
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(16px) scale(0.98);
+  pointer-events: none;
+
   transition:
-    opacity 0.35s ease,
-    transform 0.35s ease;
+    opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.view:not(.hidden) {
+.view.active {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
 }
 
-.hidden {
-  display: none;
+/* Container must allow layering */
+.container {
+  position: relative;
 }
+
 /* =========================
    Flashcards – Clean Layout
 ========================= */
