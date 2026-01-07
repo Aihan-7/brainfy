@@ -572,4 +572,26 @@ textarea::placeholder {
 .enter-btn {
   animation: glowPulse 6s ease-in-out infinite;
 }
+/* =========================
+   Card Size Modes
+========================= */
+
+.card {
+  transition:
+    padding 0.45s cubic-bezier(0.22,1,0.36,1),
+    min-height 0.45s cubic-bezier(0.22,1,0.36,1),
+    box-shadow 0.45s ease;
+}
+
+/* Compact – Splash */
+.card.compact {
+  min-height: 300px;
+  padding: 32px;
+}
+
+/* Spacious – Home / Spaces */
+.card.spacious {
+  min-height: 460px;
+  padding: 40px 36px 44px;
+}
 
