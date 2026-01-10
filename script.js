@@ -49,15 +49,20 @@ const flipBtn = document.getElementById("flipCard");
 const flashcardView = document.querySelector(".flashcard-view");
 
 /* =========================
-   Navigation
+   Navigation (Final & Safe)
 ========================= */
 
 function goTo(view) {
+  // Hard lock: block navigation during active focus
   if (card.classList.contains("focus-active")) return;
 
+  // Switch views
   views.forEach(v => v.classList.remove("active"));
-  document.getElementById(view + "View")?.classList.add("active");
+  const target = document.getElementById(view + "View");
+  if (!target) return;
+  target.classList.add("active");
 
+  // Card sizing logic
   if (view === "splash") {
     card.classList.add("compact");
     card.classList.remove("spacious");
@@ -67,27 +72,41 @@ function goTo(view) {
   }
 }
 
+/* ---------- Initial Load ---------- */
+
 window.addEventListener("load", () => {
   card.classList.add("compact");
+  card.classList.remove("spacious");
   goTo("splash");
 });
 
-enterBtn?.addEventListener("click", () => goTo("home"));
+/* ---------- Enter App ---------- */
 
-spaceBtns.forEach(btn =>
-  btn.addEventListener("click", () => goTo(btn.dataset.go))
-);
+enterBtn?.addEventListener("click", () => {
+  goTo("home");
+});
 
-backBtns.forEach(btn =>
+/* ---------- Space Navigation ---------- */
+
+spaceBtns.forEach(btn => {
+  btn.addEventListener("click", () => {
+    const target = btn.dataset.go;
+    if (target) goTo(target);
+  });
+});
+
+/* ---------- Back Buttons ---------- */
+
+backBtns.forEach(btn => {
   btn.addEventListener("click", () => {
     if (card.classList.contains("focus-active")) {
       showExitConfirm();
     } else {
       goTo("home");
     }
-  })
-);
-card.classList.add("focus-active");
+  });
+});
+
 
 /* =========================
    Focus State (Final & Clean)
