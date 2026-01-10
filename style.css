@@ -162,6 +162,53 @@ body::before {
 .card.focus-active #timer {
   margin: 12px 0;
 }
+/* =========================
+   Focus Layout Centering
+========================= */
+
+.card.focus-active .view.active {
+  justify-content: center;
+}
+/* =========================
+   Focus Halo Pulse
+========================= */
+
+@keyframes focusHalo {
+  0% {
+    box-shadow:
+      0 0 0 rgba(56,189,248,0),
+      0 0 0 rgba(56,189,248,0);
+  }
+  50% {
+    box-shadow:
+      0 0 24px rgba(56,189,248,0.18),
+      0 0 48px rgba(56,189,248,0.08);
+  }
+  100% {
+    box-shadow:
+      0 0 0 rgba(56,189,248,0),
+      0 0 0 rgba(56,189,248,0);
+  }
+}
+
+/* Applied only during focus */
+.card.focus-active #timer {
+  animation: focusHalo 1s ease-in-out infinite;
+}
+.card.focus-active #focusRoom {
+  animation: focusEnter 0.4s cubic-bezier(0.22,1,0.36,1);
+}
+
+@keyframes focusEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 
 /* =========================
    Focus Layout (iOS-style)
