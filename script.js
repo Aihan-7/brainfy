@@ -279,26 +279,61 @@ confirmExit.addEventListener("click", () => {
 
 
 /* =========================
-   Notes (Markdown Lite)
+   Notes → Flashcards
 ========================= */
 
-function escapeHTML(str) {
-  return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-}
+const genCardsBtn = document.getElementById("genCardsBtn");
 
-function parseMarkdown(text) {
-  return text
-    .replace(/^### (.*)$/gim,"<h3>$1</h3>")
-    .replace(/^## (.*)$/gim,"<h2>$1</h2>")
-    .replace(/^# (.*)$/gim,"<h1>$1</h1>")
-    .replace(/\*\*(.*?)\*\*/gim,"<strong>$1</strong>")
-    .replace(/\n/gim,"<br>");
-}
+genCardsBtn?.addEventListener("click", () => {
+  const text = notesInput.value.trim();
+  if (!text) return;
 
-notesInput?.addEventListener("input", () => {
-  notesPreview.innerHTML = parseMarkdown(
-    escapeHTML(notesInput.value)
-  );
+  const lines = text
+    .split("\n")
+    .map(l => l.trim())
+    .filter(Boolean);
+
+  let created = 0;
+
+  lines.forEach(line => {
+    // Simple heuristic rules (clean + predictable)
+
+    // Bullet or dash → direct Q/A
+    if (line.startsWith("- ") || line.startsWith("• ")) {
+      const content = line.replace(/^[-•]\s*/, "");
+      cards.push({
+        q: "Explain:",
+        a: content
+      });
+      created++;
+      return;
+    }
+
+    // Colon-based notes → split into Q/A
+    if (line.includes(":")) {
+      const [q, ...rest] = line.split(":");
+      const a = rest.join(":").trim();
+      if (q && a) {
+        cards.push({
+          q: q.trim(),
+          a
+        });
+        created++;
+      }
+    }
+  });
+
+  if (!created) return;
+
+  cardIndex = cards.length - created;
+  updateFlashcardMode();
+  showCard();
+
+  // Optional gentle feedback
+  genCardsBtn.textContent = `Created ${created} cards`;
+  setTimeout(() => {
+    genCardsBtn.textContent = "Generate Flashcards";
+  }, 1600);
 });
 
 /* =========================
