@@ -494,17 +494,20 @@ button.ripple::after {
   margin-top: 16px;
 }
 
-#genCardsBtn {
+/* Add Flashcard – secondary action */
+#addCardBtn {
   width: auto;
-  padding: 12px 28px;
+  min-width: 200px;
+
+  padding: 12px 26px;
+  font-size: 0.95rem;
+
   border-radius: 999px;
 
-  background: rgba(255,255,255,0.08);
-  color: #e5e7eb;
-
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.12),
-    0 8px 22px rgba(0,0,0,0.35);
+    inset 0 1px 0 rgba(255,255,255,0.25),
+    0 8px 20px rgba(56,189,248,0.28),
+    0 12px 28px rgba(0,0,0,0.4);
 }
 
 /* =========================
@@ -563,14 +566,16 @@ button.ripple::after {
   transform: rotateY(180deg);
   color: #38bdf8;
 }
-/* Flashcards layout spacing */
+/* Flashcards layout spacing – relaxed */
 .flashcards h3 {
-  margin-bottom: 22px;
+  margin-bottom: 28px;
 }
 
 .flashcard-inputs {
-  gap: 16px;              /* space between Question & Answer */
-  margin-bottom: 22px;   /* space before Add button */
+  gap: 20px;              /* space between Question & Answer */
+  margin-bottom: 28px;   /* space before button */
+}
+
 }
 /* Flashcard inputs – glass style (same as intent input) */
 .flashcard-inputs input {
@@ -613,7 +618,6 @@ button.ripple::after {
 .flashcard-inputs input {
   border-radius: 18px; /* instead of pill */
 }
-
 /* =========================
    Helpers
 ========================= */
