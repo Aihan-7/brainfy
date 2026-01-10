@@ -204,15 +204,6 @@ addCardBtn?.addEventListener("click", () => {
   updateFlashcardMode();
   showCard();
 });
-let cardIndex = 0;
-
-function updateFlashcardMode() {
-  const wrapper = document.querySelector(".flashcards");
-  if (!wrapper) return;
-
-  wrapper.classList.toggle("has-cards", cards.length > 0);
-}
-
 function showCard() {
   if (!cards.length) return;
 
@@ -350,4 +341,12 @@ function updateFlashcardMode() {
   const hasCards = cards.length > 0;
   document.querySelector(".flashcards")
     .classList.toggle("has-cards", hasCards);
+}
+let cardIndex = 0;
+
+function updateFlashcardMode() {
+  const wrapper = document.querySelector(".flashcards");
+  if (!wrapper) return;
+
+  wrapper.classList.toggle("has-cards", cards.length > 0);
 }
