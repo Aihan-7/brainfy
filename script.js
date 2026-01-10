@@ -106,7 +106,7 @@ function startTimer() {
     if (timeLeft <= 0) {
       sessions++;
       sessionsText.textContent = `Sessions completed: ${sessions}`;
-      exitFocusMode();
+      endFocusSession();
       return;
     }
     timeLeft--;
@@ -137,6 +137,27 @@ function exitFocusMode() {
   focusRoom.classList.add("hidden");
   timeLeft = FOCUS_TIME;
   updateTimer();
+}
+function endFocusSession() {
+  stopTimer();
+
+  // Fade out timer
+  focusRoom.style.opacity = "0";
+  focusRoom.style.transform = "scale(0.96)";
+
+  setTimeout(() => {
+    focusRoom.classList.add("hidden");
+
+    const complete = document.getElementById("focusComplete");
+    complete.classList.remove("hidden");
+
+    requestAnimationFrame(() => {
+      complete.classList.add("show");
+    });
+
+    sessions++;
+    sessionsText.textContent = `Sessions completed: ${sessions}`;
+  }, 350);
 }
 
 /* Intent flow */
