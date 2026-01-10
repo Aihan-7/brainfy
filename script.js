@@ -204,6 +204,37 @@ addCardBtn?.addEventListener("click", () => {
   updateFlashcardMode();
   showCard();
 });
+let cardIndex = 0;
+
+function updateFlashcardMode() {
+  const wrapper = document.querySelector(".flashcards");
+  if (!wrapper) return;
+
+  wrapper.classList.toggle("has-cards", cards.length > 0);
+}
+
+function showCard() {
+  if (!cards.length) return;
+
+  const card = cards[cardIndex];
+  cardQuestion.textContent = card.q;
+  cardAnswer.textContent = card.a;
+
+  flashcard.classList.remove("flipped");
+}
+flipBtn.addEventListener("click", () => {
+  flashcard.classList.toggle("flipped");
+});
+
+nextBtn.addEventListener("click", () => {
+  cardIndex = (cardIndex + 1) % cards.length;
+  showCard();
+});
+
+prevBtn.addEventListener("click", () => {
+  cardIndex = (cardIndex - 1 + cards.length) % cards.length;
+  showCard();
+});
 
 flipBtn?.addEventListener("click", () => {
   if (!cards.length) return;
