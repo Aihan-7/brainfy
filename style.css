@@ -930,3 +930,28 @@ input:focus {
   );
   margin-bottom: 12px;
 }
+/* Flashcard modes */
+.flashcard-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 32px;
+}
+
+/* Review mode hidden by default */
+.flashcard-view {
+  display: none;
+}
+
+/* When cards exist */
+.flashcards.has-cards .flashcard-inputs {
+  display: none;
+}
+
+.flashcards.has-cards .flashcard-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  margin-top: 40px;
+}
