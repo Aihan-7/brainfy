@@ -1,6 +1,6 @@
 /* =========================
    Brainfy – Core Script
-   Flow Lock Mode (Final)
+   Flow Lock Mode (Clean)
 ========================= */
 
 /* =========================
@@ -53,13 +53,11 @@ const flashcardView = document.querySelector(".flashcard-view");
 ========================= */
 
 function goTo(view) {
-  // Block navigation during focus
   if (card.classList.contains("focus-active")) return;
 
   views.forEach(v => v.classList.remove("active"));
   document.getElementById(view + "View")?.classList.add("active");
 
-  // Card sizing
   if (view === "splash") {
     card.classList.add("compact");
     card.classList.remove("spacious");
@@ -76,19 +74,19 @@ window.addEventListener("load", () => {
 
 enterBtn?.addEventListener("click", () => goTo("home"));
 
-spaceBtns.forEach(btn => {
-  btn.addEventListener("click", () => goTo(btn.dataset.go));
-});
+spaceBtns.forEach(btn =>
+  btn.addEventListener("click", () => goTo(btn.dataset.go))
+);
 
-backBtns.forEach(btn => {
+backBtns.forEach(btn =>
   btn.addEventListener("click", () => {
     if (card.classList.contains("focus-active")) {
       showExitConfirm();
     } else {
       goTo("home");
     }
-  });
-});
+  })
+);
 
 /* =========================
    Focus State
@@ -106,49 +104,8 @@ function updateTimer() {
 
 function enterFocusMode(intent) {
   card.classList.add("focus-active");
-  modeText.textContent = intent;
+  modeText.textContent = intent || "Focus";
   focusRoom.classList.remove("hidden");
-}
-const beginFocusBtn = document.getElementById("beginFocusBtn");
-const card = document.querySelector(".card");
-const focusRoom = document.getElementById("focusRoom");
-
-beginFocusBtn?.addEventListener("click", () => {
-  intentSheet.classList.add("hidden");
-  intentSheet.classList.remove("show");
-
-  card.classList.add("focus-active");
-
-  focusRoom.classList.remove("hidden");
-});
-
-function exitFocusMode() {
-  clearInterval(timer);
-  timer = null;
-  timeLeft = FOCUS_TIME;
-  card.classList.remove("focus-active");
-  focusRoom.classList.add("hidden");
-  intentSheet.classList.add("hidden");
-  modeText.textContent = "Focus";
-  updateTimer();
-}
-
-/* =========================
-   Intent Flow
-========================= */
-
-startBtn?.addEventListener("click", () => {
-  intentSheet.classList.remove("hidden");
-  intentInput.focus();
-});
-
-beginFocusBtn?.addEventListener("click", () => {
-  const intent = intentInput.value.trim() || "Focus";
-
-  intentInput.value = "";
-  intentSheet.classList.add("hidden");
-
-  enterFocusMode(intent);
 
   timeLeft = FOCUS_TIME;
   updateTimer();
@@ -163,6 +120,39 @@ beginFocusBtn?.addEventListener("click", () => {
     timeLeft--;
     updateTimer();
   }, 1000);
+}
+
+function exitFocusMode() {
+  clearInterval(timer);
+  timer = null;
+  timeLeft = FOCUS_TIME;
+
+  card.classList.remove("focus-active");
+  focusRoom.classList.add("hidden");
+  intentSheet.classList.add("hidden");
+
+  modeText.textContent = "Focus";
+  updateTimer();
+}
+
+/* =========================
+   Intent Flow
+========================= */
+
+startBtn?.addEventListener("click", () => {
+  intentSheet.classList.remove("hidden");
+  requestAnimationFrame(() => {
+    intentSheet.classList.add("show");
+    intentInput.focus();
+  });
+});
+
+beginFocusBtn?.addEventListener("click", () => {
+  const intent = intentInput.value.trim();
+  intentInput.value = "";
+  intentSheet.classList.remove("show");
+  intentSheet.classList.add("hidden");
+  enterFocusMode(intent);
 });
 
 resetBtn?.addEventListener("click", exitFocusMode);
@@ -170,7 +160,7 @@ resetBtn?.addEventListener("click", exitFocusMode);
 updateTimer();
 
 /* =========================
-   Exit Confirmation (Flow Lock)
+   Exit Confirmation
 ========================= */
 
 const exitConfirm = document.createElement("div");
@@ -196,7 +186,6 @@ function hideExitConfirm() {
 }
 
 cancelExit.addEventListener("click", hideExitConfirm);
-
 confirmExit.addEventListener("click", () => {
   hideExitConfirm();
   exitFocusMode();
@@ -207,26 +196,23 @@ confirmExit.addEventListener("click", () => {
 ========================= */
 
 function escapeHTML(str) {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
 function parseMarkdown(text) {
   return text
-    .replace(/^### (.*)$/gim, "<h3>$1</h3>")
-    .replace(/^## (.*)$/gim, "<h2>$1</h2>")
-    .replace(/^# (.*)$/gim, "<h1>$1</h1>")
-    .replace(/\*\*(.*?)\*\*/gim, "<strong>$1</strong>")
-    .replace(/^- (.*)$/gim, "<ul><li>$1</li></ul>")
-    .replace(/\n/gim, "<br>");
+    .replace(/^### (.*)$/gim,"<h3>$1</h3>")
+    .replace(/^## (.*)$/gim,"<h2>$1</h2>")
+    .replace(/^# (.*)$/gim,"<h1>$1</h1>")
+    .replace(/\*\*(.*?)\*\*/gim,"<strong>$1</strong>")
+    .replace(/\n/gim,"<br>");
 }
 
-if (notesInput) {
-  notesInput.addEventListener("input", () => {
-    notesPreview.innerHTML = parseMarkdown(
-      escapeHTML(notesInput.value)
-    );
-  });
-}
+notesInput?.addEventListener("input", () => {
+  notesPreview.innerHTML = parseMarkdown(
+    escapeHTML(notesInput.value)
+  );
+});
 
 /* =========================
    Flashcards
@@ -247,12 +233,9 @@ function showCard() {
 addCardBtn?.addEventListener("click", () => {
   if (!questionInput.value || !answerInput.value) return;
 
-  cards.push({
-    q: questionInput.value,
-    a: answerInput.value
-  });
-
+  cards.push({ q: questionInput.value, a: answerInput.value });
   cardIndex = cards.length - 1;
+
   questionInput.value = "";
   answerInput.value = "";
   showCard();
@@ -290,19 +273,6 @@ document.querySelectorAll("button").forEach(btn => {
     void btn.offsetWidth;
     btn.classList.add("ripple");
 
-    setTimeout(() => {
-      btn.classList.remove("ripple");
-    }, 600);
-  });
-});
-const intentSheet = document.getElementById("intentSheet");
-const intentInput = document.getElementById("intentInput");
-const startBtn = document.getElementById("startBtn");
-
-startBtn?.addEventListener("click", () => {
-  intentSheet.classList.remove("hidden");
-  requestAnimationFrame(() => {
-    intentSheet.classList.add("show");
-    intentInput.focus();
+    setTimeout(() => btn.classList.remove("ripple"), 600);
   });
 });
