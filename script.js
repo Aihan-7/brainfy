@@ -214,11 +214,14 @@ function exitFocusMode() {
 
   card.classList.remove("focus-active");
   card.classList.remove("intent-active");
+  focusRoom.classList.add("hidden");
 }
 
 /* ---------- Intent Flow ---------- */
 
 startBtn?.addEventListener("click", () => {
+  if (card.classList.contains("focus-active")) return;
+
   card.classList.add("intent-active");
   intentSheet.classList.remove("hidden");
 
