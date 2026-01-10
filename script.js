@@ -87,6 +87,7 @@ backBtns.forEach(btn =>
     }
   })
 );
+card.classList.add("focus-active");
 
 /* =========================
    Focus State
