@@ -1087,3 +1087,12 @@ input:focus {
   gap: 28px;
   margin-top: 40px;
 }
+#sessionComplete {
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+#sessionComplete.hidden {
+  opacity: 0;
+  transform: scale(0.96);
+  pointer-events: none;
+}
