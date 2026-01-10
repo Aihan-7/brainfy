@@ -109,6 +109,18 @@ function enterFocusMode(intent) {
   modeText.textContent = intent;
   focusRoom.classList.remove("hidden");
 }
+const beginFocusBtn = document.getElementById("beginFocusBtn");
+const card = document.querySelector(".card");
+const focusRoom = document.getElementById("focusRoom");
+
+beginFocusBtn?.addEventListener("click", () => {
+  intentSheet.classList.add("hidden");
+  intentSheet.classList.remove("show");
+
+  card.classList.add("focus-active");
+
+  focusRoom.classList.remove("hidden");
+});
 
 function exitFocusMode() {
   clearInterval(timer);
