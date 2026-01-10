@@ -25,7 +25,7 @@ body {
 
 /* Ambient motion */
 body::before {
-  content: \"\";
+  content: "";
   position: fixed;
   inset: -20%;
   background: radial-gradient(
@@ -318,7 +318,7 @@ button:active {
 }
 
 button::after {
-  content: \"\";
+  content: "";
   position: absolute;
   inset: 0;
   background: radial-gradient(
