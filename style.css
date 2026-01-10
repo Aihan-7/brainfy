@@ -83,23 +83,20 @@ body::before {
     box-shadow 0.45s ease;
 }
 /* =========================
-   Card Resize Animation
+   Card Resize & Navigation
 ========================= */
 
 .card {
+  position: relative;
   transition:
-    padding 0.45s cubic-bezier(0.22, 1, 0.36, 1),
-    min-height 0.45s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.45s cubic-bezier(0.22,1,0.36,1),
+    min-height 0.45s cubic-bezier(0.22,1,0.36,1),
+    transform 0.45s cubic-bezier(0.22,1,0.36,1),
     box-shadow 0.45s ease;
 }
 
-/* Subtle depth during navigation */
 .card.is-navigating {
   transform: scale(0.985);
-  box-shadow:
-    0 14px 40px rgba(0,0,0,0.45),
-    inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
 /* Card size modes */
@@ -113,146 +110,41 @@ body::before {
   padding: 40px 36px 44px;
 }
 
-/* Focus dim */
-.card.focus-active::after {
-  content: "";
+/* =========================
+   Views (single source of truth)
+========================= */
+
+.view {
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-    circle at center,
-    transparent 40%,
-    rgba(2,6,23,0.35)
-  );
-  pointer-events: none;
-}
-/* Focus lock halo */
-.card.focus-active::before {
-  content: "";
-  position: absolute;
-  inset: -20%;
-  background: radial-gradient(
-    circle at center,
-    rgba(56,189,248,0.35),
-    transparent 60%
-  );
-  opacity: 0;
-  animation: focusHalo 1.8s ease-out forwards;
-  pointer-events: none;
-}
 
-@keyframes focusHalo {
-  0% {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  30% {
-    opacity: 0.5;
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1.05);
-  }
-}
-.card.focus-active #modeText,
-.card.focus-active #timer,
-.card.focus-active #sessionsText {
-  margin-top: 0;
-  margin-bottom: 0;
-}
-.card.focus-active #timer {
-  margin: 12px 0;
-}
-/* =========================
-   Focus Layout Centering
-========================= */
-
-.card.focus-active .view.active {
-  justify-content: center;
-}
-/* =========================
-   Focus Halo Pulse
-========================= */
-
-@keyframes focusHalo {
-  0% {
-    box-shadow:
-      0 0 0 rgba(56,189,248,0),
-      0 0 0 rgba(56,189,248,0);
-  }
-  50% {
-    box-shadow:
-      0 0 24px rgba(56,189,248,0.18),
-      0 0 48px rgba(56,189,248,0.08);
-  }
-  100% {
-    box-shadow:
-      0 0 0 rgba(56,189,248,0),
-      0 0 0 rgba(56,189,248,0);
-  }
-}
-
-/* Applied only during focus */
-.card.focus-active #timer {
-  animation: focusHalo 1s ease-in-out infinite;
-}
-.card.focus-active #focusRoom {
-  animation: focusEnter 0.4s cubic-bezier(0.22,1,0.36,1);
-}
-
-@keyframes focusEnter {
-  from {
-    opacity: 0;
-    transform: translateY(6px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-/* =========================
-   Focus Layout (iOS-style)
-========================= */
-
-.card.focus-active {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-}
 
-.card.focus-active .view.active {
-  justify-content: center;
-  padding-top: 0;
-}
-/* Focus centering */
-.card.focus-active {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+  text-align: center;
 
-.card.focus-active #focusRoom {
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-}
-/* Back button behavior */
-.card.focus-active .back-btn {
   opacity: 0;
+  transform: translateY(14px) scale(0.98);
   pointer-events: none;
+
+  transition:
+    opacity 0.35s cubic-bezier(0.22,1,0.36,1),
+    transform 0.35s cubic-bezier(0.22,1,0.36,1);
 }
 
-.card.intent-active .back-btn,
-#focusView.active .back-btn {
+.view.active {
   opacity: 1;
+  transform: translateY(0) scale(1);
   pointer-events: auto;
 }
 
 /* =========================
-   Focus State Visibility
+   Focus View Layout States
 ========================= */
 
-/* Default: only start button visible */
+/* Default (idle) */
 #focusView #startBtn {
   display: block;
 }
@@ -279,37 +171,64 @@ body::before {
 
 .card.focus-active #focusRoom {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
 }
 
 /* =========================
-   Views
+   Focus Centering (iOS-style)
 ========================= */
-.view {
-  position: absolute;
-  inset: 0;
 
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.card.focus-active .view.active {
   justify-content: center;
-  text-align: center;
+}
 
+/* =========================
+   Focus Entrance Animation
+========================= */
+
+@keyframes focusEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.card.focus-active #focusRoom {
+  animation: focusEnter 0.4s cubic-bezier(0.22,1,0.36,1);
+}
+
+/* =========================
+   Focus Halo Pulse (synced to seconds)
+========================= */
+
+@keyframes focusPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(56,189,248,0);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(56,189,248,0.22);
+  }
+}
+
+.card.focus-active #timer {
+  animation: focusPulse 1s ease-in-out infinite;
+}
+
+/* =========================
+   Back Button Logic (clean)
+========================= */
+
+.back-btn {
   opacity: 0;
-  transform: translateY(14px) scale(0.98);
   pointer-events: none;
-
-  transition:
-    opacity 0.35s cubic-bezier(0.22,1,0.36,1),
-    transform 0.35s cubic-bezier(0.22,1,0.36,1);
 }
 
-.view.active {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  pointer-events: auto;
-}
-
-/* Show back button in space views */
 #focusView.active .back-btn,
 #notesView.active .back-btn,
 #cardsView.active .back-btn {
@@ -317,15 +236,9 @@ body::before {
   pointer-events: auto;
 }
 
-
-
-/* Interior spacing */
-#homeView,
-#focusView,
-#notesView,
-#cardsView {
-  justify-content: flex-start;
-  padding-top: 32px;
+.card.focus-active .back-btn {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* =========================
