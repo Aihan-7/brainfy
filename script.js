@@ -82,8 +82,18 @@ const sessionsText = document.getElementById("sessionsText");
    Navigation
 ========================= */
 function goTo(view) {
-  views.forEach(v => v.classList.remove("active"));
-  document.getElementById(view + "View")?.classList.add("active");
+  views.forEach(v => {
+    v.classList.remove("active");
+    v.style.display = "none";
+  });
+
+  const target = document.getElementById(view + "View");
+  if (!target) return;
+
+  target.style.display = "flex";
+  requestAnimationFrame(() => {
+    target.classList.add("active");
+  });
 
   if (view === "splash") {
     card.classList.add("compact");
@@ -93,6 +103,17 @@ function goTo(view) {
     card.classList.add("spacious");
   }
 }
+window.addEventListener("DOMContentLoaded", () => {
+  card.classList.remove("focus-active", "intent-active");
+
+  views.forEach(v => {
+    v.classList.remove("active");
+    v.style.display = "none";
+  });
+
+  goTo("splash");
+});
+
 
 /* Initial load */
 window.addEventListener("DOMContentLoaded", () => {
