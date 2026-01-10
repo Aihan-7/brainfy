@@ -1,4 +1,4 @@
-"/* =========================
+/* =========================
    Brainfy – Core Script
    Clean & Stable Version
 ========================= */
@@ -436,4 +436,4 @@ document.querySelectorAll(\"button\").forEach(btn => {
     setTimeout(() => btn.classList.remove(\"ripple\"), 600);
   });
 });
-"
+
