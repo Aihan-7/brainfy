@@ -160,6 +160,13 @@ beginFocusBtn?.addEventListener("click", () => {
 resetBtn?.addEventListener("click", exitFocusMode);
 
 updateTimer();
+intentInput?.addEventListener("focus", () => {
+  card.classList.add("typing");
+});
+
+intentInput?.addEventListener("blur", () => {
+  card.classList.remove("typing");
+});
 
 /* =========================
    Flashcards Core
