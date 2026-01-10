@@ -90,12 +90,14 @@ backBtns.forEach(btn =>
 card.classList.add("focus-active");
 
 /* =========================
-   Focus State
+   Focus State (Final & Clean)
 ========================= */
 
 let timer = null;
 let timeLeft = FOCUS_TIME;
 let sessions = 0;
+
+/* ---------- Timer ---------- */
 
 function updateTimer() {
   const m = Math.floor(timeLeft / 60);
@@ -103,13 +105,8 @@ function updateTimer() {
   timerDisplay.textContent = `${m}:${s < 10 ? "0" : ""}${s}`;
 }
 
-function enterFocusMode(intent) {
-  card.classList.add("focus-active");
-  modeText.textContent = intent || "Focus";
-  focusRoom.classList.remove("hidden");
-
-  timeLeft = FOCUS_TIME;
-  updateTimer();
+function startTimer() {
+  if (timer) return;
 
   timer = setInterval(() => {
     if (timeLeft <= 0) {
@@ -118,30 +115,47 @@ function enterFocusMode(intent) {
       exitFocusMode();
       return;
     }
+
     timeLeft--;
     updateTimer();
   }, 1000);
 }
 
-function exitFocusMode() {
+function stopTimer() {
   clearInterval(timer);
   timer = null;
-  timeLeft = FOCUS_TIME;
-
-  card.classList.remove("focus-active");
-  focusRoom.classList.add("hidden");
-  intentSheet.classList.add("hidden");
-
-  modeText.textContent = "Focus";
-  updateTimer();
 }
 
-/* =========================
-   Intent Flow
-========================= */
+/* ---------- Focus Modes ---------- */
+
+function enterFocusMode(intent) {
+  card.classList.remove("intent-active");
+  card.classList.add("focus-active");
+
+  modeText.textContent = intent || "Focus";
+  focusRoom.classList.remove("hidden");
+
+  timeLeft = FOCUS_TIME;
+  updateTimer();
+  startTimer();
+}
+
+function exitFocusMode() {
+  stopTimer();
+
+  timeLeft = FOCUS_TIME;
+  updateTimer();
+
+  card.classList.remove("focus-active");
+  card.classList.remove("intent-active");
+}
+
+/* ---------- Intent Flow ---------- */
 
 startBtn?.addEventListener("click", () => {
+  card.classList.add("intent-active");
   intentSheet.classList.remove("hidden");
+
   requestAnimationFrame(() => {
     intentSheet.classList.add("show");
     intentInput.focus();
@@ -149,10 +163,12 @@ startBtn?.addEventListener("click", () => {
 });
 
 beginFocusBtn?.addEventListener("click", () => {
-  const intent = intentInput.value.trim();
+  const intent = intentInput.value.trim() || "Focus";
+
   intentInput.value = "";
   intentSheet.classList.remove("show");
   intentSheet.classList.add("hidden");
+
   enterFocusMode(intent);
 });
 
@@ -191,6 +207,7 @@ confirmExit.addEventListener("click", () => {
   hideExitConfirm();
   exitFocusMode();
 });
+
 
 /* =========================
    Notes (Markdown Lite)
@@ -275,5 +292,14 @@ document.querySelectorAll("button").forEach(btn => {
     btn.classList.add("ripple");
 
     setTimeout(() => btn.classList.remove("ripple"), 600);
+  });
+});
+startBtn?.addEventListener("click", () => {
+  card.classList.add("intent-active");
+  intentSheet.classList.remove("hidden");
+
+  requestAnimationFrame(() => {
+    intentSheet.classList.add("show");
+    intentInput.focus();
   });
 });
