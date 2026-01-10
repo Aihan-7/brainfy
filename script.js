@@ -53,16 +53,15 @@ const flashcardView = document.querySelector(".flashcard-view");
 ========================= */
 
 function goTo(view) {
-  // Hard lock: block navigation during active focus
   if (card.classList.contains("focus-active")) return;
 
-  // Switch views
+  card.classList.add("is-navigating");
+
   views.forEach(v => v.classList.remove("active"));
   const target = document.getElementById(view + "View");
   if (!target) return;
   target.classList.add("active");
 
-  // Card sizing logic
   if (view === "splash") {
     card.classList.add("compact");
     card.classList.remove("spacious");
@@ -70,6 +69,10 @@ function goTo(view) {
     card.classList.remove("compact");
     card.classList.add("spacious");
   }
+
+  setTimeout(() => {
+    card.classList.remove("is-navigating");
+  }, 450);
 }
 
 /* ---------- Initial Load ---------- */
@@ -105,6 +108,50 @@ backBtns.forEach(btn => {
       goTo("home");
     }
   });
+});
+/* =========================
+   Swipe Back (iOS-style)
+========================= */
+
+let touchStartX = 0;
+let touchStartY = 0;
+const SWIPE_EDGE = 30;
+const SWIPE_THRESHOLD = 80;
+
+document.addEventListener("touchstart", e => {
+  if (card.classList.contains("focus-active")) return;
+
+  const t = e.touches[0];
+  touchStartX = t.clientX;
+  touchStartY = t.clientY;
+});
+
+document.addEventListener("touchmove", e => {
+  if (card.classList.contains("focus-active")) return;
+
+  const t = e.touches[0];
+  const dx = t.clientX - touchStartX;
+  const dy = Math.abs(t.clientY - touchStartY);
+
+  // Must start near left edge
+  if (touchStartX > SWIPE_EDGE) return;
+
+  // Must be horizontal
+  if (dx < 0 || dx < dy) return;
+
+  // Prevent browser back
+  if (dx > 10) e.preventDefault();
+}, { passive: false });
+
+document.addEventListener("touchend", e => {
+  if (card.classList.contains("focus-active")) return;
+
+  const dx = e.changedTouches[0].clientX - touchStartX;
+
+  // Only swipe far enough
+  if (dx > SWIPE_THRESHOLD) {
+    goTo("home");
+  }
 });
 
 
