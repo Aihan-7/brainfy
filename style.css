@@ -158,16 +158,61 @@ body::before {
   justify-content: center;
   padding-top: 0;
 }
-/* Focus Room Centering */
-
-#focusRoom {
+/* Focus centering */
+.card.focus-active {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
+}
 
+.card.focus-active #focusRoom {
+  align-items: center;
+  justify-content: center;
   gap: 14px;
-  margin: 0;
+}
+/* Back button behavior */
+.card.focus-active .back-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.card.intent-active .back-btn,
+#focusView.active .back-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* =========================
+   Focus State Visibility
+========================= */
+
+/* Default: only start button visible */
+#focusView #startBtn {
+  display: block;
+}
+
+#focusView #intentSheet,
+#focusView #focusRoom {
+  display: none;
+}
+
+/* Intent mode */
+.card.intent-active #startBtn {
+  display: none;
+}
+
+.card.intent-active #intentSheet {
+  display: block;
+}
+
+/* Active focus mode */
+.card.focus-active #startBtn,
+.card.focus-active #intentSheet {
+  display: none;
+}
+
+.card.focus-active #focusRoom {
+  display: flex;
 }
 
 /* =========================
