@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Brainfy</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
 <div class="container">
-  <div class="card">
+  <div class="card compact">
 
     <!-- =========================
          SPLASH
@@ -51,7 +51,7 @@
     ========================== -->
     <div id="focusView" class="view">
 
-      <!-- Back (handled by JS + Flow Lock) -->
+      <!-- Back -->
       <button class="back-btn" aria-label="Back">
         ←
       </button>
@@ -61,10 +61,14 @@
         Start Focus Room
       </button>
 
-      <!-- Intent Prompt -->
+      <!-- Intent Sheet -->
       <div id="intentSheet" class="intent-sheet hidden">
         <h3>What are you trying to understand?</h3>
-        <input id="intentInput" placeholder="e.g. Gravitation – derivations" autocomplete="off">
+        <input
+          id="intentInput"
+          placeholder="e.g. Gravitation – derivations"
+          autocomplete="off"
+        />
         <button id="beginFocusBtn">
           Begin Focus
         </button>
@@ -84,12 +88,19 @@
          NOTES
     ========================== -->
     <div id="notesView" class="view">
-      <button class="back-btn" aria-label="Back">←</button>
+
+      <!-- Back -->
+      <button class="back-btn" aria-label="Back">
+        ←
+      </button>
 
       <div class="notes">
         <h3>Notes</h3>
 
-        <textarea id="notesInput" placeholder="Just write freely here. No formatting pressure."></textarea>
+        <textarea
+          id="notesInput"
+          placeholder="Just write freely here. No formatting pressure."
+        ></textarea>
 
         <div class="notes-actions">
           <button id="genCardsBtn">
@@ -103,6 +114,8 @@
          FLASHCARDS
     ========================== -->
     <div id="cardsView" class="view">
+
+      <!-- Back -->
       <button class="back-btn" aria-label="Back">
         ←
       </button>
@@ -110,14 +123,16 @@
       <div class="flashcards">
         <h3>Flashcards</h3>
 
+        <!-- Manual input -->
         <div class="flashcard-inputs">
-          <input id="questionInput" placeholder="Question">
-          <input id="answerInput" placeholder="Answer">
+          <input id="questionInput" placeholder="Question" />
+          <input id="answerInput" placeholder="Answer" />
           <button id="addCardBtn">
             Add Flashcard
           </button>
         </div>
 
+        <!-- Card viewer -->
         <div class="flashcard-view hidden">
           <div class="flashcard" id="flashcard">
             <div class="front" id="cardQuestion"></div>
@@ -130,6 +145,7 @@
             <button id="nextCard">Next</button>
           </div>
         </div>
+
       </div>
     </div>
 
@@ -137,6 +153,5 @@
 </div>
 
 <script src="script.js"></script>
-
 </body>
 </html>
