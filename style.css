@@ -598,6 +598,9 @@ button.ripple::after {
     box-shadow 0.25s ease,
     background 0.25s ease;
 }
+.flashcards {
+  padding-top: 32px;
+}
 
 /* Placeholder */
 .flashcard-inputs input::placeholder {
