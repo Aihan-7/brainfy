@@ -88,25 +88,24 @@
          NOTES
     ========================== -->
     <div id="notesView" class="view">
-      <button class="back-btn" aria-label="Back">
-        ←
+  <button class="back-btn" aria-label="Back">←</button>
+
+  <div class="notes">
+    <h3>Notes</h3>
+
+    <textarea
+      id="notesInput"
+      placeholder="Just write freely here. No formatting pressure."
+    ></textarea>
+
+    <div class="notes-actions">
+      <button id="genCardsBtn">
+        Generate Flashcards
       </button>
-
-      <div class="notes">
-        <h3>Notes</h3>
-
-        <div class="notes-split">
-          <textarea
-            id="notesInput"
-            placeholder="Write notes using Markdown..."
-          ></textarea>
-          <button id="genCardsBtn">Generate Flashcards</button>
-
-
-          <div id="notesPreview" class="preview"></div>
-        </div>
-      </div>
     </div>
+  </div>
+</div>
+
 
     <!-- =========================
          FLASHCARDS
