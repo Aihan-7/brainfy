@@ -133,7 +133,18 @@ body::before {
   opacity: 1;
   transform: translateY(0) scale(1);
   pointer-events: auto;
+   /* Show back button in space views */
+#focusView.active .back-btn,
+#notesView.active .back-btn,
+#cardsView.active .back-btn {
+  opacity: 1;
+  pointer-events: auto;
 }
+.card.focus-active .back-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
 
 /* Interior spacing */
 #homeView,
@@ -446,4 +457,17 @@ textarea {
   .notes-split {
     grid-template-columns: 1fr;
   }
+}
+#startBtn {
+  width: auto;
+  min-width: 220px;
+  padding: 14px 28px;
+  border-radius: 999px;
+  margin-top: 24px;
+}
+#startBtn {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    0 10px 26px rgba(56,189,248,0.35),
+    0 16px 40px rgba(0,0,0,0.45);
 }
