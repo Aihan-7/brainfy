@@ -47,53 +47,15 @@ const flipBtn = document.getElementById("flipCard");
 const flashcardView = document.querySelector(".flashcard-view");
 
 /* =========================
-   Brainfy – Clean Base Script
-   (Navigation + Focus Only)
-========================= */
-
-/* =========================
-   Constants
-========================= */
-const FOCUS_TIME = 25 * 60;
-
-/* =========================
-   DOM
-========================= */
-const card = document.querySelector(".card");
-const views = document.querySelectorAll(".view");
-
-/* Navigation */
-const enterBtn = document.getElementById("enterBtn");
-const spaceBtns = document.querySelectorAll("[data-go]");
-const backBtns = document.querySelectorAll(".back-btn");
-
-/* Focus */
-const startBtn = document.getElementById("startBtn");
-const intentSheet = document.getElementById("intentSheet");
-const intentInput = document.getElementById("intentInput");
-const beginFocusBtn = document.getElementById("beginFocusBtn");
-const focusRoom = document.getElementById("focusRoom");
-const modeText = document.getElementById("modeText");
-const timerDisplay = document.getElementById("timer");
-const resetBtn = document.getElementById("resetBtn");
-const sessionsText = document.getElementById("sessionsText");
-
-/* =========================
    Navigation
 ========================= */
 function goTo(view) {
-  views.forEach(v => {
-    v.classList.remove("active");
-    v.style.display = "none";
-  });
+  if (card.classList.contains("focus-active")) return;
 
+  views.forEach(v => v.classList.remove("active"));
   const target = document.getElementById(view + "View");
   if (!target) return;
-
-  target.style.display = "flex";
-  requestAnimationFrame(() => {
-    target.classList.add("active");
-  });
+  target.classList.add("active");
 
   if (view === "splash") {
     card.classList.add("compact");
@@ -103,30 +65,14 @@ function goTo(view) {
     card.classList.add("spacious");
   }
 }
-window.addEventListener("DOMContentLoaded", () => {
-  card.classList.remove("focus-active", "intent-active");
 
-  views.forEach(v => {
-    v.classList.remove("active");
-    v.style.display = "none";
-  });
-
+window.addEventListener("load", () => {
+  card.classList.add("compact");
   goTo("splash");
 });
 
+enterBtn?.addEventListener("click", () => goTo("home"));
 
-/* Initial load */
-window.addEventListener("DOMContentLoaded", () => {
-  card.classList.remove("focus-active", "intent-active");
-  goTo("splash");
-});
-
-/* Enter app */
-enterBtn?.addEventListener("click", () => {
-  goTo("home");
-});
-
-/* Space buttons */
 spaceBtns.forEach(btn => {
   btn.addEventListener("click", () => {
     const target = btn.dataset.go;
@@ -134,15 +80,15 @@ spaceBtns.forEach(btn => {
   });
 });
 
-/* Back buttons */
 backBtns.forEach(btn => {
   btn.addEventListener("click", () => {
+    if (isFocusLocked() && view !== "focus") return;
     goTo("home");
   });
 });
 
 /* =========================
-   Focus State
+   Focus Logic
 ========================= */
 let timer = null;
 let timeLeft = FOCUS_TIME;
@@ -156,7 +102,6 @@ function updateTimer() {
 
 function startTimer() {
   if (timer) return;
-
   timer = setInterval(() => {
     if (timeLeft <= 0) {
       sessions++;
@@ -174,34 +119,11 @@ function stopTimer() {
   timer = null;
 }
 
-/* =========================
-   Focus Flow
-========================= */
-startBtn?.addEventListener("click", () => {
-  card.classList.add("intent-active");
-  intentSheet.classList.remove("hidden");
-
-  requestAnimationFrame(() => {
-    intentSheet.classList.add("show");
-    intentInput.focus();
-  });
-});
-
-beginFocusBtn?.addEventListener("click", () => {
-  const intent = intentInput.value.trim() || "Focus";
-
-  intentInput.value = "";
-  intentSheet.classList.remove("show");
-  intentSheet.classList.add("hidden");
-
-  enterFocusMode(intent);
-});
-
 function enterFocusMode(intent) {
   card.classList.remove("intent-active");
   card.classList.add("focus-active");
 
-  modeText.textContent = intent;
+  modeText.textContent = intent || "Focus";
   focusRoom.classList.remove("hidden");
 
   timeLeft = FOCUS_TIME;
@@ -211,13 +133,29 @@ function enterFocusMode(intent) {
 
 function exitFocusMode() {
   stopTimer();
-
   card.classList.remove("focus-active", "intent-active");
   focusRoom.classList.add("hidden");
-
   timeLeft = FOCUS_TIME;
   updateTimer();
 }
+
+/* Intent flow */
+startBtn?.addEventListener("click", () => {
+  card.classList.add("intent-active");
+  intentSheet.classList.remove("hidden");
+  requestAnimationFrame(() => {
+    intentSheet.classList.add("show");
+    intentInput.focus();
+  });
+});
+
+beginFocusBtn?.addEventListener("click", () => {
+  const intent = intentInput.value.trim() || "Focus";
+  intentInput.value = "";
+  intentSheet.classList.remove("show");
+  intentSheet.classList.add("hidden");
+  enterFocusMode(intent);
+});
 
 resetBtn?.addEventListener("click", exitFocusMode);
 
