@@ -508,6 +508,49 @@ button.ripple::after {
     0 16px 36px rgba(0,0,0,0.45),
     0 0 24px rgba(56,189,248,0.28);
 }
+/* =========================
+   Focus Completion UI
+========================= */
+
+.focus-complete {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+
+  opacity: 0;
+  transform: scale(0.96);
+  transition:
+    opacity 0.45s ease,
+    transform 0.45s cubic-bezier(0.22,1,0.36,1);
+}
+
+.focus-complete.show {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.complete-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(56,189,248,0.15);
+  color: #38bdf8;
+  font-size: 1.6rem;
+
+  box-shadow:
+    0 0 24px rgba(56,189,248,0.35);
+}
+
+.complete-text {
+  font-size: 0.95rem;
+  opacity: 0.75;
+}
 
 /* =========================
    Notes
