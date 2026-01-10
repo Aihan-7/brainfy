@@ -195,8 +195,9 @@ function stopTimer() {
 /* ---------- Focus Modes ---------- */
 
 function enterFocusMode(intent) {
-  card.classList.remove("intent-active");
   card.classList.add("focus-active");
+  focusView.classList.add("focus-active");
+  focusView.classList.remove("intent-active");
 
   modeText.textContent = intent || "Focus";
   focusRoom.classList.remove("hidden");
@@ -206,15 +207,27 @@ function enterFocusMode(intent) {
   startTimer();
 }
 
+startBtn?.addEventListener("click", () => {
+  card.classList.add("intent-active");
+  focusView.classList.add("intent-active");
+
+  intentSheet.classList.remove("hidden");
+  requestAnimationFrame(() => {
+    intentSheet.classList.add("show");
+    intentInput.focus();
+  });
+});
+
 function exitFocusMode() {
   stopTimer();
 
+  card.classList.remove("focus-active", "intent-active");
+  focusView.classList.remove("focus-active", "intent-active");
+
+  focusRoom.classList.add("hidden");
+
   timeLeft = FOCUS_TIME;
   updateTimer();
-
-  card.classList.remove("focus-active");
-  card.classList.remove("intent-active");
-  focusRoom.classList.add("hidden");
 }
 
 /* ---------- Intent Flow ---------- */
@@ -410,6 +423,31 @@ setTimeout(() => {
 
 updateFlashcardMode();
 
+const genCardsBtn = document.getElementById("genCardsBtn");
+
+genCardsBtn?.addEventListener("click", () => {
+  const text = notesInput.value.trim();
+  if (!text) return;
+
+  const lines = text
+    .split("\n")
+    .map(l => l.trim())
+    .filter(l => l.length > 12);
+
+  lines.forEach(line => {
+    cards.push({
+      q: line,
+      a: ""
+    });
+  });
+
+  if (cards.length) {
+    cardIndex = 0;
+    showCard();
+    updateFlashcardMode();
+    goTo("cards");
+  }
+});
 
 /* =========================
    Button Ripple
