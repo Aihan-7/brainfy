@@ -188,6 +188,22 @@ intentInput?.addEventListener("focus", () => {
 intentInput?.addEventListener("blur", () => {
   card.classList.remove("typing");
 });
+function exitFocusMode() {
+  stopTimer();
+
+  const complete = document.getElementById("focusComplete");
+  complete.classList.remove("show");
+  complete.classList.add("hidden");
+
+  focusRoom.style.opacity = "";
+  focusRoom.style.transform = "";
+  focusRoom.classList.add("hidden");
+
+  card.classList.remove("focus-active");
+
+  timeLeft = FOCUS_TIME;
+  updateTimer();
+}
 
 /* =========================
    Flashcards Core
