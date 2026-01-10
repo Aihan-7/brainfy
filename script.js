@@ -315,3 +315,8 @@ function showCard() {
   flashcard.classList.remove("flipped");
   flashcardView.classList.remove("hidden");
 }
+function updateFlashcardMode() {
+  const hasCards = cards.length > 0;
+  document.querySelector(".flashcards")
+    .classList.toggle("has-cards", hasCards);
+}
