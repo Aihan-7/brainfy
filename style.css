@@ -134,6 +134,41 @@ body::before {
     transform: scale(1.05);
   }
 }
+.card.focus-active #modeText,
+.card.focus-active #timer,
+.card.focus-active #sessionsText {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.card.focus-active #timer {
+  margin: 12px 0;
+}
+
+/* =========================
+   Focus Layout (iOS-style)
+========================= */
+
+.card.focus-active {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card.focus-active .view.active {
+  justify-content: center;
+  padding-top: 0;
+}
+/* Focus Room Centering */
+
+#focusRoom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 14px;
+  margin: 0;
+}
 
 /* =========================
    Views
