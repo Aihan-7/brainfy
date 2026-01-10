@@ -563,6 +563,56 @@ button.ripple::after {
   transform: rotateY(180deg);
   color: #38bdf8;
 }
+/* Flashcards layout spacing */
+.flashcards h3 {
+  margin-bottom: 22px;
+}
+
+.flashcard-inputs {
+  gap: 16px;              /* space between Question & Answer */
+  margin-bottom: 22px;   /* space before Add button */
+}
+/* Flashcard inputs – glass style (same as intent input) */
+.flashcard-inputs input {
+  width: 100%;
+  padding: 14px 18px;
+
+  background: rgba(2, 6, 23, 0.65);
+  color: #e5e7eb;
+
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+
+  font-size: 0.95rem;
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    background 0.25s ease;
+}
+
+/* Placeholder */
+.flashcard-inputs input::placeholder {
+  color: #94a3b8;
+  opacity: 0.8;
+}
+
+/* Focus state – Apple-like */
+.flashcard-inputs input:focus {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.8);
+  background: rgba(2, 6, 23, 0.8);
+
+  box-shadow:
+    0 0 0 2px rgba(56, 189, 248, 0.25),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.flashcard-inputs input {
+  border-radius: 18px; /* instead of pill */
+}
 
 /* =========================
    Helpers
