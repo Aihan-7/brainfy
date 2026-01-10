@@ -80,7 +80,10 @@ spaceBtns.forEach(btn => {
 
 backBtns.forEach(btn => {
   btn.addEventListener("click", () => {
-    if (card.classList.contains("focus-active")) return;
+    if (card.classList.contains("focus-active")) {
+      showExitConfirm();
+      return;
+    }
     goTo("home");
   });
 });
