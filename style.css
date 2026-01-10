@@ -17,11 +17,13 @@ body {
   background:
     radial-gradient(circle at top, rgba(56,189,248,0.15), transparent 60%),
     linear-gradient(135deg, #020617, #0f172a);
+
   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   color: #e5e7eb;
   overflow-x: hidden;
 }
 
+/* Ambient motion */
 body::before {
   content: "";
   position: fixed;
@@ -37,8 +39,9 @@ body::before {
 }
 
 @keyframes float {
-  0%,100% { transform: translate(0,0); }
-  50% { transform: translate(-4%, -2%); }
+  0%   { transform: translate(0,0); }
+  50%  { transform: translate(-4%, -2%); }
+  100% { transform: translate(0,0); }
 }
 
 /* =========================
@@ -47,13 +50,13 @@ body::before {
 .container {
   min-height: 100vh;
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   padding: 20px;
 }
 
 /* =========================
-   Glass Card (SINGLE SOURCE)
+   Glass Card
 ========================= */
 .card {
   position: relative;
@@ -77,10 +80,26 @@ body::before {
   transition:
     padding 0.45s cubic-bezier(0.22,1,0.36,1),
     min-height 0.45s cubic-bezier(0.22,1,0.36,1),
+    box-shadow 0.45s ease;
+}
+/* =========================
+   Card Resize & Navigation
+========================= */
+
+.card {
+  position: relative;
+  transition:
+    padding 0.45s cubic-bezier(0.22,1,0.36,1),
+    min-height 0.45s cubic-bezier(0.22,1,0.36,1),
     transform 0.45s cubic-bezier(0.22,1,0.36,1),
     box-shadow 0.45s ease;
 }
 
+.card.is-navigating {
+  transform: scale(0.985);
+}
+
+/* Card size modes */
 .card.compact {
   min-height: 300px;
   padding: 32px;
@@ -91,20 +110,19 @@ body::before {
   padding: 40px 36px 44px;
 }
 
-.card.is-navigating {
-  transform: scale(0.985);
-}
-
 /* =========================
-   Views
+   Views (single source of truth)
 ========================= */
+
 .view {
   position: absolute;
   inset: 0;
+
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+
   text-align: center;
 
   opacity: 0;
@@ -120,6 +138,107 @@ body::before {
   opacity: 1;
   transform: translateY(0) scale(1);
   pointer-events: auto;
+}
+
+/* =========================
+   Focus View Layout States
+========================= */
+
+/* Default (idle) */
+#focusView #startBtn {
+  display: block;
+}
+
+#focusView #intentSheet,
+#focusView #focusRoom {
+  display: none;
+}
+
+/* Intent mode */
+.card.intent-active #startBtn {
+  display: none;
+}
+
+.card.intent-active #intentSheet {
+  display: block;
+}
+
+/* Active focus mode */
+.card.focus-active #startBtn,
+.card.focus-active #intentSheet {
+  display: none;
+}
+
+.card.focus-active #focusRoom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+/* =========================
+   Focus Centering (iOS-style)
+========================= */
+
+.card.focus-active .view.active {
+  justify-content: center;
+}
+
+/* =========================
+   Focus Entrance Animation
+========================= */
+
+@keyframes focusEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.card.focus-active #focusRoom {
+  animation: focusEnter 0.4s cubic-bezier(0.22,1,0.36,1);
+}
+
+/* =========================
+   Focus Halo Pulse (synced to seconds)
+========================= */
+
+@keyframes focusPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(56,189,248,0);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(56,189,248,0.22);
+  }
+}
+
+.card.focus-active #timer {
+  animation: focusPulse 1s ease-in-out infinite;
+}
+
+/* =========================
+   Back Button Logic (clean)
+========================= */
+
+.back-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#focusView.active .back-btn,
+#notesView.active .back-btn,
+#cardsView.active .back-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.card.focus-active .back-btn {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* =========================
@@ -146,7 +265,7 @@ body::before {
 #timer {
   font-size: 3.4rem;
   font-weight: 600;
-  margin: 12px 0;
+  margin: 0.8rem 0;
 }
 
 #sessionsText {
@@ -159,9 +278,11 @@ body::before {
 ========================= */
 button {
   position: relative;
+  width: 100%;
+  padding: 14px 0;
+  border-radius: 14px;
   border: none;
   cursor: pointer;
-  border-radius: 14px;
 
   background: linear-gradient(
     180deg,
@@ -173,19 +294,16 @@ button {
   font-size: 1rem;
   font-weight: 600;
 
-  padding: 14px 0;
-  width: 100%;
-
   box-shadow:
     0 8px 20px rgba(56,189,248,0.35),
     inset 0 1px 0 rgba(255,255,255,0.4);
+
+  overflow: hidden;
 
   transition:
     transform 0.32s cubic-bezier(0.22,1,0.36,1),
     box-shadow 0.32s cubic-bezier(0.22,1,0.36,1),
     filter 0.32s ease;
-
-  overflow: hidden;
 }
 
 button:hover {
@@ -197,7 +315,6 @@ button:active {
   transform: scale(0.96);
 }
 
-/* Ripple */
 button::after {
   content: "";
   position: absolute;
@@ -215,51 +332,43 @@ button.ripple::after {
   opacity: 1;
 }
 
-/* =========================
-   Back Button
-========================= */
+/* Secondary buttons */
+.back-btn,
+#resetBtn {
+  background: rgba(30,41,59,0.6);
+  color: #e5e7eb;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 6px 14px rgba(0,0,0,0.4);
+}
+
+/* Back button placement */
 .back-btn {
   position: absolute;
   top: 20px;
   left: 20px;
-
   width: auto;
   padding: 10px 14px;
   border-radius: 999px;
-
-  background: rgba(30,41,59,0.6);
-  color: #e5e7eb;
-
-  backdrop-filter: blur(12px);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.08),
-    0 6px 14px rgba(0,0,0,0.4);
-
-  opacity: 0;
-  pointer-events: none;
 }
 
-#focusView.active .back-btn,
-#notesView.active .back-btn,
-#cardsView.active .back-btn {
-  opacity: 1;
-  pointer-events: auto;
-}
-
+/* Hide during focus */
+.card.focus-active #startBtn,
 .card.focus-active .back-btn {
-  opacity: 0;
-  pointer-events: none;
+  display: none;
 }
 
 /* =========================
-   Splash Button
+   Splash – Enter Button
 ========================= */
 .enter-btn {
+  margin-top: 28px;
+  padding: 14px 28px;
   width: auto;
   min-width: 180px;
-  padding: 14px 28px;
   border-radius: 999px;
-  margin-top: 28px;
 
   background: linear-gradient(
     180deg,
@@ -271,6 +380,11 @@ button.ripple::after {
   font-weight: 500;
 
   backdrop-filter: blur(18px);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.25),
+    0 8px 24px rgba(56,189,248,0.25),
+    0 12px 32px rgba(0,0,0,0.35);
 
   animation: glowPulse 6s ease-in-out infinite;
 }
@@ -291,43 +405,50 @@ button.ripple::after {
 }
 
 /* =========================
-   Focus States
+   Spaces
 ========================= */
-.card.intent-active #startBtn { display: none; }
-.card.intent-active #intentSheet { display: block; }
-
-.card.focus-active #startBtn,
-.card.focus-active #intentSheet {
-  display: none;
-}
-
-.card.focus-active #focusRoom {
+.space-list {
   display: flex;
   flex-direction: column;
+  gap: 14px;
+  margin-top: 24px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.space-tile {
+  display: flex;
   align-items: center;
   gap: 14px;
+  padding: 18px 20px;
+  border-radius: 18px;
+
+  background: rgba(255,255,255,0.06);
+  color: #e5e7eb;
+
+  backdrop-filter: blur(14px);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 10px 28px rgba(0,0,0,0.35);
+
+  transition:
+    transform 0.28s cubic-bezier(0.22,1,0.36,1),
+    box-shadow 0.28s ease;
 }
 
-/* Center timer */
-.card.focus-active .view.active {
-  justify-content: center;
-}
-
-/* Halo pulse */
-@keyframes focusPulse {
-  0%,100% { box-shadow: 0 0 0 rgba(56,189,248,0); }
-  50% { box-shadow: 0 0 28px rgba(56,189,248,0.22); }
-}
-
-.card.focus-active #timer {
-  animation: focusPulse 1s ease-in-out infinite;
+.space-tile:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    0 16px 36px rgba(0,0,0,0.45),
+    0 0 24px rgba(56,189,248,0.28);
 }
 
 /* =========================
    Intent Sheet
 ========================= */
 .intent-sheet {
-  display: none;
   width: 100%;
   max-width: 360px;
   padding: 28px 26px;
@@ -339,61 +460,126 @@ button.ripple::after {
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.08),
     0 20px 50px rgba(0,0,0,0.45);
+}
+.intent-sheet {
+  margin-top: 32px;
+  transform: translateY(0);
+}
+.card:not(.focus-active) {
+  background: rgba(15,23,42,0.55);
+}
+/* Hide back during intent input */
+#intentSheet:not(.hidden) ~ .back-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+#startBtn {
+  margin-bottom: 32px;
+}
 
+.intent-sheet h3 {
+  margin-bottom: 18px;
+}
+/* Intent sheet entrance animation */
+.intent-sheet {
   opacity: 0;
   transform: scale(0.96) translateY(8px);
   transition:
     opacity 0.35s ease,
-    transform 0.35s cubic-bezier(0.22,1,0.36,1);
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* When visible */
 .intent-sheet.show {
   opacity: 1;
   transform: scale(1) translateY(0);
 }
 
+
 /* =========================
    Notes
 ========================= */
 .notes {
-  width: 100%;
+  margin-top: 24px;
   text-align: left;
+}
+
+.notes-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 textarea {
   width: 100%;
   min-height: 160px;
-  background: rgba(2,6,23,0.65);
+  background: rgba(2,6,23,0.6);
   color: #e5e7eb;
   border-radius: 14px;
-  border: 1px solid rgba(148,163,184,0.25);
-  padding: 14px 16px;
+  border: 1px solid rgba(148,163,184,0.15);
+  padding: 14px;
 }
 
-/* Generate button */
+.preview {
+  background: rgba(2,6,23,0.55);
+  border-radius: 14px;
+  padding: 14px;
+}
+/* =========================
+   Notes Actions
+========================= */
+
+#genCardsBtn {
+  width: auto;
+  align-self: center;
+  margin-top: 18px;
+  padding: 12px 28px;
+  border-radius: 999px;
+
+  background: rgba(255,255,255,0.08);
+  color: #e5e7eb;
+  font-weight: 500;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    0 8px 22px rgba(0,0,0,0.35);
+
+  transition:
+    background 0.25s ease,
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+#genCardsBtn:hover {
+  background: rgba(255,255,255,0.14);
+  transform: translateY(-1px);
+}
 .notes-actions {
   display: flex;
   justify-content: center;
   margin-top: 16px;
 }
 
-#genCardsBtn {
-  width: auto;
-  padding: 12px 28px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.08);
-  color: #e5e7eb;
-}
-
 /* =========================
-   Flashcards
+   Flashcards (Polished)
 ========================= */
+
 .flashcards {
   width: 100%;
   max-width: 360px;
   margin: 0 auto;
+  padding-top: 24px;
   text-align: center;
 }
+
+.flashcards h3 {
+  margin-bottom: 22px;
+  font-weight: 600;
+}
+
+/* =========================
+   Flashcard Inputs
+========================= */
 
 .flashcard-inputs {
   display: flex;
@@ -401,26 +587,107 @@ textarea {
   gap: 14px;
 }
 
+.flashcard-inputs input {
+  padding: 14px 16px;
+  border-radius: 14px;
+
+  background: rgba(2, 6, 23, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  color: #e5e7eb;
+
+  font-size: 0.95rem;
+
+  box-shadow:
+    inset 0 1px 2px rgba(0,0,0,0.35),
+    0 0 0 rgba(56,189,248,0);
+
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    background 0.25s ease;
+}
+
+.flashcard-inputs input::placeholder {
+  color: #64748b;
+}
+
+.flashcard-inputs input:focus {
+  outline: none;
+  border-color: rgba(56,189,248,0.6);
+  box-shadow:
+    inset 0 1px 2px rgba(0,0,0,0.35),
+    0 0 18px rgba(56,189,248,0.25);
+  background: rgba(2, 6, 23, 0.75);
+}
+
+/* =========================
+   Add Button
+========================= */
+
+#addCardBtn {
+  width: auto;
+  align-self: center;
+  padding: 14px 32px;
+  margin-top: 18px;
+  border-radius: 999px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.25),
+    0 10px 28px rgba(56,189,248,0.35),
+    0 16px 40px rgba(0,0,0,0.45);
+}
+
+/* =========================
+   Flashcard View
+========================= */
+
+.flashcard-view {
+  margin-top: 28px;
+  perspective: 1000px;
+}
+
+/* Card container */
 .flashcard {
   position: relative;
   height: 120px;
   border-radius: 18px;
-  background: rgba(15,23,42,0.7);
+
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+
   transform-style: preserve-3d;
-  transition: transform 0.6s cubic-bezier(0.22,1,0.36,1);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 16px 40px rgba(0,0,0,0.45);
+
+  transition:
+    transform 0.6s cubic-bezier(0.22,1,0.36,1),
+    opacity 0.3s ease;
+
+  will-change: transform;
 }
 
+/* Flip */
 .flashcard.flipped {
   transform: rotateY(180deg);
 }
 
+/* Card faces */
 .flashcard .front,
 .flashcard .back {
   position: absolute;
   inset: 0;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
+  padding: 18px;
+  font-size: 1rem;
+  text-align: center;
+
   backface-visibility: hidden;
 }
 
@@ -430,10 +697,104 @@ textarea {
 }
 
 /* =========================
+   Card Change Animation (Apple-style)
+========================= */
+
+/* Apply briefly in JS when changing card */
+.flashcard.switching {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+/* =========================
+   Flashcard Controls
+========================= */
+
+.flashcard-controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+
+/* =========================
    Helpers
 ========================= */
-.hidden { display: none; }
+.hidden {
+  display: none;
+}
 
+/* =========================
+   Accessibility
+========================= */
 @media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .notes-split {
+    grid-template-columns: 1fr;
+  }
+}
+#startBtn {
+  width: auto;
+  min-width: 220px;
+  padding: 14px 28px;
+  border-radius: 999px;
+  margin-top: 24px;
+}
+#startBtn {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    0 10px 26px rgba(56,189,248,0.35),
+    0 16px 40px rgba(0,0,0,0.45);
+}
+/* Hide start button when intent is open */
+#intentSheet:not(.hidden) ~ #startBtn {
+  display: none;
+}
+/* =========================
+   Glass Inputs (Global)
+========================= */
+
+input,
+textarea {
+  background: rgba(2, 6, 23, 0.65);
+  color: #e5e7eb;
+
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 14px;
+
+  padding: 14px 16px;
+  font-size: 0.95rem;
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  transition:
+    border-color 0.25s ease,
+    background 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+/* Placeholder */
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8;
+  opacity: 0.75;
+}
+
+/* Focus (Apple-like) */
+input:focus,
+textarea:focus {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.7);
+  background: rgba(2, 6, 23, 0.8);
+
+  box-shadow:
+    0 0 0 2px rgba(56, 189, 248, 0.25),
+    inset 0 1px 0 rgba(255,255,255,0.06);
 }
