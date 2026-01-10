@@ -1,6 +1,6 @@
 /* =========================
    Brainfy – Core Script
-   FINAL STABLE VERSION
+   Flow Lock Mode (Final)
 ========================= */
 
 /* =========================
@@ -16,7 +16,7 @@ const FOCUS_TIME = 25 * 60;
 const card = document.querySelector(".card");
 const views = document.querySelectorAll(".view");
 
-/* Navigation buttons */
+/* Navigation */
 const enterBtn = document.getElementById("enterBtn");
 const spaceBtns = document.querySelectorAll("[data-go]");
 const backBtns = document.querySelectorAll(".back-btn");
@@ -53,9 +53,13 @@ const flashcardView = document.querySelector(".flashcard-view");
 ========================= */
 
 function goTo(view) {
+  // Block navigation during focus
+  if (card.classList.contains("focus-active")) return;
+
   views.forEach(v => v.classList.remove("active"));
   document.getElementById(view + "View")?.classList.add("active");
 
+  // Card sizing
   if (view === "splash") {
     card.classList.add("compact");
     card.classList.remove("spacious");
@@ -73,18 +77,16 @@ window.addEventListener("load", () => {
 enterBtn?.addEventListener("click", () => goTo("home"));
 
 spaceBtns.forEach(btn => {
-  btn.addEventListener("click", () => {
-    goTo(btn.dataset.go);
-  });
+  btn.addEventListener("click", () => goTo(btn.dataset.go));
 });
 
 backBtns.forEach(btn => {
   btn.addEventListener("click", () => {
     if (card.classList.contains("focus-active")) {
       showExitConfirm();
-      return;
+    } else {
+      goTo("home");
     }
-    goTo("home");
   });
 });
 
@@ -120,7 +122,7 @@ function exitFocusMode() {
 }
 
 /* =========================
-   Focus Flow (Intent)
+   Intent Flow
 ========================= */
 
 startBtn?.addEventListener("click", () => {
@@ -156,7 +158,40 @@ resetBtn?.addEventListener("click", exitFocusMode);
 updateTimer();
 
 /* =========================
-   Notes (Minimal Markdown)
+   Exit Confirmation (Flow Lock)
+========================= */
+
+const exitConfirm = document.createElement("div");
+exitConfirm.className = "exit-confirm hidden";
+exitConfirm.innerHTML = `
+  <p>End this focus session?</p>
+  <div class="exit-actions">
+    <button id="cancelExit">Continue</button>
+    <button id="confirmExit">End Session</button>
+  </div>
+`;
+card.appendChild(exitConfirm);
+
+const cancelExit = exitConfirm.querySelector("#cancelExit");
+const confirmExit = exitConfirm.querySelector("#confirmExit");
+
+function showExitConfirm() {
+  exitConfirm.classList.remove("hidden");
+}
+
+function hideExitConfirm() {
+  exitConfirm.classList.add("hidden");
+}
+
+cancelExit.addEventListener("click", hideExitConfirm);
+
+confirmExit.addEventListener("click", () => {
+  hideExitConfirm();
+  exitFocusMode();
+});
+
+/* =========================
+   Notes (Markdown Lite)
 ========================= */
 
 function escapeHTML(str) {
@@ -226,21 +261,21 @@ nextBtn?.addEventListener("click", () => {
   cardIndex = (cardIndex + 1) % cards.length;
   showCard();
 });
+
 /* =========================
-   Button Ripple Effect
+   Button Ripple
 ========================= */
 
 document.querySelectorAll("button").forEach(btn => {
   btn.addEventListener("click", e => {
-    // Skip disabled or hidden buttons
     if (btn.disabled || btn.offsetParent === null) return;
 
     const rect = btn.getBoundingClientRect();
     btn.style.setProperty("--x", `${e.clientX - rect.left}px`);
     btn.style.setProperty("--y", `${e.clientY - rect.top}px`);
 
-    btn.classList.remove("ripple"); // reset if spam-clicked
-    void btn.offsetWidth;           // force reflow
+    btn.classList.remove("ripple");
+    void btn.offsetWidth;
     btn.classList.add("ripple");
 
     setTimeout(() => {
