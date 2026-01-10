@@ -362,6 +362,11 @@ nextBtn?.addEventListener("click", () => {
   cardIndex = (cardIndex + 1) % cards.length;
   showCard();
 });
+flashcard.classList.add("switching");
+setTimeout(() => {
+  showCard();
+  flashcard.classList.remove("switching");
+}, 120);
 
 /* ---------- Init ---------- */
 
