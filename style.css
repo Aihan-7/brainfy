@@ -133,17 +133,16 @@ body::before {
   opacity: 1;
   transform: translateY(0) scale(1);
   pointer-events: auto;
-   /* Show back button in space views */
+}
+
+/* Show back button in space views */
 #focusView.active .back-btn,
 #notesView.active .back-btn,
 #cardsView.active .back-btn {
   opacity: 1;
   pointer-events: auto;
 }
-.card.focus-active .back-btn {
-  opacity: 0;
-  pointer-events: none;
-}
+
 
 
 /* Interior spacing */
