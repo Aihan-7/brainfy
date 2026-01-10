@@ -82,6 +82,25 @@ body::before {
     min-height 0.45s cubic-bezier(0.22,1,0.36,1),
     box-shadow 0.45s ease;
 }
+/* =========================
+   Card Resize Animation
+========================= */
+
+.card {
+  transition:
+    padding 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    min-height 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.45s ease;
+}
+
+/* Subtle depth during navigation */
+.card.is-navigating {
+  transform: scale(0.985);
+  box-shadow:
+    0 14px 40px rgba(0,0,0,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+}
 
 /* Card size modes */
 .card.compact {
