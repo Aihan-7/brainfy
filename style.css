@@ -637,3 +637,45 @@ button.ripple::after {
     transition: none !important;
   }
 }
+/* =========================
+   Flashcard Inputs – Force Glass Style
+========================= */
+
+.flashcard-inputs input {
+  background: rgba(2, 6, 23, 0.65) !important;
+  color: #e5e7eb !important;
+
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+
+  padding: 14px 18px;
+  font-size: 0.95rem;
+
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+
+  box-shadow:
+    inset 0 1px 2px rgba(0,0,0,0.35),
+    0 0 0 rgba(56,189,248,0);
+
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.flashcard-inputs input:focus {
+  outline: none;
+
+  background: rgba(2, 6, 23, 0.78) !important;
+  color: #e5e7eb !important;
+
+  border-color: rgba(56, 189, 248, 0.65);
+
+  box-shadow:
+    0 0 0 2px rgba(56, 189, 248, 0.22),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+}
+.flashcard-inputs input::placeholder {
+  color: #94a3b8;
+  opacity: 0.7;
+}
