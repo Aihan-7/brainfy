@@ -106,7 +106,20 @@ function startTimer() {
     if (timeLeft <= 0) {
       sessions++;
       sessionsText.textContent = `Sessions completed: ${sessions}`;
-      endFocusSession();
+      function endSession() {
+  stopTimer();
+
+  // Show completion UI
+  sessionComplete.classList.remove("hidden");
+
+  // Auto-exit after short delay (Apple-style)
+  setTimeout(() => {
+    sessionComplete.classList.add("hidden");
+
+    exitFocusMode(); // returns to idle focus screen
+  }, 1400);
+}
+
       return;
     }
     timeLeft--;
