@@ -494,3 +494,45 @@ textarea {
 #intentSheet:not(.hidden) ~ #startBtn {
   display: none;
 }
+/* =========================
+   Glass Inputs (Global)
+========================= */
+
+input,
+textarea {
+  background: rgba(2, 6, 23, 0.65);
+  color: #e5e7eb;
+
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 14px;
+
+  padding: 14px 16px;
+  font-size: 0.95rem;
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  transition:
+    border-color 0.25s ease,
+    background 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+/* Placeholder */
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8;
+  opacity: 0.75;
+}
+
+/* Focus (Apple-like) */
+input:focus,
+textarea:focus {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.7);
+  background: rgba(2, 6, 23, 0.8);
+
+  box-shadow:
+    0 0 0 2px rgba(56, 189, 248, 0.25),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+}
