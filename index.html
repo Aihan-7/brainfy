@@ -1,23 +1,23 @@
 <!DOCTYPE html>
-<html lang=\"en\">
+<html lang="en">
 <head>
-  <meta charset=\"UTF-8\">
-  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Brainfy</title>
-  <link rel=\"stylesheet\" href=\"style.css\">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div class=\"container\">
-  <div class=\"card\">
+<div class="container">
+  <div class="card">
 
     <!-- =========================
          SPLASH
     ========================== -->
-    <div id=\"splashView\" class=\"view active\">
+    <div id="splashView" class="view active">
       <h1>Brainfy</h1>
       <p>Focus deeply. Study calmly.</p>
-      <button class=\"enter-btn\" id=\"enterBtn\">
+      <button class="enter-btn" id="enterBtn">
         Enter Brainfy
       </button>
     </div>
@@ -25,23 +25,23 @@
     <!-- =========================
          HOME
     ========================== -->
-    <div id=\"homeView\" class=\"view\">
-      <h2 class=\"section-title\">Spaces</h2>
+    <div id="homeView" class="view">
+      <h2 class="section-title">Spaces</h2>
 
-      <div class=\"space-list\">
-        <button class=\"space-tile\" data-go=\"focus\">
-          <span class=\"icon\">🎯</span>
-          <span class=\"label\">Focus</span>
+      <div class="space-list">
+        <button class="space-tile" data-go="focus">
+          <span class="icon">🎯</span>
+          <span class="label">Focus</span>
         </button>
 
-        <button class=\"space-tile\" data-go=\"notes\">
-          <span class=\"icon\">📝</span>
-          <span class=\"label\">Notes</span>
+        <button class="space-tile" data-go="notes">
+          <span class="icon">📝</span>
+          <span class="label">Notes</span>
         </button>
 
-        <button class=\"space-tile\" data-go=\"cards\">
-          <span class=\"icon\">🃏</span>
-          <span class=\"label\">Flashcards</span>
+        <button class="space-tile" data-go="cards">
+          <span class="icon">🃏</span>
+          <span class="label">Flashcards</span>
         </button>
       </div>
     </div>
@@ -49,33 +49,33 @@
     <!-- =========================
          FOCUS
     ========================== -->
-    <div id=\"focusView\" class=\"view\">
+    <div id="focusView" class="view">
 
       <!-- Back (handled by JS + Flow Lock) -->
-      <button class=\"back-btn\" aria-label=\"Back\">
+      <button class="back-btn" aria-label="Back">
         ←
       </button>
 
       <!-- Start Focus -->
-      <button id=\"startBtn\">
+      <button id="startBtn">
         Start Focus Room
       </button>
 
       <!-- Intent Prompt -->
-      <div id=\"intentSheet\" class=\"intent-sheet hidden\">
+      <div id="intentSheet" class="intent-sheet hidden">
         <h3>What are you trying to understand?</h3>
-        <input id=\"intentInput\" placeholder=\"e.g. Gravitation – derivations\" autocomplete=\"off\">
-        <button id=\"beginFocusBtn\">
+        <input id="intentInput" placeholder="e.g. Gravitation – derivations" autocomplete="off">
+        <button id="beginFocusBtn">
           Begin Focus
         </button>
       </div>
 
       <!-- Active Focus -->
-      <div id=\"focusRoom\" class=\"hidden\">
-        <h2 id=\"modeText\">Focus</h2>
-        <h2 id=\"timer\">25:00</h2>
-        <p id=\"sessionsText\">Sessions completed: 0</p>
-        <button id=\"resetBtn\">Reset</button>
+      <div id="focusRoom" class="hidden">
+        <h2 id="modeText">Focus</h2>
+        <h2 id="timer">25:00</h2>
+        <p id="sessionsText">Sessions completed: 0</p>
+        <button id="resetBtn">Reset</button>
       </div>
 
     </div>
@@ -83,16 +83,16 @@
     <!-- =========================
          NOTES
     ========================== -->
-    <div id=\"notesView\" class=\"view\">
-      <button class=\"back-btn\" aria-label=\"Back\">←</button>
+    <div id="notesView" class="view">
+      <button class="back-btn" aria-label="Back">←</button>
 
-      <div class=\"notes\">
+      <div class="notes">
         <h3>Notes</h3>
 
-        <textarea id=\"notesInput\" placeholder=\"Just write freely here. No formatting pressure.\"></textarea>
+        <textarea id="notesInput" placeholder="Just write freely here. No formatting pressure."></textarea>
 
-        <div class=\"notes-actions\">
-          <button id=\"genCardsBtn\">
+        <div class="notes-actions">
+          <button id="genCardsBtn">
             Generate Flashcards
           </button>
         </div>
@@ -102,32 +102,32 @@
     <!-- =========================
          FLASHCARDS
     ========================== -->
-    <div id=\"cardsView\" class=\"view\">
-      <button class=\"back-btn\" aria-label=\"Back\">
+    <div id="cardsView" class="view">
+      <button class="back-btn" aria-label="Back">
         ←
       </button>
 
-      <div class=\"flashcards\">
+      <div class="flashcards">
         <h3>Flashcards</h3>
 
-        <div class=\"flashcard-inputs\">
-          <input id=\"questionInput\" placeholder=\"Question\">
-          <input id=\"answerInput\" placeholder=\"Answer\">
-          <button id=\"addCardBtn\">
+        <div class="flashcard-inputs">
+          <input id="questionInput" placeholder="Question">
+          <input id="answerInput" placeholder="Answer">
+          <button id="addCardBtn">
             Add Flashcard
           </button>
         </div>
 
-        <div class=\"flashcard-view hidden\">
-          <div class=\"flashcard\" id=\"flashcard\">
-            <div class=\"front\" id=\"cardQuestion\"></div>
-            <div class=\"back\" id=\"cardAnswer\"></div>
+        <div class="flashcard-view hidden">
+          <div class="flashcard" id="flashcard">
+            <div class="front" id="cardQuestion"></div>
+            <div class="back" id="cardAnswer"></div>
           </div>
 
-          <div class=\"flashcard-controls\">
-            <button id=\"prevCard\">Prev</button>
-            <button id=\"flipCard\">Flip</button>
-            <button id=\"nextCard\">Next</button>
+          <div class="flashcard-controls">
+            <button id="prevCard">Prev</button>
+            <button id="flipCard">Flip</button>
+            <button id="nextCard">Next</button>
           </div>
         </div>
       </div>
@@ -136,7 +136,7 @@
   </div>
 </div>
 
-<script src=\"script.js\"></script>
+<script src="script.js"></script>
 
 </body>
 </html>
