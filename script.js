@@ -221,6 +221,27 @@ nextBtn?.addEventListener("click", () => {
   cardIndex = (cardIndex + 1) % cards.length;
   showCard();
 });
+let startX = 0;
+
+flashcard.addEventListener("touchstart", e => {
+  startX = e.touches[0].clientX;
+});
+
+flashcard.addEventListener("touchend", e => {
+  const dx = e.changedTouches[0].clientX - startX;
+
+  if (Math.abs(dx) < 50) return;
+
+  if (dx < 0) {
+    // Swipe left → next
+    cardIndex = (cardIndex + 1) % cards.length;
+  } else {
+    // Swipe right → prev
+    cardIndex = (cardIndex - 1 + cards.length) % cards.length;
+  }
+
+  showCard();
+});
 
 /* =========================
    Notes → Generate Flashcards
@@ -275,3 +296,22 @@ document.querySelectorAll("button").forEach(btn => {
     setTimeout(() => btn.classList.remove("ripple"), 600);
   });
 });
+function animateCardChange() {
+  flashcard.classList.add("switching");
+  setTimeout(() => {
+    flashcard.classList.remove("switching");
+  }, 180);
+}
+
+function showCard() {
+  if (!cards.length) return;
+
+  animateCardChange();
+
+  const c = cards[cardIndex];
+  cardQuestion.textContent = c.q;
+  cardAnswer.textContent = c.a;
+
+  flashcard.classList.remove("flipped");
+  flashcardView.classList.remove("hidden");
+}
