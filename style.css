@@ -106,6 +106,34 @@ body::before {
   );
   pointer-events: none;
 }
+/* Focus lock halo */
+.card.focus-active::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(
+    circle at center,
+    rgba(56,189,248,0.35),
+    transparent 60%
+  );
+  opacity: 0;
+  animation: focusHalo 1.8s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes focusHalo {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  30% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.05);
+  }
+}
 
 /* =========================
    Views
