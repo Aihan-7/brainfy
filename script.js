@@ -299,35 +299,57 @@ notesInput?.addEventListener("input", () => {
 });
 
 /* =========================
-   Flashcards
+   Flashcards (Clean)
 ========================= */
 
 let cards = [];
 let cardIndex = 0;
 
+/* ---------- UI Helpers ---------- */
+
+function updateFlashcardMode() {
+  const hasCards = cards.length > 0;
+
+  document.querySelector(".flashcard-inputs")
+    ?.classList.toggle("hidden", hasCards);
+
+  flashcardView?.classList.toggle("hidden", !hasCards);
+}
+
 function showCard() {
   if (!cards.length) return;
+
   const c = cards[cardIndex];
   cardQuestion.textContent = c.q;
   cardAnswer.textContent = c.a;
+
   flashcard.classList.remove("flipped");
   flashcardView.classList.remove("hidden");
 }
 
-addCardBtn?.addEventListener("click", () => {
-  if (!questionInput.value || !answerInput.value) return;
+/* ---------- Add Card ---------- */
 
-  cards.push({ q: questionInput.value, a: answerInput.value });
+addCardBtn?.addEventListener("click", () => {
+  const q = questionInput.value.trim();
+  const a = answerInput.value.trim();
+  if (!q || !a) return;
+
+  cards.push({ q, a });
   cardIndex = cards.length - 1;
 
   questionInput.value = "";
   answerInput.value = "";
+
+  updateFlashcardMode();
   showCard();
 });
 
-flipBtn?.addEventListener("click", () =>
-  flashcard.classList.toggle("flipped")
-);
+/* ---------- Controls ---------- */
+
+flipBtn?.addEventListener("click", () => {
+  if (!cards.length) return;
+  flashcard.classList.toggle("flipped");
+});
 
 prevBtn?.addEventListener("click", () => {
   if (!cards.length) return;
@@ -340,6 +362,11 @@ nextBtn?.addEventListener("click", () => {
   cardIndex = (cardIndex + 1) % cards.length;
   showCard();
 });
+
+/* ---------- Init ---------- */
+
+updateFlashcardMode();
+
 
 /* =========================
    Button Ripple
