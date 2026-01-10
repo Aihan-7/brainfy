@@ -342,8 +342,6 @@ function updateFlashcardMode() {
   document.querySelector(".flashcards")
     .classList.toggle("has-cards", hasCards);
 }
-let cardIndex = 0;
-
 function updateFlashcardMode() {
   const wrapper = document.querySelector(".flashcards");
   if (!wrapper) return;
