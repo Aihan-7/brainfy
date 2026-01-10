@@ -762,3 +762,92 @@ button.ripple::after {
 #addCardBtn:active {
   transform: scale(0.96);
 }
+/* =========================
+   Flashcards – Layout Polish
+========================= */
+
+.flashcards {
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+  padding-top: 40px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.flashcards h3 {
+  margin-bottom: 18px;
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+
+/* Inputs stack */
+.flashcard-inputs {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Inputs should be LONGER than button */
+.flashcard-inputs input {
+  width: 100%;
+  height: 56px;
+  padding: 0 20px;
+
+  border-radius: 999px;
+  font-size: 1rem;
+}
+
+/* Button smaller than inputs */
+#addCardBtn {
+  width: auto;
+  min-width: 180px;
+  padding: 14px 28px;
+  border-radius: 999px;
+  margin-top: 10px;
+}
+/* =========================
+   Glass Inputs (Unified)
+========================= */
+
+input {
+  background: rgba(2, 6, 23, 0.65) !important;
+  color: #e5e7eb !important;
+
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+
+  outline: none;
+}
+
+/* Placeholder */
+input::placeholder {
+  color: #94a3b8;
+}
+
+/* Focus */
+input:focus {
+  border-color: rgba(56, 189, 248, 0.7);
+  box-shadow:
+    0 0 0 2px rgba(56, 189, 248, 0.25);
+}
+/* Same style as Begin Focus */
+#addCardBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(56,189,248,0.95),
+    rgba(14,165,233,0.95)
+  );
+
+  color: #020617;
+  font-weight: 600;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    0 10px 26px rgba(56,189,248,0.35),
+    0 16px 40px rgba(0,0,0,0.45);
+}
