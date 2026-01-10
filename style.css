@@ -851,3 +851,82 @@ input:focus {
     0 10px 26px rgba(56,189,248,0.35),
     0 16px 40px rgba(0,0,0,0.45);
 }
+/* =========================
+   Flashcards – Vertical Rhythm
+========================= */
+
+.flashcards {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px; /* tighter but breathable */
+  padding-top: 32px;
+}
+
+/* Input section */
+.flashcard-inputs {
+  width: 100%;
+  max-width: 380px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Inputs stay visually dominant */
+.flashcard-inputs input {
+  height: 56px;
+}
+
+/* Button slightly smaller */
+#addCardBtn {
+  margin-top: 10px;
+}
+/* =========================
+   Flashcard Mode Separation
+========================= */
+
+/* When reviewing cards */
+.flashcard-view:not(.hidden) {
+  margin-top: 12px;
+}
+
+/* Push inputs away once cards exist */
+.flashcard-view:not(.hidden) ~ .flashcard-inputs {
+  opacity: 0.35;
+  transform: translateY(-6px);
+  pointer-events: none;
+}
+/* =========================
+   Flashcard Centering
+========================= */
+
+.flashcard-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Card itself */
+.flashcard {
+  margin: 12px 0;
+}
+.flashcard-controls {
+  display: flex;
+  gap: 12px;
+  margin-top: 18px;
+  padding-bottom: 12px;
+}
+.flashcard-view::before {
+  content: "";
+  width: 60%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255,255,255,0.08),
+    transparent
+  );
+  margin-bottom: 12px;
+}
