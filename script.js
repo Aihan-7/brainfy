@@ -82,7 +82,7 @@ spaceBtns.forEach(btn => {
 
 backBtns.forEach(btn => {
   btn.addEventListener("click", () => {
-    if (card.classList.contains("focus-active")) return;
+    if (isFocusLocked() && view !== "focus") return;
     goTo("home");
   });
 });
@@ -350,3 +350,10 @@ function updateFlashcardMode() {
 
   wrapper.classList.toggle("has-cards", cards.length > 0);
 }
+function isFocusLocked() {
+  return card.classList.contains("focus-active");
+}
+window.addEventListener("load", () => {
+  card.classList.remove("focus-active", "intent-active");
+  goTo("splash");
+});
