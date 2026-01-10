@@ -283,3 +283,14 @@ document.querySelectorAll("button").forEach(btn => {
     }, 600);
   });
 });
+const intentSheet = document.getElementById("intentSheet");
+const intentInput = document.getElementById("intentInput");
+const startBtn = document.getElementById("startBtn");
+
+startBtn?.addEventListener("click", () => {
+  intentSheet.classList.remove("hidden");
+  requestAnimationFrame(() => {
+    intentSheet.classList.add("show");
+    intentInput.focus();
+  });
+});
