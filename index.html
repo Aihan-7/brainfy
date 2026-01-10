@@ -9,7 +9,7 @@
 <body>
 
 <div class="container">
-  <div class="card compact">
+  <div class="card">
 
     <!-- =========================
          SPLASH
@@ -51,20 +51,21 @@
     ========================== -->
     <div id="focusView" class="view">
 
-      <!-- Back -->
-      <button class="back-btn" aria-label="Back">←</button>
+      <!-- Back (handled by JS + Flow Lock) -->
+      <button class="back-btn" aria-label="Back">
+        ←
+      </button>
 
-      <!-- Start -->
+      <!-- Start Focus -->
       <button id="startBtn">
         Start Focus Room
       </button>
 
-      <!-- Intent Sheet -->
+      <!-- Intent Prompt -->
       <div id="intentSheet" class="intent-sheet hidden">
         <h3>What are you trying to understand?</h3>
         <input
           id="intentInput"
-          type="text"
           placeholder="e.g. Gravitation – derivations"
           autocomplete="off"
         />
@@ -87,34 +88,36 @@
          NOTES
     ========================== -->
     <div id="notesView" class="view">
-      <button class="back-btn" aria-label="Back">←</button>
+  <button class="back-btn" aria-label="Back">←</button>
 
-      <div class="notes">
-        <h3>Notes</h3>
+  <div class="notes">
+    <h3>Notes</h3>
 
-        <textarea
-          id="notesInput"
-          placeholder="Just write freely here. No formatting pressure."
-        ></textarea>
+    <textarea
+      id="notesInput"
+      placeholder="Just write freely here. No formatting pressure."
+    ></textarea>
 
-        <div class="notes-actions">
-          <button id="genCardsBtn">
-            Generate Flashcards
-          </button>
-        </div>
-      </div>
+    <div class="notes-actions">
+      <button id="genCardsBtn">
+        Generate Flashcards
+      </button>
     </div>
+  </div>
+</div>
+
 
     <!-- =========================
          FLASHCARDS
     ========================== -->
     <div id="cardsView" class="view">
-      <button class="back-btn" aria-label="Back">←</button>
+      <button class="back-btn" aria-label="Back">
+        ←
+      </button>
 
       <div class="flashcards">
         <h3>Flashcards</h3>
 
-        <!-- Manual input -->
         <div class="flashcard-inputs">
           <input id="questionInput" placeholder="Question" />
           <input id="answerInput" placeholder="Answer" />
@@ -123,7 +126,6 @@
           </button>
         </div>
 
-        <!-- Card viewer -->
         <div class="flashcard-view hidden">
           <div class="flashcard" id="flashcard">
             <div class="front" id="cardQuestion"></div>
@@ -139,7 +141,10 @@
       </div>
     </div>
 
-    <!-- Exit confirmation injected by JS -->
+    <!--
+      Exit confirmation is injected dynamically by JS:
+      <div class="exit-confirm">...</div>
+    -->
 
   </div>
 </div>
