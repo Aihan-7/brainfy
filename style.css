@@ -593,30 +593,38 @@ button.ripple::after {
 }
 
 /* =========================
-   Flashcards
+   Flashcard Flip (FIXED)
 ========================= */
+
+.flashcard-view {
+  margin-top: 32px;
+  perspective: 1200px;
+}
+
 .flashcard {
   position: relative;
   width: 260px;
-  height: 140px;
-  border-radius: 22px;
+  height: 150px;
+  border-radius: 20px;
 
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(14px);
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 
   transform-style: preserve-3d;
   transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.08),
-    0 20px 50px rgba(0,0,0,0.45);
+    0 18px 45px rgba(0,0,0,0.45);
 }
 
+/* FLIP TRIGGER */
 .flashcard.flipped {
   transform: rotateY(180deg);
 }
 
-/* FRONT & BACK */
+/* Card faces */
 .flashcard .front,
 .flashcard .back {
   position: absolute;
@@ -627,21 +635,25 @@ button.ripple::after {
   justify-content: center;
 
   padding: 20px;
-  font-size: 1rem;
   text-align: center;
+  font-size: 1.05rem;
+  font-weight: 500;
 
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
 
+/* Front */
 .flashcard .front {
   color: #e5e7eb;
 }
 
+/* Back */
 .flashcard .back {
   transform: rotateY(180deg);
   color: #38bdf8;
 }
+
 
 /* Flashcards layout spacing – relaxed */
 .flashcards h3 {
