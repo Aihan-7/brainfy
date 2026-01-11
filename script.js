@@ -45,6 +45,25 @@ const prevBtn = document.getElementById("prevCard");
 const nextBtn = document.getElementById("nextCard");
 const flipBtn = document.getElementById("flipCard");
 const flashcardView = document.querySelector(".flashcard-view");
+prevBtn.addEventListener("click", () => {
+  if (cards.length === 0) return;
+
+  cardIndex = (cardIndex - 1 + cards.length) % cards.length;
+  renderFlashcard();
+});
+
+nextBtn.addEventListener("click", () => {
+  if (cards.length === 0) return;
+
+  cardIndex = (cardIndex + 1) % cards.length;
+  renderFlashcard();
+});
+
+flipBtn.addEventListener("click", () => {
+  if (cards.length === 0) return;
+
+  flashcard.classList.toggle("flipped");
+});
 
 /* =========================
    Navigation
