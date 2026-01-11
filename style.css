@@ -595,40 +595,28 @@ button.ripple::after {
 /* =========================
    Flashcards
 ========================= */
-.flashcards {
-  width: 100%;
-  max-width: 360px;
-  margin: 0 auto;
-  padding-top: 24px;
-  text-align: center;
-}
-
-.flashcard-view {
-  margin-top: 28px;
-  perspective: 1000px;
-}
-
 .flashcard {
   position: relative;
-  height: 120px;
-  border-radius: 18px;
+  width: 260px;
+  height: 140px;
+  border-radius: 22px;
 
-  background: rgba(15,23,42,0.7);
+  background: rgba(15, 23, 42, 0.7);
   backdrop-filter: blur(14px);
 
   transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.08),
-    0 16px 40px rgba(0,0,0,0.45);
-
-  transition: transform 0.6s cubic-bezier(0.22,1,0.36,1);
+    0 20px 50px rgba(0,0,0,0.45);
 }
 
 .flashcard.flipped {
   transform: rotateY(180deg);
 }
 
+/* FRONT & BACK */
 .flashcard .front,
 .flashcard .back {
   position: absolute;
@@ -638,16 +626,23 @@ button.ripple::after {
   align-items: center;
   justify-content: center;
 
-  padding: 18px;
+  padding: 20px;
+  font-size: 1rem;
   text-align: center;
 
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.flashcard .front {
+  color: #e5e7eb;
 }
 
 .flashcard .back {
   transform: rotateY(180deg);
   color: #38bdf8;
 }
+
 /* Flashcards layout spacing – relaxed */
 .flashcards h3 {
   margin-bottom: 28px;
