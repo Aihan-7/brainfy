@@ -240,9 +240,14 @@ function exitFocusMode() {
 /* =========================
    Flashcards Core
 ========================= */
+// =========================
+// Flashcards – CLEAN VERSION
+// =========================
+
 let cards = [];
 let cardIndex = 0;
 
+// ----- UI Mode -----
 function updateFlashcardMode() {
   const hasCards = cards.length > 0;
   document.querySelector(".flashcard-inputs")
@@ -250,15 +255,20 @@ function updateFlashcardMode() {
   flashcardView?.classList.toggle("hidden", !hasCards);
 }
 
+// ----- Render Card -----
 function showCard() {
   if (!cards.length) return;
-  const c = cards[cardIndex];
-  cardQuestion.textContent = c.q;
-  cardAnswer.textContent = c.a;
+
+  const current = cards[cardIndex];
+
+  cardQuestion.textContent = current.q;
+  cardAnswer.textContent = current.a;
+
   flashcard.classList.remove("flipped");
   flashcardView.classList.remove("hidden");
 }
 
+// ----- Add Card -----
 addCardBtn?.addEventListener("click", () => {
   const q = questionInput.value.trim();
   const a = answerInput.value.trim();
@@ -273,32 +283,17 @@ addCardBtn?.addEventListener("click", () => {
   updateFlashcardMode();
   showCard();
 });
-function showCard() {
-  if (!cards.length) return;
 
-  const card = cards[cardIndex];
-  cardQuestion.textContent = card.q;
-  cardAnswer.textContent = card.a;
-
-  flashcard.classList.remove("flipped");
-}
-flipBtn.addEventListener("click", () => {
-  flashcard.classList.toggle("flipped");
-});
-
-nextBtn.addEventListener("click", () => {
-  cardIndex = (cardIndex + 1) % cards.length;
-  showCard();
-});
-
-prevBtn.addEventListener("click", () => {
-  cardIndex = (cardIndex - 1 + cards.length) % cards.length;
-  showCard();
-});
-
+// ----- Controls -----
 flipBtn?.addEventListener("click", () => {
   if (!cards.length) return;
   flashcard.classList.toggle("flipped");
+});
+
+nextBtn?.addEventListener("click", () => {
+  if (!cards.length) return;
+  cardIndex = (cardIndex + 1) % cards.length;
+  showCard();
 });
 
 prevBtn?.addEventListener("click", () => {
@@ -307,11 +302,7 @@ prevBtn?.addEventListener("click", () => {
   showCard();
 });
 
-nextBtn?.addEventListener("click", () => {
-  if (!cards.length) return;
-  cardIndex = (cardIndex + 1) % cards.length;
-  showCard();
-});
+// ----- Swipe (Mobile) -----
 let startX = 0;
 
 flashcard.addEventListener("touchstart", e => {
@@ -319,20 +310,20 @@ flashcard.addEventListener("touchstart", e => {
 });
 
 flashcard.addEventListener("touchend", e => {
-  const dx = e.changedTouches[0].clientX - startX;
+  if (!cards.length) return;
 
+  const dx = e.changedTouches[0].clientX - startX;
   if (Math.abs(dx) < 50) return;
 
   if (dx < 0) {
-    // Swipe left → next
     cardIndex = (cardIndex + 1) % cards.length;
   } else {
-    // Swipe right → prev
     cardIndex = (cardIndex - 1 + cards.length) % cards.length;
   }
 
   showCard();
 });
+
 
 /* =========================
    Notes → Generate Flashcards
