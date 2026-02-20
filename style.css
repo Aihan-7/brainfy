@@ -23,6 +23,11 @@ body {
   overflow-x: hidden;
 }
 
+html {
+  background: #020617;
+  overscroll-behavior: none;
+}
+
 /* Ambient motion */
 body::before {
   content: "";
@@ -664,8 +669,6 @@ button.ripple::after {
   gap: 20px;              /* space between Question & Answer */
   margin-bottom: 28px;   /* space before button */
 }
-
-}
 /* Flashcard inputs – glass style (same as intent input) */
 .flashcard-inputs input {
   width: 100%;
@@ -1094,12 +1097,437 @@ input:focus {
   gap: 28px;
   margin-top: 40px;
 }
-#sessionComplete {
+#focusComplete {
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
-#sessionComplete.hidden {
+#focusComplete.hidden {
   opacity: 0;
   transform: scale(0.96);
   pointer-events: none;
+}
+
+/* =========================
+   Brainfy Final Overrides
+========================= */
+
+/* Keep cards view from centering too low */
+#cardsView.active {
+  justify-content: flex-start;
+  padding-top: 74px;
+  padding-bottom: 24px;
+}
+
+/* Soften the main glass card */
+.card {
+  background: rgba(13, 24, 50, 0.48);
+  backdrop-filter: blur(24px) saturate(125%);
+  -webkit-backdrop-filter: blur(24px) saturate(125%);
+  box-shadow:
+    0 18px 50px rgba(2, 8, 28, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* Base dark-glass buttons (smooth) */
+button {
+  background: linear-gradient(
+    180deg,
+    rgba(88, 104, 134, 0.46),
+    rgba(50, 67, 97, 0.42)
+  ) !important;
+  border: 1px solid rgba(206, 225, 247, 0.2) !important;
+  box-shadow:
+    0 10px 24px rgba(17, 35, 62, 0.36),
+    0 0 22px rgba(44, 172, 236, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  transition:
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, filter, box-shadow;
+}
+
+button:hover {
+  filter: brightness(1.03);
+  box-shadow:
+    0 12px 28px rgba(18, 36, 66, 0.38),
+    0 0 26px rgba(56, 185, 244, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24) !important;
+}
+
+button:active {
+  transform: scale(0.975);
+}
+
+/* Primary CTA buttons keep the stronger blue glow */
+#enterBtn,
+#startBtn,
+#beginFocusBtn,
+#addCardBtn,
+#genCardsBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(82, 197, 246, 0.92),
+    rgba(35, 159, 222, 0.88)
+  ) !important;
+  border: 1px solid rgba(188, 233, 255, 0.45) !important;
+  box-shadow:
+    0 14px 34px rgba(56, 185, 244, 0.38),
+    0 0 34px rgba(56, 185, 244, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26) !important;
+}
+
+/* Home tiles should remain dark glass */
+.space-tile {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(191, 211, 239, 0.14) !important;
+  color: #e5e7eb !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 24px rgba(2, 8, 24, 0.35) !important;
+}
+
+/* Back and flashcard controls are subtler than CTA buttons */
+.flashcard-controls button,
+.back-btn {
+  background: linear-gradient(
+    180deg,
+    rgba(136, 166, 206, 0.24),
+    rgba(80, 112, 158, 0.16)
+  ) !important;
+  border: 1px solid rgba(214, 233, 255, 0.18) !important;
+  box-shadow:
+    0 6px 18px rgba(8, 20, 45, 0.2),
+    0 0 16px rgba(46, 170, 235, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+}
+
+.back-btn::after {
+  display: none;
+}
+
+/* Ripple polish */
+button::after {
+  background: radial-gradient(
+    circle at var(--x, 50%) var(--y, 50%),
+    rgba(210, 244, 255, 0.3) 0%,
+    rgba(143, 220, 252, 0.24) 20%,
+    rgba(65, 187, 244, 0.16) 42%,
+    transparent 78%
+  ) !important;
+  filter: none;
+  transition:
+    transform 0.72s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 1.05s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  will-change: transform, opacity;
+}
+
+button.ripple::after {
+  transform: scale(2.45) !important;
+  opacity: 0.75 !important;
+}
+
+/* Flashcards layout and controls */
+.flashcards {
+  padding-top: 0 !important;
+  gap: 14px;
+}
+
+.flashcard-inputs {
+  margin-top: 0;
+  gap: 12px;
+}
+
+.flashcards.has-cards .flashcard-inputs {
+  display: flex !important;
+  opacity: 1 !important;
+  transform: none !important;
+  pointer-events: auto !important;
+  margin-top: 14px !important;
+}
+
+.flashcard-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  width: 100%;
+  max-width: 430px;
+}
+
+.flashcard-view.hidden {
+  display: none !important;
+}
+
+.flashcards.has-cards .flashcard-view {
+  display: flex !important;
+  margin-top: 8px !important;
+  gap: 14px;
+}
+
+.flashcard-controls {
+  width: 460px;
+  max-width: calc(100% - 16px);
+  display: flex;
+  justify-content: space-between;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.flashcard-controls button {
+  width: 44px !important;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 1.55rem;
+  line-height: 1;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  flex: 0 0 auto;
+  overflow: visible;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.flashcard-controls button::before,
+.flashcard-controls button::after {
+  display: none !important;
+}
+
+.flashcard {
+  width: 290px;
+  height: 170px;
+  margin: 0;
+  perspective: 1200px;
+  transform: none !important;
+  cursor: pointer;
+}
+
+.flashcard.switching {
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.flashcard.switching.slide-next {
+  transform: translateX(-8px) !important;
+  filter: blur(0.8px);
+}
+
+.flashcard.switching.slide-prev {
+  transform: translateX(8px) !important;
+  filter: blur(0.8px);
+}
+
+.flashcard.flipped {
+  transform: none !important;
+}
+
+.flashcard .front,
+.flashcard .back {
+  display: flex !important;
+  transform-style: preserve-3d !important;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+  transition:
+    transform 0.64s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.56s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+.flashcard .front {
+  transform: rotateY(0deg) scale(1) !important;
+  opacity: 1 !important;
+}
+
+.flashcard .back {
+  transform: rotateY(90deg) scale(0.98) !important;
+  opacity: 0 !important;
+}
+
+.flashcard.flipped .front {
+  transform: rotateY(-90deg) scale(0.98) !important;
+  opacity: 0 !important;
+}
+
+.flashcard.flipped .back {
+  transform: rotateY(0deg) scale(1) !important;
+  opacity: 1 !important;
+}
+
+.flashcard-feedback {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+  transition:
+    opacity 0.26s ease,
+    backdrop-filter 0.26s ease,
+    -webkit-backdrop-filter 0.26s ease;
+  z-index: 4;
+}
+
+.flashcard-feedback span {
+  font-size: 2.2rem;
+  font-weight: 700;
+  opacity: 0;
+  transform: translateX(0) scale(0.92);
+  filter: blur(2.2px);
+}
+
+.flashcard.feedback-show .flashcard-feedback {
+  opacity: 1;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.flashcard.feedback-show .flashcard-feedback span {
+  animation: feedbackPop 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.flashcard.feedback-good .flashcard-feedback {
+  background: linear-gradient(
+    180deg,
+    rgba(46, 204, 130, 0.26),
+    rgba(28, 161, 98, 0.2)
+  );
+}
+
+.flashcard.feedback-okay .flashcard-feedback {
+  background: linear-gradient(
+    180deg,
+    rgba(243, 203, 86, 0.24),
+    rgba(212, 157, 36, 0.19)
+  );
+}
+
+.flashcard.feedback-miss .flashcard-feedback {
+  background: linear-gradient(
+    180deg,
+    rgba(241, 102, 102, 0.26),
+    rgba(199, 62, 62, 0.2)
+  );
+}
+
+.flashcard.feedback-good .flashcard-feedback span {
+  color: #d6ffe9;
+}
+
+.flashcard.feedback-okay .flashcard-feedback span {
+  color: #fff3c9;
+}
+
+.flashcard.feedback-miss .flashcard-feedback span {
+  color: #ffdede;
+}
+
+@keyframes feedbackPop {
+  0% {
+    opacity: 0;
+    transform: translateX(8px) scale(0.9);
+    filter: blur(2.4px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(0) scale(1.05);
+    filter: blur(0.4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0px);
+  }
+}
+
+/* Self-check buttons under flashcard */
+.recall-controls {
+  margin-top: 12px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.recall-controls button {
+  width: auto !important;
+  min-width: 86px;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border: none !important;
+  box-shadow: none !important;
+  color: #eaf2ff !important;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.recall-controls button::before,
+.recall-controls button::after {
+  display: none !important;
+}
+
+#recallGood {
+  background: linear-gradient(
+    180deg,
+    rgba(36, 190, 118, 0.9),
+    rgba(24, 150, 90, 0.86)
+  ) !important;
+  color: #d6ffe9 !important;
+  box-shadow: 0 8px 20px rgba(32, 173, 109, 0.26) !important;
+}
+
+#recallOkay {
+  background: linear-gradient(
+    180deg,
+    rgba(243, 194, 67, 0.9),
+    rgba(221, 165, 29, 0.86)
+  ) !important;
+  color: #fff5d5 !important;
+  box-shadow: 0 8px 20px rgba(220, 170, 45, 0.24) !important;
+}
+
+#recallMiss {
+  background: linear-gradient(
+    180deg,
+    rgba(239, 92, 92, 0.9),
+    rgba(204, 63, 63, 0.86)
+  ) !important;
+  color: #ffe2e2 !important;
+  box-shadow: 0 8px 20px rgba(214, 75, 75, 0.24) !important;
+  font-size: 1.28rem;
+}
+
+.recall-summary {
+  margin-top: 10px;
+  font-size: 0.78rem;
+  letter-spacing: 0.3px;
+  color: rgba(229, 231, 235, 0.72);
+}
+
+.recall-controls button.selected {
+  outline: 2px solid rgba(255, 255, 255, 0.32);
+  outline-offset: 1px;
 }
