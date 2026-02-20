@@ -139,16 +139,26 @@
 
         <!-- Card viewer -->
         <div class="flashcard-view hidden">
-          <div class="flashcard" id="flashcard">
+          <div class="flashcard" id="flashcard" role="button" tabindex="0" aria-label="Flip flashcard">
             <div class="front" id="cardQuestion"></div>
             <div class="back" id="cardAnswer"></div>
+            <div class="flashcard-feedback" id="flashcardFeedback" aria-hidden="true">
+              <span id="flashcardFeedbackIcon"></span>
+            </div>
           </div>
 
           <div class="flashcard-controls">
-            <button id="prevCard">Prev</button>
-            <button id="flipCard">Flip</button>
-            <button id="nextCard">Next</button>
+            <button id="prevCard" aria-label="Previous flashcard">&lt;</button>
+            <button id="nextCard" aria-label="Next flashcard">&gt;</button>
           </div>
+
+          <div class="recall-controls" aria-label="Self check">
+            <button id="recallGood" aria-label="Got it right">✓</button>
+            <button id="recallOkay" aria-label="Almost got it">😐</button>
+            <button id="recallMiss" aria-label="Did not get it">✕</button>
+          </div>
+
+          <p id="recallSummary" class="recall-summary">Right: 0  Okay: 0  Wrong: 0</p>
         </div>
 
       </div>
