@@ -1,16 +1,10 @@
 /* =========================
-   Brainfy – Core Script
-   STABLE RECOVERY VERSION
+   Brainfy - Core Script
 ========================= */
 
-/* =========================
-   Constants
-========================= */
 const FOCUS_TIME = 25 * 60;
 
-/* =========================
-   DOM
-========================= */
+/* DOM */
 const card = document.querySelector(".card");
 const views = document.querySelectorAll(".view");
 
@@ -25,6 +19,7 @@ const intentSheet = document.getElementById("intentSheet");
 const intentInput = document.getElementById("intentInput");
 const beginFocusBtn = document.getElementById("beginFocusBtn");
 const focusRoom = document.getElementById("focusRoom");
+const focusComplete = document.getElementById("focusComplete");
 const modeText = document.getElementById("modeText");
 const timerDisplay = document.getElementById("timer");
 const resetBtn = document.getElementById("resetBtn");
@@ -35,44 +30,106 @@ const notesInput = document.getElementById("notesInput");
 const genCardsBtn = document.getElementById("genCardsBtn");
 
 /* Flashcards */
+const flashcardsWrapper = document.querySelector(".flashcards");
 const questionInput = document.getElementById("questionInput");
 const answerInput = document.getElementById("answerInput");
 const addCardBtn = document.getElementById("addCardBtn");
 const flashcard = document.getElementById("flashcard");
 const cardQuestion = document.getElementById("cardQuestion");
 const cardAnswer = document.getElementById("cardAnswer");
+const flashcardFeedback = document.getElementById("flashcardFeedback");
+const flashcardFeedbackIcon = document.getElementById("flashcardFeedbackIcon");
 const prevBtn = document.getElementById("prevCard");
 const nextBtn = document.getElementById("nextCard");
-const flipBtn = document.getElementById("flipCard");
+const recallGoodBtn = document.getElementById("recallGood");
+const recallOkayBtn = document.getElementById("recallOkay");
+const recallMissBtn = document.getElementById("recallMiss");
+const recallSummary = document.getElementById("recallSummary");
 const flashcardView = document.querySelector(".flashcard-view");
-prevBtn.addEventListener("click", () => {
-  if (cards.length === 0) return;
 
-  cardIndex = (cardIndex - 1 + cards.length) % cards.length;
-  renderFlashcard();
-});
+/* State */
+let timer = null;
+let timeLeft = FOCUS_TIME;
+let sessions = 0;
+let cards = [];
+let cardIndex = 0;
+let startX = 0;
+let cardMotionDirection = "none";
+let nextCardId = 1;
+const recallByCardId = new Map();
+const recallStats = { good: 0, okay: 0, miss: 0 };
+let feedbackTimer = null;
+let feedbackLocked = false;
 
-nextBtn.addEventListener("click", () => {
-  if (cards.length === 0) return;
+function updateRecallSummary() {
+  if (!recallSummary) return;
+  recallSummary.textContent = `Right: ${recallStats.good}  Okay: ${recallStats.okay}  Wrong: ${recallStats.miss}`;
+}
 
-  cardIndex = (cardIndex + 1) % cards.length;
-  renderFlashcard();
-});
+function updateRecallSelectionUI(cardId) {
+  const rating = recallByCardId.get(cardId) || "";
+  recallGoodBtn?.classList.toggle("selected", rating === "good");
+  recallOkayBtn?.classList.toggle("selected", rating === "okay");
+  recallMissBtn?.classList.toggle("selected", rating === "miss");
+}
 
-flipBtn.addEventListener("click", () => {
-  if (cards.length === 0) return;
+function setCardRecall(cardId, kind) {
+  const prev = recallByCardId.get(cardId);
+  if (prev === kind) return;
 
-  flashcard.classList.toggle("flipped");
-});
+  if (prev && prev in recallStats) {
+    recallStats[prev] = Math.max(0, recallStats[prev] - 1);
+  }
 
-/* =========================
-   Navigation
-========================= */
+  recallByCardId.set(cardId, kind);
+
+  if (kind in recallStats) {
+    recallStats[kind] += 1;
+  }
+}
+
+function syncCardHeight() {
+  if (!card) return;
+  const activeView = document.querySelector(".view.active");
+  if (!activeView) return;
+
+  const baseHeight = card.classList.contains("compact") ? 300 : 460;
+  let contentNode = null;
+
+  if (activeView.id === "splashView") {
+    contentNode = activeView.querySelector("h1");
+  } else if (activeView.id === "homeView") {
+    contentNode = activeView.querySelector(".space-list");
+  } else if (activeView.id === "focusView") {
+    if (card.classList.contains("focus-active")) {
+      contentNode = focusRoom;
+    } else if (!intentSheet?.classList.contains("hidden")) {
+      contentNode = intentSheet;
+    } else {
+      contentNode = startBtn;
+    }
+  } else if (activeView.id === "notesView") {
+    contentNode = activeView.querySelector(".notes");
+  } else if (activeView.id === "cardsView") {
+    contentNode = activeView.querySelector(".flashcards");
+  }
+
+  const measured = contentNode?.getBoundingClientRect().height || baseHeight - 120;
+  const contentHeight = measured + 142;
+  card.style.minHeight = `${Math.max(baseHeight, contentHeight)}px`;
+}
+
+function isFocusLocked() {
+  return !!card?.classList.contains("focus-active");
+}
+
 function goTo(view) {
-  if (card.classList.contains("focus-active")) return;
+  if (!card) return;
+  if (isFocusLocked() && view !== "focus") return;
 
   views.forEach(v => v.classList.remove("active"));
-  const target = document.getElementById(view + "View");
+
+  const target = document.getElementById(`${view}View`);
   if (!target) return;
   target.classList.add("active");
 
@@ -83,13 +140,142 @@ function goTo(view) {
     card.classList.remove("compact");
     card.classList.add("spacious");
   }
+
+  requestAnimationFrame(syncCardHeight);
 }
 
-window.addEventListener("load", () => {
-  card.classList.add("compact");
-  goTo("splash");
-});
+function updateTimer() {
+  if (!timerDisplay) return;
+  const m = Math.floor(timeLeft / 60);
+  const s = timeLeft % 60;
+  timerDisplay.textContent = `${m}:${s < 10 ? "0" : ""}${s}`;
+}
 
+function stopTimer() {
+  clearInterval(timer);
+  timer = null;
+}
+
+function exitFocusMode() {
+  stopTimer();
+
+  focusComplete?.classList.remove("show");
+  focusComplete?.classList.add("hidden");
+
+  if (focusRoom) {
+    focusRoom.style.opacity = "";
+    focusRoom.style.transform = "";
+    focusRoom.classList.add("hidden");
+  }
+
+  card?.classList.remove("focus-active", "intent-active", "typing");
+  timeLeft = FOCUS_TIME;
+  updateTimer();
+  syncCardHeight();
+}
+
+function endFocusSession() {
+  stopTimer();
+
+  if (!focusRoom || !focusComplete) {
+    sessions += 1;
+    sessionsText.textContent = `Sessions completed: ${sessions}`;
+    exitFocusMode();
+    return;
+  }
+
+  focusRoom.style.opacity = "0";
+  focusRoom.style.transform = "scale(0.96)";
+
+  setTimeout(() => {
+    focusRoom.classList.add("hidden");
+
+    focusComplete.classList.remove("hidden");
+    requestAnimationFrame(() => focusComplete.classList.add("show"));
+
+    sessions += 1;
+    sessionsText.textContent = `Sessions completed: ${sessions}`;
+
+    setTimeout(() => {
+      focusComplete.classList.remove("show");
+      focusComplete.classList.add("hidden");
+      exitFocusMode();
+    }, 1400);
+
+    syncCardHeight();
+  }, 350);
+}
+
+function startTimer() {
+  if (timer) return;
+
+  timer = setInterval(() => {
+    if (timeLeft <= 0) {
+      endFocusSession();
+      return;
+    }
+
+    timeLeft -= 1;
+    updateTimer();
+  }, 1000);
+}
+
+function enterFocusMode(intent) {
+  card?.classList.remove("intent-active", "typing");
+  card?.classList.add("focus-active");
+
+  if (modeText) modeText.textContent = intent || "Focus";
+  focusRoom?.classList.remove("hidden");
+
+  timeLeft = FOCUS_TIME;
+  updateTimer();
+  startTimer();
+  syncCardHeight();
+}
+
+function animateCardChange(direction = "none") {
+  if (!flashcard) return;
+  flashcard.classList.remove("slide-prev", "slide-next");
+  if (direction === "prev") flashcard.classList.add("slide-prev");
+  if (direction === "next") flashcard.classList.add("slide-next");
+  flashcard.classList.add("switching");
+  setTimeout(() => {
+    flashcard.classList.remove("switching", "slide-prev", "slide-next");
+  }, 220);
+}
+
+function updateFlashcardMode() {
+  if (!flashcardsWrapper) return;
+  flashcardsWrapper.classList.toggle("has-cards", cards.length > 0);
+  flashcardView?.classList.toggle("hidden", cards.length === 0);
+  requestAnimationFrame(syncCardHeight);
+}
+
+function showCard() {
+  if (!cards.length || !cardQuestion || !cardAnswer || !flashcardView) return;
+
+  animateCardChange(cardMotionDirection);
+  cardMotionDirection = "none";
+
+  const current = cards[cardIndex];
+  cardQuestion.textContent = current.q;
+  cardAnswer.textContent = current.a;
+
+  if (feedbackTimer) {
+    clearTimeout(feedbackTimer);
+    feedbackTimer = null;
+  }
+  feedbackLocked = false;
+  flashcard?.classList.remove("feedback-show", "feedback-good", "feedback-okay", "feedback-miss");
+
+  flashcard?.classList.remove("flipped");
+  if (current?.id) updateRecallSelectionUI(current.id);
+  updateRecallSummary();
+  flashcardView.classList.remove("hidden");
+  requestAnimationFrame(syncCardHeight);
+}
+
+/* Navigation events */
 enterBtn?.addEventListener("click", () => goTo("home"));
 
 spaceBtns.forEach(btn => {
@@ -101,215 +287,123 @@ spaceBtns.forEach(btn => {
 
 backBtns.forEach(btn => {
   btn.addEventListener("click", () => {
-    if (isFocusLocked() && view !== "focus") return;
+    if (isFocusLocked()) return;
     goTo("home");
   });
 });
 
-/* =========================
-   Focus Logic
-========================= */
-let timer = null;
-let timeLeft = FOCUS_TIME;
-let sessions = 0;
-
-function updateTimer() {
-  const m = Math.floor(timeLeft / 60);
-  const s = timeLeft % 60;
-  timerDisplay.textContent = `${m}:${s < 10 ? "0" : ""}${s}`;
-}
-
-function startTimer() {
-  if (timer) return;
-  timer = setInterval(() => {
-    if (timeLeft <= 0) {
-      sessions++;
-      sessionsText.textContent = `Sessions completed: ${sessions}`;
-      function endSession() {
-  stopTimer();
-
-  // Show completion UI
-  sessionComplete.classList.remove("hidden");
-
-  // Auto-exit after short delay (Apple-style)
-  setTimeout(() => {
-    sessionComplete.classList.add("hidden");
-
-    exitFocusMode(); // returns to idle focus screen
-  }, 1400);
-}
-
-      return;
-    }
-    timeLeft--;
-    updateTimer();
-  }, 1000);
-}
-
-function stopTimer() {
-  clearInterval(timer);
-  timer = null;
-}
-
-function enterFocusMode(intent) {
-  card.classList.remove("intent-active");
-  card.classList.add("focus-active");
-
-  modeText.textContent = intent || "Focus";
-  focusRoom.classList.remove("hidden");
-
-  timeLeft = FOCUS_TIME;
-  updateTimer();
-  startTimer();
-}
-
-function exitFocusMode() {
-  stopTimer();
-  card.classList.remove("focus-active", "intent-active");
-  focusRoom.classList.add("hidden");
-  timeLeft = FOCUS_TIME;
-  updateTimer();
-}
-function endFocusSession() {
-  stopTimer();
-
-  // Fade out timer
-  focusRoom.style.opacity = "0";
-  focusRoom.style.transform = "scale(0.96)";
-
-  setTimeout(() => {
-    focusRoom.classList.add("hidden");
-
-    const complete = document.getElementById("focusComplete");
-    complete.classList.remove("hidden");
-
-    requestAnimationFrame(() => {
-      complete.classList.add("show");
-    });
-
-    sessions++;
-    sessionsText.textContent = `Sessions completed: ${sessions}`;
-  }, 350);
-}
-
-/* Intent flow */
+/* Focus events */
 startBtn?.addEventListener("click", () => {
-  card.classList.add("intent-active");
-  intentSheet.classList.remove("hidden");
+  card?.classList.add("intent-active");
+  intentSheet?.classList.remove("hidden");
+
   requestAnimationFrame(() => {
-    intentSheet.classList.add("show");
-    intentInput.focus();
+    intentSheet?.classList.add("show");
+    intentInput?.focus();
+    syncCardHeight();
   });
 });
 
 beginFocusBtn?.addEventListener("click", () => {
-  const intent = intentInput.value.trim() || "Focus";
-  intentInput.value = "";
-  intentSheet.classList.remove("show");
-  intentSheet.classList.add("hidden");
+  const intent = intentInput?.value.trim() || "Focus";
+  if (intentInput) intentInput.value = "";
+
+  intentSheet?.classList.remove("show");
+  intentSheet?.classList.add("hidden");
   enterFocusMode(intent);
 });
 
 resetBtn?.addEventListener("click", exitFocusMode);
 
-updateTimer();
 intentInput?.addEventListener("focus", () => {
-  card.classList.add("typing");
+  card?.classList.add("typing");
 });
 
 intentInput?.addEventListener("blur", () => {
-  card.classList.remove("typing");
+  card?.classList.remove("typing");
 });
-function exitFocusMode() {
-  stopTimer();
 
-  const complete = document.getElementById("focusComplete");
-  complete.classList.remove("show");
-  complete.classList.add("hidden");
-
-  focusRoom.style.opacity = "";
-  focusRoom.style.transform = "";
-  focusRoom.classList.add("hidden");
-
-  card.classList.remove("focus-active");
-
-  timeLeft = FOCUS_TIME;
-  updateTimer();
-}
-
-/* =========================
-   Flashcards Core
-========================= */
-// =========================
-// Flashcards – CLEAN VERSION
-// =========================
-
-let cards = [];
-let cardIndex = 0;
-
-// ----- UI Mode -----
-function updateFlashcardMode() {
-  const hasCards = cards.length > 0;
-  document.querySelector(".flashcard-inputs")
-    ?.classList.toggle("hidden", hasCards);
-  flashcardView?.classList.toggle("hidden", !hasCards);
-}
-
-// ----- Render Card -----
-function showCard() {
-  if (!cards.length) return;
-
-  const current = cards[cardIndex];
-
-  cardQuestion.textContent = current.q;
-  cardAnswer.textContent = current.a;
-
-  flashcard.classList.remove("flipped");
-  flashcardView.classList.remove("hidden");
-}
-
-// ----- Add Card -----
+/* Flashcards events */
 addCardBtn?.addEventListener("click", () => {
-  const q = questionInput.value.trim();
-  const a = answerInput.value.trim();
+  const q = questionInput?.value.trim() || "";
+  const a = answerInput?.value.trim() || "";
   if (!q || !a) return;
 
-  cards.push({ q, a });
+  cards.push({ id: nextCardId++, q, a });
   cardIndex = cards.length - 1;
 
-  questionInput.value = "";
-  answerInput.value = "";
+  if (questionInput) questionInput.value = "";
+  if (answerInput) answerInput.value = "";
 
   updateFlashcardMode();
   showCard();
 });
 
-// ----- Controls -----
-flipBtn?.addEventListener("click", () => {
-  if (!cards.length) return;
-  flashcard.classList.toggle("flipped");
-});
-
 nextBtn?.addEventListener("click", () => {
   if (!cards.length) return;
+  cardMotionDirection = "next";
   cardIndex = (cardIndex + 1) % cards.length;
   showCard();
 });
 
 prevBtn?.addEventListener("click", () => {
   if (!cards.length) return;
+  cardMotionDirection = "prev";
   cardIndex = (cardIndex - 1 + cards.length) % cards.length;
   showCard();
 });
 
-// ----- Swipe (Mobile) -----
-let startX = 0;
+function rateAndAdvance(kind) {
+  if (!cards.length || !flashcard || !flashcardFeedback || !flashcardFeedbackIcon) return;
+  if (feedbackLocked) return;
+  feedbackLocked = true;
 
-flashcard.addEventListener("touchstart", e => {
+  const current = cards[cardIndex];
+  if (current?.id) {
+    setCardRecall(current.id, kind);
+    updateRecallSummary();
+    updateRecallSelectionUI(current.id);
+  }
+
+  const iconMap = { good: "✓", okay: "😐", miss: "✕" };
+  flashcardFeedbackIcon.textContent = iconMap[kind] || "•";
+
+  flashcard.classList.remove("feedback-good", "feedback-okay", "feedback-miss", "feedback-show");
+  flashcard.classList.add(`feedback-${kind}`);
+  requestAnimationFrame(() => {
+    flashcard.classList.add("feedback-show");
+  });
+
+  feedbackTimer = setTimeout(() => {
+    flashcard.classList.remove("feedback-show", "feedback-good", "feedback-okay", "feedback-miss");
+    cardMotionDirection = "next";
+    cardIndex = (cardIndex + 1) % cards.length;
+    showCard();
+  }, 750);
+}
+
+recallGoodBtn?.addEventListener("click", () => rateAndAdvance("good"));
+recallOkayBtn?.addEventListener("click", () => rateAndAdvance("okay"));
+recallMissBtn?.addEventListener("click", () => rateAndAdvance("miss"));
+
+flashcard?.addEventListener("click", () => {
+  if (!cards.length) return;
+  flashcard.classList.toggle("flipped");
+});
+
+flashcard?.addEventListener("keydown", e => {
+  if (!cards.length) return;
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    flashcard.classList.toggle("flipped");
+  }
+});
+
+flashcard?.addEventListener("touchstart", e => {
   startX = e.touches[0].clientX;
 });
 
-flashcard.addEventListener("touchend", e => {
+flashcard?.addEventListener("touchend", e => {
   if (!cards.length) return;
 
   const dx = e.changedTouches[0].clientX - startX;
@@ -324,30 +418,26 @@ flashcard.addEventListener("touchend", e => {
   showCard();
 });
 
-
-/* =========================
-   Notes → Generate Flashcards
-========================= */
+/* Notes -> cards */
 genCardsBtn?.addEventListener("click", () => {
-  const text = notesInput.value.trim();
+  const text = notesInput?.value.trim() || "";
   if (!text) return;
 
   const lines = text
     .split("\n")
-    .map(l => l.trim())
+    .map(line => line.trim())
     .filter(Boolean);
 
   let created = 0;
 
   lines.forEach(line => {
-    if (line.includes(":")) {
-      const [q, ...rest] = line.split(":");
+    if (!line.includes(":")) return;
+    const [q, ...rest] = line.split(":");
       const a = rest.join(":").trim();
-      if (q && a) {
-        cards.push({ q: q.trim(), a });
-        created++;
-      }
-    }
+      if (!q?.trim() || !a) return;
+
+      cards.push({ id: nextCardId++, q: q.trim(), a });
+      created += 1;
   });
 
   if (!created) return;
@@ -363,55 +453,55 @@ genCardsBtn?.addEventListener("click", () => {
   }, 1400);
 });
 
-/* =========================
-   Button Ripple
-========================= */
+/* Ripple */
 document.querySelectorAll("button").forEach(btn => {
-  btn.addEventListener("click", e => {
+  let lastHapticAt = 0;
+  const triggerHaptic = () => {
+    // Best-effort web haptics: mobile/coarse pointer only, throttled.
+    if (!("vibrate" in navigator)) return;
+    if (!window.matchMedia("(pointer: coarse)").matches) return;
+    const now = Date.now();
+    if (now - lastHapticAt < 60) return;
+    lastHapticAt = now;
+    navigator.vibrate(8);
+  };
+
+  const triggerRipple = (clientX, clientY) => {
     if (btn.disabled || btn.offsetParent === null) return;
+
     const rect = btn.getBoundingClientRect();
-    btn.style.setProperty("--x", `${e.clientX - rect.left}px`);
-    btn.style.setProperty("--y", `${e.clientY - rect.top}px`);
+    const x = Number.isFinite(clientX) ? clientX - rect.left : rect.width / 2;
+    const y = Number.isFinite(clientY) ? clientY - rect.top : rect.height / 2;
+
+    btn.style.setProperty("--x", `${x}px`);
+    btn.style.setProperty("--y", `${y}px`);
+
     btn.classList.remove("ripple");
     void btn.offsetWidth;
     btn.classList.add("ripple");
-    setTimeout(() => btn.classList.remove("ripple"), 600);
+    setTimeout(() => btn.classList.remove("ripple"), 1200);
+    triggerHaptic();
+  };
+
+  btn.addEventListener("pointerdown", e => {
+    triggerRipple(e.clientX, e.clientY);
+  });
+
+  btn.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") {
+      triggerRipple(NaN, NaN);
+    }
   });
 });
-function animateCardChange() {
-  flashcard.classList.add("switching");
-  setTimeout(() => {
-    flashcard.classList.remove("switching");
-  }, 180);
-}
 
-function showCard() {
-  if (!cards.length) return;
-
-  animateCardChange();
-
-  const c = cards[cardIndex];
-  cardQuestion.textContent = c.q;
-  cardAnswer.textContent = c.a;
-
-  flashcard.classList.remove("flipped");
-  flashcardView.classList.remove("hidden");
-}
-function updateFlashcardMode() {
-  const hasCards = cards.length > 0;
-  document.querySelector(".flashcards")
-    .classList.toggle("has-cards", hasCards);
-}
-function updateFlashcardMode() {
-  const wrapper = document.querySelector(".flashcards");
-  if (!wrapper) return;
-
-  wrapper.classList.toggle("has-cards", cards.length > 0);
-}
-function isFocusLocked() {
-  return card.classList.contains("focus-active");
-}
 window.addEventListener("load", () => {
-  card.classList.remove("focus-active", "intent-active");
+  card?.classList.remove("focus-active", "intent-active", "typing");
+  card?.classList.add("compact");
   goTo("splash");
+  updateTimer();
+  updateFlashcardMode();
+  updateRecallSummary();
+  syncCardHeight();
 });
+
+window.addEventListener("resize", syncCardHeight);
