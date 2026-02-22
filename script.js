@@ -581,7 +581,7 @@ function updateFocusStatsUI() {
   ensureGoalTargetsCurrentDate();
   if (focusTodayText) {
     const minutes = Math.floor(focusState.todaySeconds / 60);
-    focusTodayText.textContent = `Today: ${minutes}m • Sessions today: ${focusState.sessionsToday}`;
+    focusTodayText.textContent = `Today: ${minutes}m`;
   }
   if (focusGoalText && focusGoalFill) {
     const done = Math.min(focusState.sessionsToday, focusDailyGoalTarget);
