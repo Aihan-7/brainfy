@@ -43,10 +43,30 @@ body::before {
   pointer-events: none;
 }
 
+body::after {
+  content: "";
+  position: fixed;
+  inset: -18%;
+  background: radial-gradient(
+    circle at 65% 35%,
+    rgba(39, 169, 234, 0.07),
+    transparent 62%
+  );
+  animation: floatDrift 24s ease-in-out infinite;
+  z-index: -1;
+  pointer-events: none;
+}
+
 @keyframes float {
   0%   { transform: translate(0,0); }
   50%  { transform: translate(-4%, -2%); }
   100% { transform: translate(0,0); }
+}
+
+@keyframes floatDrift {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(3%, -2%) scale(1.03); }
+  100% { transform: translate(0, 0) scale(1); }
 }
 
 /* =========================
@@ -85,7 +105,9 @@ body::before {
   transition:
     padding 0.45s cubic-bezier(0.22,1,0.36,1),
     min-height 0.45s cubic-bezier(0.22,1,0.36,1),
+    max-width 0.45s cubic-bezier(0.22,1,0.36,1),
     transform 0.45s cubic-bezier(0.22,1,0.36,1),
+    filter 0.42s cubic-bezier(0.22,1,0.36,1),
     box-shadow 0.45s ease;
 }
 
@@ -253,8 +275,8 @@ button.ripple::after {
   pointer-events: auto;
 }
 
-.card.focus-active .back-btn {
-  display: none;
+.card.focus-active #focusView .back-btn {
+  display: inline-flex !important;
 }
 
 /* =========================
@@ -335,6 +357,12 @@ button.ripple::after {
 .card.focus-active #startBtn,
 .card.focus-active #intentSheet {
   display: none;
+}
+
+.card.intent-open #startBtn {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 .card.focus-active #focusRoom {
@@ -422,6 +450,11 @@ button.ripple::after {
 /* Zoom & blur background when intent typing */
 .card.intent-active.typing {
   transform: scale(1.03);
+}
+.card.intent-active .view.active > *:not(.intent-sheet):not(.back-btn) {
+  filter: blur(6px);
+  opacity: 0.4;
+  transition: filter 0.35s ease, opacity 0.35s ease;
 }
 .card.intent-active.typing .view.active > *:not(.intent-sheet):not(.back-btn) {
   filter: blur(6px);
@@ -565,6 +598,24 @@ button.ripple::after {
   text-align: left;
 }
 
+.notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.notes-detected-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  color: rgba(214, 232, 251, 0.9);
+  background: rgba(30, 56, 92, 0.48);
+  border: 1px solid rgba(165, 207, 244, 0.2);
+  white-space: nowrap;
+}
+
 .notes textarea {
   width: 100%;
   min-height: 160px;
@@ -575,10 +626,234 @@ button.ripple::after {
   padding: 14px;
 }
 
+.notes-live-structure {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(206, 225, 247, 0.13);
+  background: rgba(8, 20, 43, 0.46);
+}
+
+.focus-capture-card {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(206, 225, 247, 0.16);
+  background: rgba(13, 28, 54, 0.5);
+  box-shadow:
+    0 10px 20px rgba(6, 16, 34, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+#focusCaptureTitle {
+  font-size: 0.82rem;
+  color: rgba(232, 241, 252, 0.92);
+  margin-bottom: 4px;
+}
+
+#focusCaptureMeta {
+  font-size: 0.74rem;
+  color: rgba(196, 217, 241, 0.82);
+  margin-bottom: 8px;
+}
+
+.focus-capture-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#focusInsertQBtn,
+#focusInsertABtn,
+#focusInsertKeyBtn,
+#focusCaptureDoneBtn {
+  width: auto !important;
+  min-width: 84px;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 10px;
+  font-size: 0.74rem;
+  font-weight: 640;
+}
+
+#focusCaptureDoneBtn {
+  background: rgba(88, 104, 134, 0.34) !important;
+  color: #e9eef9 !important;
+  border: 1px solid rgba(206, 225, 247, 0.16) !important;
+  box-shadow: none !important;
+}
+
+.notes-live-structure p {
+  font-size: 0.76rem;
+  color: rgba(219, 233, 250, 0.84);
+  margin-bottom: 8px;
+}
+
+#notesLiveStructureList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+#notesLiveStructureList li {
+  padding: 7px 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(206, 225, 247, 0.1);
+  background: rgba(17, 30, 56, 0.5);
+  font-size: 0.76rem;
+  color: rgba(222, 236, 252, 0.88);
+}
+
+#notesLiveStructureList li span {
+  display: block;
+  margin-top: 4px;
+  color: rgba(203, 220, 241, 0.84);
+}
+
 .notes-actions {
   display: flex;
   justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
   margin-top: 16px;
+}
+
+#genCardsBtn,
+#exportNotesBtn,
+#clearNotesBtn {
+  width: auto !important;
+  min-width: 158px;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+#exportNotesBtn {
+  background: rgba(88, 104, 134, 0.34) !important;
+  color: #e9eef9 !important;
+}
+
+#clearNotesBtn {
+  background: rgba(204, 83, 83, 0.24) !important;
+  border-color: rgba(255, 183, 183, 0.3) !important;
+  color: #ffe8e8 !important;
+}
+
+.notes-preview {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(206, 225, 247, 0.16);
+  background: rgba(7, 16, 36, 0.56);
+}
+
+#notesPreviewTitle {
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: rgba(233, 239, 249, 0.92);
+  margin-bottom: 8px;
+}
+
+#notesPreviewList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+#notesPreviewList li {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(17, 30, 56, 0.54);
+  border: 1px solid rgba(206, 225, 247, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#notesPreviewList li.notes-preview-item {
+  padding: 10px;
+  gap: 8px;
+}
+
+.notes-keep-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: rgba(219, 233, 250, 0.88);
+}
+
+.notes-edit-input,
+.notes-edit-textarea {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(174, 206, 239, 0.2);
+  background: rgba(8, 20, 43, 0.56) !important;
+  color: #e7effa !important;
+  font-size: 0.8rem;
+  padding: 8px 10px;
+}
+
+.notes-edit-input {
+  height: 34px;
+}
+
+.notes-edit-textarea {
+  min-height: 56px;
+  resize: vertical;
+  border-radius: 12px;
+}
+
+#notesPreviewList li strong {
+  font-size: 0.84rem;
+  color: rgba(233, 239, 249, 0.95);
+  font-weight: 650;
+}
+
+#notesPreviewList li span {
+  font-size: 0.8rem;
+  color: rgba(203, 214, 231, 0.84);
+  white-space: pre-wrap;
+}
+
+#notesPreviewList li.notes-preview-more {
+  text-align: center;
+  font-size: 0.78rem;
+  color: rgba(148, 199, 232, 0.9);
+}
+
+.notes-preview-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+#createPreviewCardsBtn,
+#cancelPreviewCardsBtn {
+  width: auto !important;
+  min-width: 158px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+#cancelPreviewCardsBtn {
+  background: rgba(88, 104, 134, 0.34) !important;
+  color: #e9eef9 !important;
 }
 
 /* Add Flashcard – secondary action */
@@ -739,6 +1014,23 @@ button.ripple::after {
   z-index: 0;
   pointer-events: none;
   animation: focusDim 0.6s ease forwards;
+}
+
+/* In light mode, keep focus ambient blue (no dark vignette). */
+body.light-mode .card.focus-active {
+  box-shadow:
+    0 24px 56px rgba(74, 141, 200, 0.22),
+    0 0 28px rgba(83, 176, 236, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+body.light-mode .card.focus-active::before {
+  background: radial-gradient(
+    circle at center,
+    rgba(228, 243, 255, 0.1) 34%,
+    rgba(136, 196, 236, 0.16) 66%,
+    rgba(110, 178, 224, 0.2) 100%
+  );
 }
 
 @keyframes focusDim {
@@ -1054,12 +1346,6 @@ input:focus {
 .flashcard {
   margin: 12px 0;
 }
-.flashcard-controls {
-  display: flex;
-  gap: 12px;
-  margin-top: 18px;
-  padding-bottom: 12px;
-}
 .flashcard-view::before {
   content: "";
   width: 60%;
@@ -1120,12 +1406,30 @@ input:focus {
 
 /* Soften the main glass card */
 .card {
-  background: rgba(13, 24, 50, 0.48);
+  background:
+    radial-gradient(circle at 18% 14%, rgba(72, 169, 232, 0.08), transparent 55%),
+    radial-gradient(circle at 84% 78%, rgba(31, 101, 182, 0.08), transparent 58%),
+    rgba(13, 24, 50, 0.48);
   backdrop-filter: blur(24px) saturate(125%);
   -webkit-backdrop-filter: blur(24px) saturate(125%);
   box-shadow:
     0 18px 50px rgba(2, 8, 28, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  background-size: 140% 140%, 145% 145%, auto;
+  background-position: 16% 18%, 82% 86%, center;
+  animation: cardAmbient 20s ease-in-out infinite;
+}
+
+@keyframes cardAmbient {
+  0% {
+    background-position: 16% 18%, 82% 86%, center;
+  }
+  50% {
+    background-position: 24% 12%, 74% 90%, center;
+  }
+  100% {
+    background-position: 16% 18%, 82% 86%, center;
+  }
 }
 
 /* Base dark-glass buttons (smooth) */
@@ -1177,6 +1481,24 @@ button:active {
     inset 0 1px 0 rgba(255, 255, 255, 0.26) !important;
 }
 
+/* CTA text color by theme:
+   dark mode -> black text, light mode -> white text */
+body:not(.light-mode) #enterBtn,
+body:not(.light-mode) #startBtn,
+body:not(.light-mode) #beginFocusBtn,
+body:not(.light-mode) #addCardBtn,
+body:not(.light-mode) #genCardsBtn {
+  color: #020617 !important;
+}
+
+body.light-mode #enterBtn,
+body.light-mode #startBtn,
+body.light-mode #beginFocusBtn,
+body.light-mode #addCardBtn,
+body.light-mode #genCardsBtn {
+  color: #ffffff !important;
+}
+
 /* Home tiles should remain dark glass */
 .space-tile {
   background: rgba(255, 255, 255, 0.06) !important;
@@ -1187,8 +1509,7 @@ button:active {
     0 10px 24px rgba(2, 8, 24, 0.35) !important;
 }
 
-/* Back and flashcard controls are subtler than CTA buttons */
-.flashcard-controls button,
+/* Back button is subtler than CTA buttons */
 .back-btn {
   background: linear-gradient(
     180deg,
@@ -1231,6 +1552,15 @@ button.ripple::after {
 .flashcards {
   padding-top: 0 !important;
   gap: 14px;
+  width: 100%;
+}
+
+.cards-shell {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-items: start;
 }
 
 .flashcard-inputs {
@@ -1263,49 +1593,6 @@ button.ripple::after {
   display: flex !important;
   margin-top: 8px !important;
   gap: 14px;
-}
-
-.flashcard-controls {
-  width: 460px;
-  max-width: calc(100% - 16px);
-  display: flex;
-  justify-content: space-between;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  padding: 0;
-  pointer-events: none;
-  z-index: 3;
-}
-
-.flashcard-controls button {
-  width: 44px !important;
-  min-width: 44px;
-  height: 44px;
-  padding: 0;
-  border-radius: 999px;
-  font-size: 1.55rem;
-  line-height: 1;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: auto;
-  flex: 0 0 auto;
-  overflow: visible;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  color: #ffffff !important;
-  filter: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-.flashcard-controls button::before,
-.flashcard-controls button::after {
-  display: none !important;
 }
 
 .flashcard {
@@ -1527,7 +1814,1260 @@ button.ripple::after {
   color: rgba(229, 231, 235, 0.72);
 }
 
+.session-panel {
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: rgba(17, 30, 56, 0.5);
+  border: 1px solid rgba(196, 218, 248, 0.14);
+  border-radius: 18px;
+  padding: 14px 12px 12px;
+  box-shadow:
+    0 10px 24px rgba(6, 16, 34, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.session-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.session-actions button {
+  width: auto !important;
+  min-width: 74px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: rgba(88, 104, 134, 0.32) !important;
+  border: 1px solid rgba(206, 225, 247, 0.16) !important;
+  color: #e7edf8 !important;
+  box-shadow: none !important;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+#dueNowBtn.active {
+  background: rgba(48, 173, 108, 0.32) !important;
+  border-color: rgba(146, 241, 191, 0.34) !important;
+  color: #d7ffe9 !important;
+}
+
+#mistakesModeBtn.active {
+  background: rgba(204, 83, 83, 0.3) !important;
+  border-color: rgba(255, 183, 183, 0.34) !important;
+  color: #ffe3e3 !important;
+}
+
+#slippingModeBtn.active {
+  background: rgba(88, 150, 248, 0.3) !important;
+  border-color: rgba(169, 208, 255, 0.34) !important;
+  color: #dff0ff !important;
+}
+
+#clearDeckBtn {
+  background: rgba(204, 83, 83, 0.22) !important;
+  border-color: rgba(255, 183, 183, 0.28) !important;
+  color: #ffe8e8 !important;
+}
+
+.daily-goal {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#dailyGoalText {
+  font-size: 0.74rem;
+  color: rgba(229, 231, 235, 0.72);
+  letter-spacing: 0.2px;
+  text-align: center;
+}
+
+.goal-track {
+  width: 100%;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(123, 146, 180, 0.2);
+  overflow: hidden;
+}
+
+#dailyGoalFill {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(73, 198, 244, 0.8), rgba(57, 174, 231, 0.88));
+  transition: width 0.35s ease;
+}
+
+.mini-charts {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chart-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 24px;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: rgba(229, 231, 235, 0.78);
+}
+
+.chart-track {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(123, 146, 180, 0.2);
+  overflow: hidden;
+}
+
+.chart-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+.chart-fill.good {
+  background: linear-gradient(90deg, rgba(47, 193, 122, 0.88), rgba(32, 158, 100, 0.88));
+}
+
+.chart-fill.okay {
+  background: linear-gradient(90deg, rgba(243, 194, 67, 0.9), rgba(221, 165, 29, 0.86));
+}
+
+.chart-fill.miss {
+  background: linear-gradient(90deg, rgba(239, 92, 92, 0.9), rgba(204, 63, 63, 0.86));
+}
+
+#accuracyTrendText {
+  margin-top: 1px;
+  font-size: 0.72rem;
+  color: rgba(229, 231, 235, 0.72);
+  text-align: center;
+  letter-spacing: 0.4px;
+}
+
+.trajectory-panel {
+  width: 100%;
+  max-width: 340px;
+  border-radius: 12px;
+  border: 1px solid rgba(206, 225, 247, 0.12);
+  background: rgba(15, 28, 52, 0.34);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trajectory-panel.hidden {
+  display: none !important;
+}
+
+#trajectorySummaryText,
+#trajectoryMetaText {
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: rgba(229, 231, 235, 0.74);
+  text-align: center;
+}
+
+#sessionStatsText {
+  font-size: 0.74rem;
+  color: rgba(229, 231, 235, 0.72);
+  letter-spacing: 0.2px;
+}
+
+#resetSessionBtn {
+  width: auto !important;
+  min-width: 118px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: rgba(88, 104, 134, 0.36) !important;
+  border: 1px solid rgba(206, 225, 247, 0.18) !important;
+  color: #e7edf8 !important;
+  box-shadow: none !important;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .recall-controls button.selected {
   outline: 2px solid rgba(255, 255, 255, 0.32);
   outline-offset: 1px;
+}
+
+@media (max-width: 900px) {
+  .cards-shell {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+/* Keep flashcards content independent from session panel */
+.cards-shell {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+/* Separate right-side session card */
+.floating-session-panel {
+  display: none;
+}
+
+body.cards-view-open .floating-session-panel {
+  position: fixed;
+  top: 50%;
+  left: calc(50% + 294px);
+  transform: translateY(-50%);
+  z-index: 20;
+  display: flex;
+  width: 360px;
+  max-width: calc(100vw - 26px);
+  gap: 12px;
+  padding: 20px 18px 16px;
+  border-radius: 28px;
+  background: rgba(13, 24, 50, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px) saturate(125%);
+  -webkit-backdrop-filter: blur(24px) saturate(125%);
+  box-shadow:
+    0 18px 50px rgba(2, 8, 28, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+body.cards-view-open .floating-session-panel #sessionStatsText,
+body.cards-view-open .floating-session-panel #dailyGoalText,
+body.cards-view-open .floating-session-panel .chart-row,
+body.cards-view-open .floating-session-panel #accuracyTrendText,
+body.cards-view-open .floating-session-panel #trajectorySummaryText,
+body.cards-view-open .floating-session-panel #trajectoryMetaText {
+  font-size: 0.95rem;
+}
+
+body.cards-view-open .floating-session-panel .session-actions button {
+  min-width: 96px;
+  height: 38px;
+  font-size: 0.95rem;
+}
+
+body.cards-view-open .floating-session-panel #resetSessionBtn {
+  min-width: 170px;
+  height: 44px;
+  font-size: 1.02rem;
+}
+
+@media (max-width: 1380px) {
+  body.cards-view-open .floating-session-panel {
+    left: calc(50% + 272px);
+    width: 330px;
+    padding: 18px 16px 14px;
+  }
+}
+
+@media (max-width: 1180px) {
+  body.cards-view-open .floating-session-panel {
+    display: none;
+  }
+}
+
+#editCardBtn.edit-card-btn {
+  width: 34px !important;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  margin: 0 6px -2px 0;
+  align-self: flex-end;
+  border-radius: 999px;
+  font-size: 0.96rem;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(231, 237, 248, 0.9) !important;
+  background: rgba(72, 90, 122, 0.28) !important;
+  border: 1px solid rgba(206, 225, 247, 0.16) !important;
+  box-shadow: none !important;
+}
+
+#editCardBtn.edit-card-btn.active {
+  color: #80d6ff !important;
+  border-color: rgba(128, 214, 255, 0.34) !important;
+  background: rgba(67, 133, 173, 0.24) !important;
+}
+
+/* Notes aesthetics overrides */
+.card.notes-wide {
+  max-width: 980px;
+  will-change: min-height, max-width, transform, filter;
+}
+
+.card.notes-wide #notesView .notes {
+  width: 100%;
+  max-width: 860px;
+  margin: 24px auto 0;
+}
+
+.card.notes-wide #notesView .notes textarea,
+.card.notes-wide #notesView .notes .notes-preview {
+  width: 100%;
+}
+
+.card.notes-wide.notes-entering {
+  filter: blur(0.7px);
+  transform: translateY(2px) scale(0.998);
+}
+
+#createPreviewCardsBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(56, 189, 248, 0.95),
+    rgba(14, 165, 233, 0.95)
+  ) !important;
+  color: #020617 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 10px 26px rgba(56, 189, 248, 0.35),
+    0 16px 40px rgba(0, 0, 0, 0.45) !important;
+}
+
+#cancelPreviewCardsBtn {
+  background: rgba(204, 83, 83, 0.24) !important;
+  border-color: rgba(255, 183, 183, 0.3) !important;
+  color: #ffe8e8 !important;
+}
+
+/* Focus controls */
+.focus-setup {
+  width: 100%;
+  margin: 2px 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.focus-presets {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.focus-preset {
+  width: auto !important;
+  min-width: 82px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 11px;
+  font-size: 0.8rem;
+  font-weight: 650;
+  background: rgba(70, 88, 120, 0.3) !important;
+  color: #dfe9f8 !important;
+  border: 1px solid rgba(206, 225, 247, 0.18) !important;
+  box-shadow: none !important;
+}
+
+.focus-preset.active {
+  background: linear-gradient(
+    180deg,
+    rgba(56, 189, 248, 0.95),
+    rgba(14, 165, 233, 0.95)
+  ) !important;
+  color: #020617 !important;
+  border-color: rgba(142, 228, 255, 0.4) !important;
+  box-shadow: 0 8px 18px rgba(56, 189, 248, 0.26) !important;
+}
+
+.focus-custom {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#customFocusInput,
+#customBreakInput {
+  width: 112px;
+  height: 36px;
+  border-radius: 12px;
+  padding: 0 12px;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+#applyCustomPresetBtn,
+#chimeBtn.focus-toggle {
+  width: auto !important;
+  min-width: 92px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-size: 0.82rem;
+  font-weight: 650;
+  background: rgba(88, 104, 134, 0.34) !important;
+  color: #e9eef9 !important;
+  border: 1px solid rgba(206, 225, 247, 0.16) !important;
+  box-shadow: none !important;
+}
+
+#chimeBtn.focus-toggle.active {
+  background: rgba(49, 176, 110, 0.28) !important;
+  border-color: rgba(150, 244, 196, 0.32) !important;
+  color: #dcffe9 !important;
+}
+
+.timer-shell {
+  position: relative;
+  width: 238px;
+  height: 238px;
+  display: grid;
+  place-items: center;
+}
+
+.timer-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.timer-ring-track {
+  fill: none;
+  stroke: rgba(141, 170, 205, 0.22);
+  stroke-width: 10;
+}
+
+.timer-ring-progress {
+  fill: none;
+  stroke: rgba(79, 204, 248, 0.96);
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.9s linear;
+  filter: drop-shadow(0 0 10px rgba(79, 204, 248, 0.42));
+}
+
+.focus-room-actions {
+  margin-top: 2px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+#pauseBtn,
+#resetBtn {
+  width: auto !important;
+  min-width: 106px;
+}
+
+#pauseBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(243, 194, 67, 0.9),
+    rgba(221, 165, 29, 0.86)
+  ) !important;
+  color: #fff5d5 !important;
+  border-color: rgba(255, 228, 154, 0.34) !important;
+  box-shadow: 0 8px 20px rgba(220, 170, 45, 0.24) !important;
+}
+
+#pauseBtn.is-resume {
+  background: linear-gradient(
+    180deg,
+    rgba(36, 190, 118, 0.9),
+    rgba(24, 150, 90, 0.86)
+  ) !important;
+  color: #d6ffe9 !important;
+  border-color: rgba(146, 241, 191, 0.34) !important;
+  box-shadow: 0 8px 20px rgba(32, 173, 109, 0.26) !important;
+}
+
+#resetBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(239, 92, 92, 0.9),
+    rgba(204, 63, 63, 0.86)
+  ) !important;
+  color: #ffe2e2 !important;
+  border-color: rgba(255, 182, 182, 0.32) !important;
+  box-shadow: 0 8px 20px rgba(214, 75, 75, 0.24) !important;
+}
+
+.home-streak {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  color: rgba(233, 239, 249, 0.9);
+  background: rgba(25, 43, 77, 0.46);
+  border: 1px solid rgba(206, 225, 247, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 8px 20px rgba(6, 18, 40, 0.22);
+}
+
+.home-review {
+  margin-top: 0;
+  margin-bottom: 10px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  color: rgba(226, 237, 252, 0.84);
+  background: rgba(19, 38, 70, 0.44);
+  border: 1px solid rgba(206, 225, 247, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 18px rgba(6, 18, 40, 0.2);
+}
+
+.home-mood-trend {
+  margin-top: 0;
+  margin-bottom: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  letter-spacing: 0.3px;
+  color: rgba(216, 231, 250, 0.82);
+  background: rgba(17, 34, 64, 0.4);
+  border: 1px solid rgba(206, 225, 247, 0.12);
+}
+
+.home-undo-reflection {
+  width: auto !important;
+  min-width: 130px;
+  height: 30px;
+  margin-bottom: 10px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 0.74rem;
+  font-weight: 620;
+  color: rgba(222, 238, 255, 0.86) !important;
+  background: rgba(75, 96, 131, 0.3) !important;
+  border: 1px solid rgba(206, 225, 247, 0.16) !important;
+  box-shadow: none !important;
+}
+
+.home-reflection {
+  width: 100%;
+  max-width: 360px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(17, 30, 56, 0.5);
+  border: 1px solid rgba(196, 218, 248, 0.14);
+  box-shadow:
+    0 10px 24px rgba(6, 16, 34, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.home-plan {
+  width: 100%;
+  max-width: 360px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(16, 29, 55, 0.44);
+  border: 1px solid rgba(196, 218, 248, 0.14);
+  box-shadow:
+    0 10px 24px rgba(6, 16, 34, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.home-plan.hidden {
+  display: none !important;
+}
+
+#homePlanPrompt {
+  font-size: 0.84rem;
+  color: rgba(232, 240, 252, 0.88);
+  margin-bottom: 8px;
+}
+
+.home-plan-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#planLightBtn,
+#planNormalBtn,
+#planDeepBtn {
+  width: auto !important;
+  min-width: 92px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 0.76rem;
+  font-weight: 640;
+  color: #04101e !important;
+  border: 1px solid rgba(167, 228, 255, 0.46) !important;
+}
+
+#planLightBtn.active,
+#planNormalBtn.active,
+#planDeepBtn.active {
+  border-color: rgba(160, 222, 255, 0.44) !important;
+  box-shadow:
+    0 8px 18px rgba(56, 185, 244, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+#planLightBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(86, 201, 247, 0.96),
+    rgba(44, 168, 230, 0.92)
+  ) !important;
+  box-shadow:
+    0 10px 24px rgba(56, 185, 244, 0.28),
+    0 0 22px rgba(56, 185, 244, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26) !important;
+}
+
+#planNormalBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(76, 187, 236, 0.94),
+    rgba(37, 154, 215, 0.9)
+  ) !important;
+  box-shadow:
+    0 10px 22px rgba(49, 173, 230, 0.24),
+    0 0 20px rgba(49, 173, 230, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24) !important;
+}
+
+#planDeepBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(66, 173, 224, 0.92),
+    rgba(31, 142, 203, 0.88)
+  ) !important;
+  box-shadow:
+    0 9px 20px rgba(44, 160, 214, 0.2),
+    0 0 18px rgba(44, 160, 214, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+}
+
+#homePlanSummary {
+  margin-top: 8px;
+  font-size: 0.74rem;
+  color: rgba(206, 225, 247, 0.84);
+}
+
+.home-reflection.hidden {
+  display: none !important;
+}
+
+.home-undo-reflection.hidden {
+  display: none !important;
+}
+
+body.reflection-answered #homeReflectionCard {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+}
+
+#homeReflectionPrompt {
+  font-size: 0.88rem;
+  color: rgba(232, 240, 252, 0.9);
+  margin-bottom: 10px;
+}
+
+.home-reflection-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#reflectionEasyBtn,
+#reflectionOkayBtn,
+#reflectionHardBtn {
+  width: auto !important;
+  min-width: 102px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+#reflectionEasyBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(36, 190, 118, 0.9),
+    rgba(24, 150, 90, 0.86)
+  ) !important;
+  color: #d6ffe9 !important;
+  box-shadow: 0 8px 18px rgba(32, 173, 109, 0.22) !important;
+}
+
+#reflectionOkayBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(243, 194, 67, 0.9),
+    rgba(221, 165, 29, 0.86)
+  ) !important;
+  color: #fff5d5 !important;
+  box-shadow: 0 8px 18px rgba(220, 170, 45, 0.2) !important;
+}
+
+#reflectionHardBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(239, 92, 92, 0.9),
+    rgba(204, 63, 63, 0.86)
+  ) !important;
+  color: #ffe2e2 !important;
+  box-shadow: 0 8px 18px rgba(214, 75, 75, 0.2) !important;
+}
+
+.focus-today {
+  margin-top: 2px;
+  font-size: 0.92rem;
+  color: rgba(203, 214, 231, 0.84);
+}
+
+.focus-goal {
+  width: 100%;
+  max-width: 320px;
+  margin-top: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#focusGoalText {
+  font-size: 0.83rem;
+  color: rgba(203, 214, 231, 0.8);
+  text-align: center;
+}
+
+.focus-goal-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(123, 146, 180, 0.24);
+  overflow: hidden;
+}
+
+#focusGoalFill {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(73, 198, 244, 0.84), rgba(57, 174, 231, 0.9));
+  transition: width 0.35s ease;
+}
+
+.focus-mini {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  width: 96px !important;
+  min-width: 96px;
+  height: 96px;
+  padding: 0;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  z-index: 40;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.focus-mini.hidden {
+  display: none !important;
+}
+
+.theme-toggle {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  width: 42px !important;
+  min-width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 999px;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+}
+
+#themeToggleIcon {
+  font-size: 1.08rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 4px rgba(20, 42, 69, 0.2));
+}
+
+.focus-mini-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.focus-mini-track {
+  fill: none;
+  stroke: rgba(141, 170, 205, 0.28);
+  stroke-width: 4.5;
+}
+
+.focus-mini-progress {
+  fill: none;
+  stroke: rgba(79, 204, 248, 0.96);
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.9s linear;
+  filter: drop-shadow(0 0 6px rgba(79, 204, 248, 0.4));
+}
+
+#focusMiniTime {
+  position: relative;
+  z-index: 1;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: #eaf3ff;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 8px rgba(10, 28, 52, 0.46);
+}
+
+.focus-mini.paused .focus-mini-progress {
+  stroke: rgba(243, 194, 67, 0.95);
+  filter: drop-shadow(0 0 6px rgba(220, 170, 45, 0.34));
+}
+
+@media (max-width: 760px) {
+  .focus-mini {
+    top: 12px;
+    left: 12px;
+    width: 84px !important;
+    min-width: 84px;
+    height: 84px;
+  }
+  .theme-toggle {
+    top: 12px;
+    right: 12px;
+    width: 38px !important;
+    min-width: 38px;
+    height: 38px;
+  }
+}
+
+/* =========================
+   Light Mode
+========================= */
+body.light-mode {
+  color: #163150;
+  background:
+    radial-gradient(circle at top, rgba(56,189,248,0.22), transparent 58%),
+    linear-gradient(135deg, #dbeeff, #c7e4ff 55%, #b9ddff);
+}
+
+body.light-mode::before {
+  background: radial-gradient(circle at center, rgba(56,189,248,0.14), transparent 66%);
+}
+
+body.light-mode::after {
+  background: radial-gradient(circle at 65% 35%, rgba(39, 169, 234, 0.12), transparent 64%);
+}
+
+body.light-mode .card {
+  background:
+    radial-gradient(circle at 18% 14%, rgba(72, 169, 232, 0.12), transparent 55%),
+    radial-gradient(circle at 84% 78%, rgba(31, 101, 182, 0.1), transparent 58%),
+    rgba(245, 251, 255, 0.7);
+  box-shadow:
+    0 14px 34px rgba(66, 122, 172, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+body.light-mode h1,
+body.light-mode h2,
+body.light-mode h3,
+body.light-mode p,
+body.light-mode .label,
+body.light-mode .section-title,
+body.light-mode .home-streak,
+body.light-mode .home-review,
+body.light-mode .home-mood-trend,
+body.light-mode #sessionStatsText,
+body.light-mode #dailyGoalText,
+body.light-mode .chart-row,
+body.light-mode #accuracyTrendText,
+body.light-mode #trajectorySummaryText,
+body.light-mode #trajectoryMetaText,
+body.light-mode #focusGoalText,
+body.light-mode .focus-today {
+  color: #163150 !important;
+}
+
+body.light-mode .space-tile,
+body.light-mode .home-streak,
+body.light-mode .home-review,
+body.light-mode .home-mood-trend,
+body.light-mode .home-reflection,
+body.light-mode .home-plan,
+body.light-mode .notes-preview,
+body.light-mode .notes-live-structure,
+body.light-mode .focus-capture-card,
+body.light-mode .session-panel,
+body.light-mode .trajectory-panel,
+body.light-mode .flashcard {
+  background: rgba(242, 250, 255, 0.78) !important;
+  border-color: rgba(122, 174, 218, 0.25) !important;
+  box-shadow:
+    0 10px 24px rgba(88, 140, 189, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
+}
+
+body.light-mode input,
+body.light-mode textarea {
+  background: rgba(248, 253, 255, 0.9) !important;
+  color: #153252 !important;
+  border-color: rgba(128, 178, 220, 0.3) !important;
+}
+
+body.light-mode .flashcard-inputs input {
+  background: rgba(248, 253, 255, 0.92) !important;
+  color: #153252 !important;
+  border-color: rgba(128, 178, 220, 0.4) !important;
+}
+
+body.light-mode .flashcard-inputs input:focus {
+  background: rgba(252, 255, 255, 0.96) !important;
+  color: #153252 !important;
+  border-color: rgba(85, 161, 220, 0.62) !important;
+  box-shadow:
+    0 0 0 2px rgba(85, 161, 220, 0.22),
+    0 8px 18px rgba(88, 140, 189, 0.12) !important;
+}
+
+body.light-mode input::placeholder,
+body.light-mode textarea::placeholder {
+  color: rgba(54, 92, 129, 0.72) !important;
+}
+
+body.light-mode .back-btn {
+  background: rgba(220, 238, 255, 0.8) !important;
+  color: #1a3657 !important;
+  border-color: rgba(138, 183, 222, 0.3) !important;
+  box-shadow: 0 8px 18px rgba(88, 140, 189, 0.15) !important;
+}
+
+/* Focus setup sheet polish in light mode */
+body.light-mode .intent-sheet {
+  background: rgba(239, 248, 255, 0.86) !important;
+  border: 1px solid rgba(140, 187, 226, 0.28);
+  box-shadow:
+    0 18px 36px rgba(72, 124, 169, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82) !important;
+}
+
+body.light-mode .intent-sheet h3 {
+  color: #193a5d !important;
+}
+
+body.light-mode #intentInput {
+  background: rgba(252, 255, 255, 0.94) !important;
+  color: #17385b !important;
+  border: 1px solid rgba(130, 177, 218, 0.36) !important;
+  box-shadow: 0 8px 20px rgba(88, 140, 189, 0.14) !important;
+}
+
+body.light-mode #intentInput::placeholder {
+  color: rgba(67, 104, 140, 0.72) !important;
+}
+
+body.light-mode .focus-preset,
+body.light-mode #applyCustomPresetBtn,
+body.light-mode #chimeBtn.focus-toggle {
+  background: linear-gradient(
+    180deg,
+    rgba(126, 168, 208, 0.68),
+    rgba(95, 137, 180, 0.6)
+  ) !important;
+  color: #14385d !important;
+  border-color: rgba(120, 170, 214, 0.52) !important;
+  box-shadow:
+    0 8px 18px rgba(84, 133, 176, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42) !important;
+}
+
+body.light-mode .focus-preset.active {
+  background: linear-gradient(
+    180deg,
+    rgba(80, 194, 244, 0.96),
+    rgba(40, 160, 223, 0.9)
+  ) !important;
+  color: #f7fcff !important;
+  border-color: rgba(162, 225, 252, 0.74) !important;
+  box-shadow:
+    0 10px 22px rgba(45, 165, 227, 0.3),
+    0 0 20px rgba(80, 194, 244, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32) !important;
+}
+
+body.light-mode #customFocusInput,
+body.light-mode #customBreakInput {
+  background: rgba(252, 255, 255, 0.94) !important;
+  color: #17385b !important;
+  border: 1px solid rgba(130, 177, 218, 0.4) !important;
+}
+
+/* Light mode button contrast boost (except core CTA text-color logic above). */
+body.light-mode button:not(#enterBtn):not(#startBtn):not(#beginFocusBtn):not(#addCardBtn):not(#genCardsBtn):not(#recallGood):not(#recallOkay):not(#recallMiss) {
+  background: linear-gradient(
+    180deg,
+    rgba(113, 153, 194, 0.56),
+    rgba(87, 129, 174, 0.48)
+  ) !important;
+  border-color: rgba(114, 164, 210, 0.42) !important;
+  color: #173b61 !important;
+  box-shadow:
+    0 10px 22px rgba(82, 132, 178, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.38) !important;
+}
+
+/* Notes secondary buttons in light mode: stronger, not washed out. */
+body.light-mode #exportNotesBtn,
+body.light-mode #cancelPreviewCardsBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(109, 147, 186, 0.62),
+    rgba(79, 120, 163, 0.54)
+  ) !important;
+  color: #f2f8ff !important;
+  border-color: rgba(134, 181, 223, 0.5) !important;
+}
+
+body.light-mode #clearNotesBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(215, 110, 110, 0.52),
+    rgba(188, 83, 83, 0.46)
+  ) !important;
+  color: #fff1f1 !important;
+  border-color: rgba(219, 117, 117, 0.5) !important;
+}
+
+/* Flashcard feedback controls: keep vivid in light mode. */
+body.light-mode #recallGood {
+  background: linear-gradient(
+    180deg,
+    rgba(46, 189, 120, 0.92),
+    rgba(28, 152, 94, 0.88)
+  ) !important;
+  color: #eafff3 !important;
+  border-color: rgba(132, 226, 181, 0.48) !important;
+  box-shadow:
+    0 10px 22px rgba(28, 152, 94, 0.28),
+    0 0 20px rgba(46, 189, 120, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28) !important;
+}
+
+body.light-mode #recallOkay {
+  background: linear-gradient(
+    180deg,
+    rgba(235, 186, 60, 0.92),
+    rgba(211, 153, 24, 0.88)
+  ) !important;
+  color: #fff7df !important;
+  border-color: rgba(239, 200, 101, 0.5) !important;
+  box-shadow:
+    0 10px 22px rgba(211, 153, 24, 0.26),
+    0 0 20px rgba(235, 186, 60, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28) !important;
+}
+
+body.light-mode #recallMiss {
+  background: linear-gradient(
+    180deg,
+    rgba(231, 95, 95, 0.92),
+    rgba(198, 62, 62, 0.88)
+  ) !important;
+  color: #fff0f0 !important;
+  border-color: rgba(226, 122, 122, 0.5) !important;
+  box-shadow:
+    0 10px 22px rgba(198, 62, 62, 0.28),
+    0 0 20px rgba(231, 95, 95, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28) !important;
+}
+
+/* Force vivid self-feedback buttons in light mode, above generic button tint. */
+body.light-mode .recall-controls #recallGood {
+  background: linear-gradient(
+    180deg,
+    rgba(46, 189, 120, 0.92),
+    rgba(28, 152, 94, 0.88)
+  ) !important;
+  color: #eafff3 !important;
+}
+
+body.light-mode .recall-controls #recallOkay {
+  background: linear-gradient(
+    180deg,
+    rgba(235, 186, 60, 0.92),
+    rgba(211, 153, 24, 0.88)
+  ) !important;
+  color: #fff7df !important;
+}
+
+body.light-mode .recall-controls #recallMiss {
+  background: linear-gradient(
+    180deg,
+    rgba(231, 95, 95, 0.92),
+    rgba(198, 62, 62, 0.88)
+  ) !important;
+  color: #fff0f0 !important;
+}
+
+/* Flashcard text contrast in light mode. */
+body.light-mode .flashcard .front,
+body.light-mode #cardQuestion {
+  color: #18395d !important;
+}
+
+body.light-mode .flashcard .back,
+body.light-mode #cardAnswer {
+  color: #1e79c7 !important;
+}
+
+/* Session panel controls in light mode: force readable contrast. */
+body.light-mode .session-actions button,
+body.light-mode #resetSessionBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(108, 149, 192, 0.72),
+    rgba(79, 121, 166, 0.64)
+  ) !important;
+  color: #14385d !important;
+  border: 1px solid rgba(110, 160, 204, 0.52) !important;
+  box-shadow:
+    0 9px 20px rgba(80, 129, 173, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42) !important;
+}
+
+body.light-mode #clearDeckBtn {
+  background: linear-gradient(
+    180deg,
+    rgba(233, 134, 134, 0.66),
+    rgba(206, 96, 96, 0.58)
+  ) !important;
+  color: #fff4f4 !important;
+  border-color: rgba(226, 121, 121, 0.62) !important;
+  box-shadow:
+    0 10px 22px rgba(196, 83, 83, 0.24),
+    0 0 20px rgba(224, 115, 115, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34) !important;
+}
+
+/* Keep semantic active glass states visible in light mode. */
+body.light-mode #dueNowBtn.active {
+  background: linear-gradient(
+    180deg,
+    rgba(71, 190, 128, 0.72),
+    rgba(46, 158, 101, 0.64)
+  ) !important;
+  color: #f1fff8 !important;
+  border-color: rgba(127, 222, 176, 0.58) !important;
+  box-shadow:
+    0 10px 22px rgba(46, 158, 101, 0.24),
+    0 0 20px rgba(71, 190, 128, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32) !important;
+}
+
+body.light-mode #mistakesModeBtn.active {
+  background: linear-gradient(
+    180deg,
+    rgba(230, 108, 108, 0.74),
+    rgba(196, 73, 73, 0.66)
+  ) !important;
+  color: #fff2f2 !important;
+  border-color: rgba(228, 122, 122, 0.62) !important;
+  box-shadow:
+    0 10px 24px rgba(196, 73, 73, 0.28),
+    0 0 22px rgba(230, 108, 108, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+body.light-mode #slippingModeBtn.active {
+  background: linear-gradient(
+    180deg,
+    rgba(98, 170, 244, 0.74),
+    rgba(64, 133, 208, 0.66)
+  ) !important;
+  color: #f3f9ff !important;
+  border-color: rgba(129, 186, 244, 0.62) !important;
+  box-shadow:
+    0 10px 24px rgba(64, 133, 208, 0.24),
+    0 0 22px rgba(98, 170, 244, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Stronger specificity for active states inside session action rows. */
+body.light-mode .session-actions #dueNowBtn.active,
+body.light-mode .floating-session-panel .session-actions #dueNowBtn.active {
+  background: linear-gradient(
+    180deg,
+    rgba(54, 186, 121, 0.9),
+    rgba(33, 156, 98, 0.84)
+  ) !important;
+  color: #f4fff9 !important;
+  border-color: rgba(122, 230, 178, 0.78) !important;
+  box-shadow:
+    0 12px 24px rgba(33, 156, 98, 0.34),
+    0 0 22px rgba(54, 186, 121, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34) !important;
+}
+
+body.light-mode .session-actions #mistakesModeBtn.active,
+body.light-mode .floating-session-panel .session-actions #mistakesModeBtn.active {
+  background: linear-gradient(
+    180deg,
+    rgba(239, 84, 84, 0.92),
+    rgba(207, 48, 48, 0.86)
+  ) !important;
+  color: #fff4f4 !important;
+  border-color: rgba(252, 143, 143, 0.82) !important;
+  box-shadow:
+    0 12px 26px rgba(207, 48, 48, 0.38),
+    0 0 24px rgba(239, 84, 84, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34) !important;
+}
+
+body.light-mode .session-actions #slippingModeBtn.active,
+body.light-mode .floating-session-panel .session-actions #slippingModeBtn.active {
+  background: linear-gradient(
+    180deg,
+    rgba(86, 164, 246, 0.9),
+    rgba(52, 126, 207, 0.84)
+  ) !important;
+  color: #f4f9ff !important;
+  border-color: rgba(144, 198, 255, 0.78) !important;
+  box-shadow:
+    0 12px 24px rgba(52, 126, 207, 0.32),
+    0 0 22px rgba(86, 164, 246, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34) !important;
 }
