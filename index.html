@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Brainfy</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260222a" />
 </head>
 <body>
 
@@ -27,6 +27,29 @@
     ========================== -->
     <div id="homeView" class="view">
       <h2 class="section-title">Spaces</h2>
+      <p id="homeStreakText" class="home-streak">🔥 0 day streak</p>
+      <p id="homeReviewText" class="home-review">Today: Focus 0 • Cards 0 • Accuracy 0%</p>
+      <p id="homeMoodTrendText" class="home-mood-trend">Weekly mood: ·······</p>
+      <button id="homeUndoReflectionBtn" class="home-undo-reflection hidden" aria-label="Undo today's reflection">Undo reflection</button>
+
+      <div id="homeReflectionCard" class="home-reflection hidden" aria-live="polite">
+        <p id="homeReflectionPrompt">How did today feel?</p>
+        <div class="home-reflection-actions">
+          <button id="reflectionEasyBtn" data-reflect="easy" aria-label="Easy day">Easy day</button>
+          <button id="reflectionOkayBtn" data-reflect="okay" aria-label="Okay day">Okay day</button>
+          <button id="reflectionHardBtn" data-reflect="hard" aria-label="Hard day">Hard day</button>
+        </div>
+      </div>
+
+      <div id="homePlanCard" class="home-plan hidden" aria-live="polite">
+        <p id="homePlanPrompt">Tomorrow plan</p>
+        <div class="home-plan-actions">
+          <button id="planLightBtn" data-plan="light" aria-label="Light plan">Light</button>
+          <button id="planNormalBtn" data-plan="normal" aria-label="Normal plan">Normal</button>
+          <button id="planDeepBtn" data-plan="deep" aria-label="Deep plan">Deep</button>
+        </div>
+        <p id="homePlanSummary">Sets tomorrow target: Focus 4 • Cards 20</p>
+      </div>
 
       <div class="space-list">
         <button class="space-tile" data-go="focus">
@@ -74,6 +97,18 @@
           placeholder="e.g. Gravitation – derivations"
           autocomplete="off"
         />
+        <div class="focus-setup">
+          <div class="focus-presets" aria-label="Focus presets">
+            <button type="button" class="focus-preset active" data-focus="25" data-break="5">25/5</button>
+            <button type="button" class="focus-preset" data-focus="50" data-break="10">50/10</button>
+          </div>
+          <div class="focus-custom">
+            <input id="customFocusInput" type="number" min="5" max="180" placeholder="Focus min" />
+            <input id="customBreakInput" type="number" min="1" max="60" placeholder="Break min" />
+            <button type="button" id="applyCustomPresetBtn">Apply</button>
+          </div>
+          <button type="button" id="chimeBtn" class="focus-toggle">Chime: On</button>
+        </div>
         <button id="beginFocusBtn">
           Begin Focus
         </button>
@@ -82,9 +117,22 @@
       <!-- Active Focus -->
       <div id="focusRoom" class="hidden">
         <h2 id="modeText">Focus</h2>
-        <h2 id="timer">25:00</h2>
-        <p id="sessionsText">Sessions completed: 0</p>
-        <button id="resetBtn">Reset</button>
+        <div class="timer-shell">
+          <svg class="timer-ring" viewBox="0 0 220 220" aria-hidden="true">
+            <circle class="timer-ring-track" cx="110" cy="110" r="88"></circle>
+            <circle class="timer-ring-progress" id="timerProgress" cx="110" cy="110" r="88"></circle>
+          </svg>
+          <h2 id="timer">25:00</h2>
+        </div>
+        <p id="focusTodayText" class="focus-today">Today: 0m • Sessions today: 0</p>
+        <div class="focus-goal">
+          <p id="focusGoalText">Focus completed today: 0/4</p>
+          <div class="focus-goal-track"><div id="focusGoalFill"></div></div>
+        </div>
+        <div class="focus-room-actions">
+          <button id="pauseBtn">Pause</button>
+          <button id="resetBtn">Reset</button>
+        </div>
       </div>
 
     </div>
@@ -100,17 +148,47 @@
       </button>
 
       <div class="notes">
-        <h3>Notes</h3>
+        <div class="notes-header">
+          <h3>Notes</h3>
+          <span id="notesDetectedChip" class="notes-detected-chip">Detected: 0 cards</span>
+        </div>
 
         <textarea
           id="notesInput"
           placeholder="Just write freely here. No formatting pressure."
         ></textarea>
 
+        <div id="focusCaptureCard" class="focus-capture-card hidden" aria-live="polite">
+          <p id="focusCaptureTitle">What did you learn in this session?</p>
+          <p id="focusCaptureMeta">Focus recap</p>
+          <div class="focus-capture-actions">
+            <button id="focusInsertQBtn" aria-label="Insert question">Q:</button>
+            <button id="focusInsertABtn" aria-label="Insert answer">A:</button>
+            <button id="focusInsertKeyBtn" aria-label="Insert key idea">Key idea:</button>
+            <button id="focusCaptureDoneBtn" aria-label="Close capture prompt">Done</button>
+          </div>
+        </div>
+
+        <div id="notesLiveStructure" class="notes-live-structure hidden" aria-live="polite">
+          <p>Detected structure</p>
+          <ul id="notesLiveStructureList"></ul>
+        </div>
+
         <div class="notes-actions">
           <button id="genCardsBtn">
             Generate Flashcards
           </button>
+          <button id="exportNotesBtn">Export Notes</button>
+          <button id="clearNotesBtn">Clear Notes</button>
+        </div>
+
+        <div id="notesPreviewPanel" class="notes-preview hidden" aria-live="polite">
+          <p id="notesPreviewTitle">Found 0 cards</p>
+          <ul id="notesPreviewList"></ul>
+          <div class="notes-preview-actions">
+            <button id="createPreviewCardsBtn">Create Cards</button>
+            <button id="cancelPreviewCardsBtn">Cancel</button>
+          </div>
         </div>
       </div>
     </div>
@@ -125,40 +203,38 @@
         ←
       </button>
 
-      <div class="flashcards">
-        <h3>Flashcards</h3>
+      <div class="cards-shell">
+        <div class="flashcards">
+          <h3>Flashcards</h3>
 
-        <!-- Manual input -->
-        <div class="flashcard-inputs">
-          <input id="questionInput" placeholder="Question" />
-          <input id="answerInput" placeholder="Answer" />
-          <button id="addCardBtn">
-            Add Flashcard
-          </button>
-        </div>
+          <!-- Manual input -->
+          <div class="flashcard-inputs">
+            <input id="questionInput" placeholder="Question" />
+            <input id="answerInput" placeholder="Answer" />
+            <button id="addCardBtn">
+              Add Flashcard
+            </button>
+          </div>
 
-        <!-- Card viewer -->
-        <div class="flashcard-view hidden">
-          <div class="flashcard" id="flashcard" role="button" tabindex="0" aria-label="Flip flashcard">
-            <div class="front" id="cardQuestion"></div>
-            <div class="back" id="cardAnswer"></div>
-            <div class="flashcard-feedback" id="flashcardFeedback" aria-hidden="true">
-              <span id="flashcardFeedbackIcon"></span>
+          <!-- Card viewer -->
+          <div class="flashcard-view hidden">
+            <button id="editCardBtn" class="edit-card-btn" aria-label="Edit current flashcard" title="Edit current flashcard">✎</button>
+            <div class="flashcard" id="flashcard" role="button" tabindex="0" aria-label="Flip flashcard">
+              <div class="front" id="cardQuestion"></div>
+              <div class="back" id="cardAnswer"></div>
+              <div class="flashcard-feedback" id="flashcardFeedback" aria-hidden="true">
+                <span id="flashcardFeedbackIcon"></span>
+              </div>
             </div>
-          </div>
 
-          <div class="flashcard-controls">
-            <button id="prevCard" aria-label="Previous flashcard">&lt;</button>
-            <button id="nextCard" aria-label="Next flashcard">&gt;</button>
-          </div>
+            <div class="recall-controls" aria-label="Self check">
+              <button id="recallGood" aria-label="Got it right">✓</button>
+              <button id="recallOkay" aria-label="Almost got it">😐</button>
+              <button id="recallMiss" aria-label="Did not get it">✕</button>
+            </div>
 
-          <div class="recall-controls" aria-label="Self check">
-            <button id="recallGood" aria-label="Got it right">✓</button>
-            <button id="recallOkay" aria-label="Almost got it">😐</button>
-            <button id="recallMiss" aria-label="Did not get it">✕</button>
+            <p id="recallSummary" class="recall-summary">Right: 0  Okay: 0  Wrong: 0</p>
           </div>
-
-          <p id="recallSummary" class="recall-summary">Right: 0  Okay: 0  Wrong: 0</p>
         </div>
 
       </div>
@@ -167,6 +243,57 @@
   </div>
 </div>
 
-<script src="script.js"></script>
+<button id="focusMiniWidget" class="focus-mini hidden" aria-label="Open Focus timer">
+  <svg class="focus-mini-ring" viewBox="0 0 64 64" aria-hidden="true">
+    <circle class="focus-mini-track" cx="32" cy="32" r="24"></circle>
+    <circle class="focus-mini-progress" id="focusMiniProgress" cx="32" cy="32" r="24"></circle>
+  </svg>
+  <span id="focusMiniTime">25:00</span>
+</button>
+<button id="themeToggleBtn" class="theme-toggle" aria-label="Toggle light mode">
+  <span id="themeToggleIcon" aria-hidden="true">☀️</span>
+</button>
+
+<aside class="session-panel floating-session-panel" id="sessionPanel" aria-label="Study session stats">
+  <div class="session-actions">
+    <button id="dueNowBtn" aria-label="Toggle due now mode">Due now: Off</button>
+    <button id="mistakesModeBtn" aria-label="Toggle mistakes review mode">Mistakes: Off</button>
+    <button id="slippingModeBtn" aria-label="Toggle slipping cards mode">Slipping: Off</button>
+    <button id="exportDeckBtn" aria-label="Export deck">Export</button>
+    <button id="importDeckBtn" aria-label="Import deck">Import</button>
+    <button id="clearDeckBtn" aria-label="Clear all flashcards">Clear Cards</button>
+    <input id="importDeckInput" type="file" accept="application/json" hidden />
+  </div>
+  <p id="sessionStatsText">Cards: 0  Reviewed today: 0  Accuracy: 0%</p>
+  <div class="daily-goal">
+    <p id="dailyGoalText">Daily goal: 0/20</p>
+    <div class="goal-track"><div id="dailyGoalFill"></div></div>
+  </div>
+  <div class="mini-charts" aria-label="Performance charts">
+    <div class="chart-row">
+      <span>Right</span>
+      <div class="chart-track"><div id="chartGood" class="chart-fill good"></div></div>
+      <span id="chartGoodVal">0</span>
+    </div>
+    <div class="chart-row">
+      <span>Okay</span>
+      <div class="chart-track"><div id="chartOkay" class="chart-fill okay"></div></div>
+      <span id="chartOkayVal">0</span>
+    </div>
+    <div class="chart-row">
+      <span>Wrong</span>
+      <div class="chart-track"><div id="chartMiss" class="chart-fill miss"></div></div>
+      <span id="chartMissVal">0</span>
+    </div>
+    <p id="accuracyTrendText">Trend: ▁</p>
+  </div>
+  <div class="trajectory-panel" aria-label="Memory trajectory">
+    <p id="trajectorySummaryText">Trajectory: Fragile 0 • Forming 0 • Stable 0</p>
+    <p id="trajectoryMetaText">Avg recall: 0.0s • Slipping: 0</p>
+  </div>
+  <button id="resetSessionBtn" aria-label="Reset session stats">Reset Session</button>
+</aside>
+
+<script src="script.js?v=20260222a"></script>
 </body>
 </html>
