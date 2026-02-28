@@ -37,6 +37,10 @@ const focusMiniProgress = document.getElementById("focusMiniProgress");
 const focusMiniTime = document.getElementById("focusMiniTime");
 const themeToggleBtn = document.getElementById("themeToggleBtn");
 const themeToggleIcon = document.getElementById("themeToggleIcon");
+const settingsBtn = document.getElementById("settingsBtn");
+const settingsSheet = document.getElementById("settingsSheet");
+const settingsBackdrop = document.getElementById("settingsBackdrop");
+const settingsCloseBtn = document.getElementById("settingsCloseBtn");
 const focusTodayText = document.getElementById("focusTodayText");
 const focusGoalText = document.getElementById("focusGoalText");
 const focusGoalFill = document.getElementById("focusGoalFill");
@@ -91,8 +95,15 @@ const mistakesModeBtn = document.getElementById("mistakesModeBtn");
 const slippingModeBtn = document.getElementById("slippingModeBtn");
 const exportDeckBtn = document.getElementById("exportDeckBtn");
 const importDeckBtn = document.getElementById("importDeckBtn");
+const autoBackupBtn = document.getElementById("autoBackupBtn");
+const perfModeBtn = document.getElementById("perfModeBtn");
+const backupAppBtn = document.getElementById("backupAppBtn");
+const restoreAppBtn = document.getElementById("restoreAppBtn");
 const clearDeckBtn = document.getElementById("clearDeckBtn");
 const importDeckInput = document.getElementById("importDeckInput");
+const restoreAppInput = document.getElementById("restoreAppInput");
+const shortcutHint = document.getElementById("shortcutHint");
+const dismissShortcutHintBtn = document.getElementById("dismissShortcutHintBtn");
 const dailyGoalText = document.getElementById("dailyGoalText");
 const dailyGoalFill = document.getElementById("dailyGoalFill");
 const chartGood = document.getElementById("chartGood");
@@ -125,6 +136,9 @@ let editingCardId = null;
 const recallByCardId = new Map();
 const recallStats = { good: 0, okay: 0, miss: 0 };
 const STORAGE_KEY = "brainfy_state_v1";
+const APP_BACKUP_SCHEMA = "brainfy-app-backup-v1";
+const AUTO_BACKUPS_KEY = "brainfy_auto_backups_v1";
+const AUTO_BACKUPS_LIMIT = 7;
 const DEFAULT_DAILY_GOAL = 20;
 const DEFAULT_FOCUS_DAILY_GOAL = 4;
 let feedbackTimer = null;
@@ -145,6 +159,11 @@ let notesEnterTimer = null;
 let currentFocusIntent = "Focus";
 let pendingFocusCapture = null;
 let themeMode = "dark";
+let autoBackupEnabled = true;
+let shortcutHintDismissed = false;
+let settingsOpen = false;
+let performanceMode = false;
+let lastCardMinHeight = 0;
 const focusState = {
   dateKey: new Date().toISOString().slice(0, 10),
   todaySeconds: 0,
@@ -187,6 +206,82 @@ function applyTheme(mode) {
   updateDueModeUI();
   updateMistakesModeUI();
   updateSlippingModeUI();
+}
+
+function updatePerformanceModeUI() {
+  if (!perfModeBtn) return;
+  perfModeBtn.textContent = `Performance: ${performanceMode ? "On" : "Off"}`;
+  perfModeBtn.classList.toggle("active", performanceMode);
+}
+
+function applyPerformanceMode(enabled) {
+  performanceMode = !!enabled;
+  document.body.classList.toggle("performance-mode", performanceMode);
+  updatePerformanceModeUI();
+}
+
+function setSettingsOpen(nextOpen) {
+  settingsOpen = !!nextOpen;
+  if (!settingsSheet) return;
+  settingsSheet.classList.toggle("hidden", !settingsOpen);
+  settingsSheet.setAttribute("aria-hidden", settingsOpen ? "false" : "true");
+}
+
+function readAutoBackups() {
+  try {
+    const raw = localStorage.getItem(AUTO_BACKUPS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(entry =>
+      entry &&
+      typeof entry === "object" &&
+      typeof entry.dateKey === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(entry.dateKey) &&
+      typeof entry.savedAt === "string" &&
+      entry.state &&
+      typeof entry.state === "object"
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeAutoBackups(list) {
+  try {
+    localStorage.setItem(AUTO_BACKUPS_KEY, JSON.stringify(list));
+  } catch {
+    // Ignore storage write failures.
+  }
+}
+
+function runDailyAutoBackup() {
+  if (!autoBackupEnabled) return;
+  const today = getTodayKey();
+  const existing = readAutoBackups();
+  if (existing.some(entry => entry.dateKey === today)) return;
+
+  const next = existing.concat([{
+    dateKey: today,
+    savedAt: new Date().toISOString(),
+    state: getSerializableState()
+  }]);
+
+  next.sort((a, b) => String(a.savedAt).localeCompare(String(b.savedAt)));
+  writeAutoBackups(next.slice(-AUTO_BACKUPS_LIMIT));
+}
+
+function updateAutoBackupUI() {
+  if (!autoBackupBtn) return;
+  autoBackupBtn.textContent = `Auto backup: ${autoBackupEnabled ? "On" : "Off"}`;
+  autoBackupBtn.classList.toggle("active", autoBackupEnabled);
+}
+
+function updateShortcutHintUI() {
+  if (!shortcutHint) return;
+  const inCardsView = document.getElementById("cardsView")?.classList.contains("active");
+  const visible = inCardsView && !shortcutHintDismissed;
+  shortcutHint.classList.toggle("hidden", !visible);
 }
 
 function isReflectionWindowOpen(now = new Date()) {
@@ -270,7 +365,7 @@ function updateHomeReflectionUI() {
     }).join("");
     homeMoodTrendText.textContent = `Weekly mood: ${trend}`;
   }
-  requestAnimationFrame(syncCardHeight);
+  scheduleSyncCardHeight();
 }
 
 function updateHomePlanUI() {
@@ -642,31 +737,40 @@ function setCardRecall(cardId, kind) {
   }
 }
 
+function getSerializableState() {
+  return {
+    cards,
+    nextCardId,
+    cardIndex,
+    recallByCardId: Object.fromEntries(recallByCardId),
+    dueNowMode,
+    mistakesMode,
+    slippingMode,
+    trajectoryByCardId: Object.fromEntries(trajectoryByCardId),
+    recentResults,
+    notesDraft,
+    focusSettings: {
+      focusMinutes,
+      breakMinutes,
+      chimeEnabled
+    },
+    focusState,
+    sessionState,
+    reflectionState,
+    planState,
+    themeMode,
+    performanceMode,
+    autoBackupEnabled,
+    uiState: {
+      shortcutHintDismissed
+    }
+  };
+}
+
 function persistState() {
   try {
-    const state = {
-      cards,
-      nextCardId,
-      cardIndex,
-      recallByCardId: Object.fromEntries(recallByCardId),
-      dueNowMode,
-      mistakesMode,
-      slippingMode,
-      trajectoryByCardId: Object.fromEntries(trajectoryByCardId),
-      recentResults,
-      notesDraft,
-      focusSettings: {
-        focusMinutes,
-        breakMinutes,
-        chimeEnabled
-      },
-      focusState,
-      sessionState,
-      reflectionState,
-      planState,
-      themeMode
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(getSerializableState()));
+    runDailyAutoBackup();
   } catch {
     // Ignore persistence failures in restricted contexts.
   }
@@ -809,6 +913,13 @@ function loadState() {
     prunePlanHistory();
     applyGoalsForDate(getTodayKey());
     applyTheme(state.themeMode);
+    applyPerformanceMode(!!state.performanceMode);
+    if (typeof state.autoBackupEnabled === "boolean") {
+      autoBackupEnabled = state.autoBackupEnabled;
+    }
+    if (state.uiState && typeof state.uiState === "object") {
+      shortcutHintDismissed = !!state.uiState.shortcutHintDismissed;
+    }
 
     ensureSessionDate();
     ensureFocusDate();
@@ -818,6 +929,8 @@ function loadState() {
     updateDueModeUI();
     updateMistakesModeUI();
     updateSlippingModeUI();
+    updateAutoBackupUI();
+    updateShortcutHintUI();
     updateHomeReflectionUI();
     updateHomePlanUI();
   } catch {
@@ -950,11 +1063,24 @@ function syncCardHeight() {
   }
   const notesExtra = activeView.id === "notesView" ? 26 : 0;
   const contentHeight = measured + 142 + notesExtra;
-  card.style.minHeight = `${Math.max(baseHeight, contentHeight)}px`;
+  const nextHeight = Math.max(baseHeight, contentHeight);
+  if (Math.abs(nextHeight - lastCardMinHeight) < 2) return;
+  lastCardMinHeight = nextHeight;
+  card.style.minHeight = `${nextHeight}px`;
+}
+
+let syncCardHeightRaf = 0;
+function scheduleSyncCardHeight() {
+  if (syncCardHeightRaf) cancelAnimationFrame(syncCardHeightRaf);
+  syncCardHeightRaf = requestAnimationFrame(() => {
+    syncCardHeightRaf = 0;
+    syncCardHeight();
+  });
 }
 
 function goTo(view) {
   if (!card) return;
+  setSettingsOpen(false);
 
   views.forEach(v => v.classList.remove("active"));
 
@@ -1021,8 +1147,9 @@ function goTo(view) {
   }
 
   updateMiniTimerUI();
+  updateShortcutHintUI();
 
-  requestAnimationFrame(syncCardHeight);
+  scheduleSyncCardHeight();
 }
 
 function updateTimer() {
@@ -1158,7 +1285,7 @@ function exitFocusMode() {
   timeLeft = focusDuration;
   updateTimer();
   updateMiniTimerUI();
-  syncCardHeight();
+  scheduleSyncCardHeight();
 }
 
 function endFocusSession() {
@@ -1199,7 +1326,7 @@ function endFocusSession() {
       }
     }, 1400);
 
-    syncCardHeight();
+    scheduleSyncCardHeight();
   }, 350);
 }
 
@@ -1232,7 +1359,7 @@ function enterFocusMode(intent) {
   updateTimer();
   startTimer();
   updateMiniTimerUI();
-  syncCardHeight();
+  scheduleSyncCardHeight();
 }
 
 function animateCardChange(direction = "none") {
@@ -1255,7 +1382,7 @@ function updateFlashcardMode() {
     if (addCardBtn) addCardBtn.textContent = "Add Flashcard";
     editCardBtn?.classList.remove("active");
   }
-  requestAnimationFrame(syncCardHeight);
+  scheduleSyncCardHeight();
 }
 
 function setEditMode(cardToEdit = null) {
@@ -1354,7 +1481,7 @@ function hideNotesPreview() {
   pendingGeneratedCards = [];
   notesPreviewPanel?.classList.add("hidden");
   if (notesPreviewList) notesPreviewList.innerHTML = "";
-  requestAnimationFrame(syncCardHeight);
+  scheduleSyncCardHeight();
 }
 
 function appendTextToNotes(text) {
@@ -1394,13 +1521,13 @@ function openFocusCapturePrompt(capture) {
   if (focusCaptureTitle) focusCaptureTitle.textContent = "What did you learn in this session?";
   if (focusCaptureMeta) focusCaptureMeta.textContent = `${intent} • ended ${ended}`;
   focusCaptureCard.classList.remove("hidden");
-  requestAnimationFrame(syncCardHeight);
+  scheduleSyncCardHeight();
 }
 
 function closeFocusCapturePrompt() {
   focusCaptureCard?.classList.add("hidden");
   pendingFocusCapture = null;
-  requestAnimationFrame(syncCardHeight);
+  scheduleSyncCardHeight();
 }
 
 function renderNotesPreviewList() {
@@ -1434,7 +1561,7 @@ function showNotesPreview(cardsToPreview) {
   renderNotesPreviewList();
 
   notesPreviewPanel.classList.remove("hidden");
-  requestAnimationFrame(syncCardHeight);
+  scheduleSyncCardHeight();
 }
 
 function updateNotesInsights() {
@@ -1493,7 +1620,7 @@ function showCard(recordHistory = true) {
   updateRecallSummary();
   updateSessionStats();
   flashcardView.classList.remove("hidden");
-  requestAnimationFrame(syncCardHeight);
+  scheduleSyncCardHeight();
 }
 
 /* Navigation events */
@@ -1521,7 +1648,7 @@ startBtn?.addEventListener("click", () => {
   requestAnimationFrame(() => {
     intentSheet?.classList.add("show");
     intentInput?.focus();
-    syncCardHeight();
+    scheduleSyncCardHeight();
   });
 });
 
@@ -1751,7 +1878,7 @@ notesPreviewList?.addEventListener("change", e => {
   if (target instanceof HTMLInputElement && target.dataset.role === "keep") {
     pendingGeneratedCards[idx].keep = target.checked;
     renderNotesPreviewList();
-    requestAnimationFrame(syncCardHeight);
+    scheduleSyncCardHeight();
   }
 });
 
@@ -1808,7 +1935,7 @@ function setTodayReflection(mood) {
   updateHomeReflectionUI();
   setTimeout(() => {
     setHomeReflectionVisible(false);
-    syncCardHeight();
+    scheduleSyncCardHeight();
   }, 0);
   persistState();
 }
@@ -1836,7 +1963,7 @@ function undoTodayReflection() {
   setHomeUndoVisible(false);
   setHomeReflectionVisible(true);
   updateHomeReflectionUI();
-  setTimeout(() => syncCardHeight(), 0);
+  setTimeout(scheduleSyncCardHeight, 0);
   persistState();
 }
 
@@ -1887,6 +2014,18 @@ homePlanCard?.addEventListener("click", handlePlanTap);
 themeToggleBtn?.addEventListener("click", () => {
   applyTheme(themeMode === "light" ? "dark" : "light");
   persistState();
+});
+
+settingsBtn?.addEventListener("click", () => {
+  setSettingsOpen(!settingsOpen);
+});
+
+settingsBackdrop?.addEventListener("click", () => {
+  setSettingsOpen(false);
+});
+
+settingsCloseBtn?.addEventListener("click", () => {
+  setSettingsOpen(false);
 });
 
 exportNotesBtn?.addEventListener("click", () => {
@@ -1977,6 +2116,43 @@ exportDeckBtn?.addEventListener("click", () => {
 
 importDeckBtn?.addEventListener("click", () => {
   importDeckInput?.click();
+});
+
+backupAppBtn?.addEventListener("click", () => {
+  const payload = {
+    schema: APP_BACKUP_SCHEMA,
+    exportedAt: new Date().toISOString(),
+    state: getSerializableState()
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `brainfy-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+restoreAppBtn?.addEventListener("click", () => {
+  restoreAppInput?.click();
+});
+
+autoBackupBtn?.addEventListener("click", () => {
+  autoBackupEnabled = !autoBackupEnabled;
+  updateAutoBackupUI();
+  if (autoBackupEnabled) runDailyAutoBackup();
+  persistState();
+});
+
+perfModeBtn?.addEventListener("click", () => {
+  applyPerformanceMode(!performanceMode);
+  persistState();
+});
+
+dismissShortcutHintBtn?.addEventListener("click", () => {
+  shortcutHintDismissed = true;
+  updateShortcutHintUI();
+  persistState();
 });
 
 clearDeckBtn?.addEventListener("click", () => {
@@ -2106,12 +2282,55 @@ importDeckInput?.addEventListener("change", async e => {
   }
 });
 
+restoreAppInput?.addEventListener("change", async e => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const candidateState = data?.schema === APP_BACKUP_SCHEMA && data?.state && typeof data.state === "object"
+      ? data.state
+      : (data && typeof data === "object" ? data : null);
+
+    if (!candidateState || !Array.isArray(candidateState.cards)) {
+      return;
+    }
+
+    const shouldRestore = window.confirm(
+      "Restore full app backup? This will replace your current local Brainfy data."
+    );
+    if (!shouldRestore) return;
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(candidateState));
+    window.location.reload();
+  } catch {
+    // Ignore invalid backup file.
+  } finally {
+    restoreAppInput.value = "";
+  }
+});
+
 document.addEventListener("keydown", e => {
   const activeView = document.querySelector(".view.active");
+  const tag = document.activeElement?.tagName?.toLowerCase();
+  if (e.key === "Escape") {
+    if (settingsOpen) {
+      e.preventDefault();
+      setSettingsOpen(false);
+      return;
+    }
+    if (!activeView) return;
+    if (tag === "input" || tag === "textarea") return;
+    if (activeView.id !== "homeView" && activeView.id !== "splashView") {
+      const backBtn = activeView.querySelector(".back-btn");
+      backBtn?.click();
+    }
+    return;
+  }
+
   if (!activeView || activeView.id !== "cardsView") return;
   if (!cards.length) return;
 
-  const tag = document.activeElement?.tagName?.toLowerCase();
   if (tag === "input" || tag === "textarea" || tag === "button") return;
 
   if (e.key === "ArrowLeft") {
@@ -2188,6 +2407,7 @@ document.querySelectorAll("button").forEach(btn => {
 
 window.addEventListener("load", () => {
   card?.classList.remove("focus-active", "intent-active", "typing");
+  setSettingsOpen(false);
   loadState();
   card?.classList.add("compact");
   goTo("splash");
@@ -2203,11 +2423,15 @@ window.addEventListener("load", () => {
   updateSessionStats();
   updateDueModeUI();
   updateMistakesModeUI();
+  updateAutoBackupUI();
+  updatePerformanceModeUI();
   updateHomeReflectionUI();
   updateHomePlanUI();
   updateNotesInsights();
+  updateShortcutHintUI();
+  runDailyAutoBackup();
   if (cards.length) showCard();
-  syncCardHeight();
+  scheduleSyncCardHeight();
 });
 
 // If app stays open, refresh reflection visibility as local time passes.
@@ -2215,6 +2439,7 @@ setInterval(() => {
   updateHomeReflectionUI();
   ensureGoalTargetsCurrentDate();
   updateHomePlanUI();
+  runDailyAutoBackup();
 }, 60000);
 
-window.addEventListener("resize", syncCardHeight);
+window.addEventListener("resize", scheduleSyncCardHeight);
