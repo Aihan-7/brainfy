@@ -206,6 +206,10 @@
       <div class="cards-shell">
         <div class="flashcards">
           <h3>Flashcards</h3>
+          <div id="shortcutHint" class="shortcut-hint hidden" aria-live="polite">
+            <span>Space flip • 1/2/3 self-check • ←/→ navigate • Esc back</span>
+            <button id="dismissShortcutHintBtn" type="button" aria-label="Dismiss shortcut hint">Got it</button>
+          </div>
 
           <!-- Manual input -->
           <div class="flashcard-inputs">
@@ -253,16 +257,34 @@
 <button id="themeToggleBtn" class="theme-toggle" aria-label="Toggle light mode">
   <span id="themeToggleIcon" aria-hidden="true">☀️</span>
 </button>
+<button id="settingsBtn" class="settings-toggle" aria-label="Open settings">⚙️</button>
+
+<div id="settingsSheet" class="settings-sheet hidden" aria-hidden="true">
+  <div id="settingsBackdrop" class="settings-backdrop"></div>
+  <section class="settings-card" role="dialog" aria-modal="true" aria-label="Settings">
+    <div class="settings-header">
+      <h3>Settings</h3>
+      <button id="settingsCloseBtn" class="settings-close" aria-label="Close settings">✕</button>
+    </div>
+    <div class="settings-actions">
+      <button id="exportDeckBtn" aria-label="Export deck">Export</button>
+      <button id="importDeckBtn" aria-label="Import deck">Import</button>
+      <button id="autoBackupBtn" aria-label="Toggle automatic daily backup">Auto backup: On</button>
+      <button id="perfModeBtn" aria-label="Toggle performance mode">Performance: Off</button>
+      <button id="backupAppBtn" aria-label="Backup full app state">Backup App</button>
+      <button id="restoreAppBtn" aria-label="Restore full app state">Restore App</button>
+      <input id="importDeckInput" type="file" accept="application/json" hidden />
+      <input id="restoreAppInput" type="file" accept="application/json" hidden />
+    </div>
+  </section>
+</div>
 
 <aside class="session-panel floating-session-panel" id="sessionPanel" aria-label="Study session stats">
   <div class="session-actions">
     <button id="dueNowBtn" aria-label="Toggle due now mode">Due now: Off</button>
     <button id="mistakesModeBtn" aria-label="Toggle mistakes review mode">Mistakes: Off</button>
     <button id="slippingModeBtn" aria-label="Toggle slipping cards mode">Slipping: Off</button>
-    <button id="exportDeckBtn" aria-label="Export deck">Export</button>
-    <button id="importDeckBtn" aria-label="Import deck">Import</button>
     <button id="clearDeckBtn" aria-label="Clear all flashcards">Clear Cards</button>
-    <input id="importDeckInput" type="file" accept="application/json" hidden />
   </div>
   <p id="sessionStatsText">Cards: 0  Reviewed today: 0  Accuracy: 0%</p>
   <div class="daily-goal">
