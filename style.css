@@ -104,7 +104,7 @@ body::after {
 
   transition:
     padding 0.45s cubic-bezier(0.22,1,0.36,1),
-    min-height 0.45s cubic-bezier(0.22,1,0.36,1),
+    min-height 0.2s cubic-bezier(0.22,1,0.36,1),
     max-width 0.45s cubic-bezier(0.22,1,0.36,1),
     transform 0.45s cubic-bezier(0.22,1,0.36,1),
     filter 0.42s cubic-bezier(0.22,1,0.36,1),
@@ -1218,6 +1218,44 @@ body.light-mode .card.focus-active::before {
   font-weight: 600;
 }
 
+.shortcut-hint {
+  width: 100%;
+  max-width: 430px;
+  margin-top: -8px;
+  margin-bottom: 2px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(173, 206, 241, 0.24);
+  background: rgba(18, 34, 62, 0.52);
+  color: rgba(216, 232, 249, 0.9);
+  font-size: 0.76rem;
+  letter-spacing: 0.2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.shortcut-hint.hidden {
+  display: none !important;
+}
+
+#dismissShortcutHintBtn {
+  width: auto !important;
+  min-width: 62px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 0.73rem;
+  font-weight: 650;
+  background: rgba(88, 104, 134, 0.34) !important;
+  color: #e9eef9 !important;
+  border: 1px solid rgba(206, 225, 247, 0.16) !important;
+  box-shadow: none !important;
+}
+
 /* Inputs stack */
 .flashcard-inputs {
   width: 100%;
@@ -1864,6 +1902,18 @@ button.ripple::after {
 }
 
 #slippingModeBtn.active {
+  background: rgba(88, 150, 248, 0.3) !important;
+  border-color: rgba(169, 208, 255, 0.34) !important;
+  color: #dff0ff !important;
+}
+
+#autoBackupBtn.active {
+  background: rgba(88, 150, 248, 0.3) !important;
+  border-color: rgba(169, 208, 255, 0.34) !important;
+  color: #dff0ff !important;
+}
+
+#perfModeBtn.active {
   background: rgba(88, 150, 248, 0.3) !important;
   border-color: rgba(169, 208, 255, 0.34) !important;
   color: #dff0ff !important;
@@ -2613,10 +2663,85 @@ body.reflection-answered #homeReflectionCard {
   place-items: center;
 }
 
+.settings-toggle {
+  position: fixed;
+  top: 18px;
+  right: 68px;
+  width: 42px !important;
+  min-width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 999px;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+}
+
 #themeToggleIcon {
   font-size: 1.08rem;
   line-height: 1;
   filter: drop-shadow(0 1px 4px rgba(20, 42, 69, 0.2));
+}
+
+.settings-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+
+.settings-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 9, 23, 0.46);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.settings-card {
+  position: absolute;
+  top: 72px;
+  right: 20px;
+  width: min(340px, calc(100vw - 32px));
+  border-radius: 18px;
+  padding: 14px 14px 12px;
+  background: rgba(15, 27, 50, 0.82);
+  border: 1px solid rgba(171, 205, 242, 0.22);
+  box-shadow:
+    0 20px 42px rgba(4, 12, 30, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.settings-header h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  color: rgba(228, 238, 251, 0.92);
+}
+
+.settings-close {
+  width: 32px !important;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 0.88rem;
+}
+
+.settings-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-actions button {
+  min-width: 0 !important;
 }
 
 .focus-mini-ring {
@@ -2672,6 +2797,77 @@ body.reflection-answered #homeReflectionCard {
     width: 38px !important;
     min-width: 38px;
     height: 38px;
+  }
+  .settings-toggle {
+    top: 12px;
+    right: 56px;
+    width: 38px !important;
+    min-width: 38px;
+    height: 38px;
+    font-size: 0.92rem;
+  }
+  .settings-card {
+    top: 62px;
+    right: 12px;
+    width: min(330px, calc(100vw - 24px));
+  }
+}
+
+@media (max-width: 900px) {
+  #cardsView.active {
+    padding-top: 62px;
+    padding-bottom: 18px;
+  }
+
+  .flashcards,
+  .flashcard-view,
+  .flashcard-inputs {
+    max-width: 100%;
+  }
+
+  .flashcard {
+    width: min(100%, 320px);
+    height: 180px;
+  }
+
+  .shortcut-hint {
+    padding: 7px 8px;
+    font-size: 0.72rem;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    text-align: center;
+  }
+
+  #dismissShortcutHintBtn {
+    min-width: 56px;
+    height: 26px;
+    font-size: 0.7rem;
+  }
+
+  body.cards-view-open .floating-session-panel {
+    display: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .settings-card {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: calc(100vh - 84px);
+    overflow-y: auto;
+    padding: 12px 12px 10px;
+  }
+
+  .settings-actions {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .settings-actions button {
+    height: 40px;
+    font-size: 0.9rem;
   }
 }
 
@@ -2733,13 +2929,19 @@ body.light-mode .notes-preview,
 body.light-mode .notes-live-structure,
 body.light-mode .focus-capture-card,
 body.light-mode .session-panel,
+body.light-mode .settings-card,
 body.light-mode .trajectory-panel,
+body.light-mode .shortcut-hint,
 body.light-mode .flashcard {
   background: rgba(242, 250, 255, 0.78) !important;
   border-color: rgba(122, 174, 218, 0.25) !important;
   box-shadow:
     0 10px 24px rgba(88, 140, 189, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
+}
+
+body.light-mode .shortcut-hint {
+  color: #20486f !important;
 }
 
 body.light-mode input,
@@ -2769,11 +2971,53 @@ body.light-mode textarea::placeholder {
   color: rgba(54, 92, 129, 0.72) !important;
 }
 
+body.light-mode #intentInput::placeholder,
+body.light-mode #notesInput::placeholder,
+body.light-mode #questionInput::placeholder,
+body.light-mode #answerInput::placeholder {
+  color: rgba(50, 92, 132, 0.78) !important;
+}
+
+body.light-mode button:hover {
+  filter: brightness(1.06) saturate(1.03);
+}
+
 body.light-mode .back-btn {
   background: rgba(220, 238, 255, 0.8) !important;
   color: #1a3657 !important;
   border-color: rgba(138, 183, 222, 0.3) !important;
   box-shadow: 0 8px 18px rgba(88, 140, 189, 0.15) !important;
+}
+
+body.light-mode .settings-backdrop {
+  background: rgba(186, 219, 246, 0.42);
+}
+
+body.light-mode .settings-header h3 {
+  color: #20486f !important;
+}
+
+body.light-mode .timer-ring-track {
+  stroke: rgba(126, 169, 208, 0.35);
+}
+
+body.light-mode .timer-ring-progress {
+  stroke: rgba(62, 188, 242, 0.97);
+  filter: drop-shadow(0 0 10px rgba(62, 188, 242, 0.28));
+}
+
+body.light-mode .focus-mini-track {
+  stroke: rgba(124, 167, 205, 0.42);
+}
+
+body.light-mode .focus-mini-progress {
+  stroke: rgba(62, 188, 242, 0.97);
+  filter: drop-shadow(0 0 7px rgba(62, 188, 242, 0.28));
+}
+
+body.light-mode #focusMiniTime {
+  color: #1a466d;
+  text-shadow: 0 1px 6px rgba(221, 239, 255, 0.78);
 }
 
 /* Focus setup sheet polish in light mode */
@@ -2837,7 +3081,7 @@ body.light-mode #customBreakInput {
 }
 
 /* Light mode button contrast boost (except core CTA text-color logic above). */
-body.light-mode button:not(#enterBtn):not(#startBtn):not(#beginFocusBtn):not(#addCardBtn):not(#genCardsBtn):not(#recallGood):not(#recallOkay):not(#recallMiss) {
+body.light-mode button:not(#enterBtn):not(#startBtn):not(#beginFocusBtn):not(#addCardBtn):not(#genCardsBtn):not(#recallGood):not(#recallOkay):not(#recallMiss):not(#reflectionEasyBtn):not(#reflectionOkayBtn):not(#reflectionHardBtn):not(#planLightBtn):not(#planNormalBtn):not(#planDeepBtn) {
   background: linear-gradient(
     180deg,
     rgba(113, 153, 194, 0.56),
@@ -3024,6 +3268,89 @@ body.light-mode #slippingModeBtn.active {
     0 10px 24px rgba(64, 133, 208, 0.24),
     0 0 22px rgba(98, 170, 244, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+body.light-mode #autoBackupBtn.active {
+  background: linear-gradient(
+    180deg,
+    rgba(98, 170, 244, 0.74),
+    rgba(64, 133, 208, 0.66)
+  ) !important;
+  color: #f3f9ff !important;
+  border-color: rgba(129, 186, 244, 0.62) !important;
+  box-shadow:
+    0 10px 24px rgba(64, 133, 208, 0.24),
+    0 0 22px rgba(98, 170, 244, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+body.light-mode #perfModeBtn.active {
+  background: linear-gradient(
+    180deg,
+    rgba(98, 170, 244, 0.74),
+    rgba(64, 133, 208, 0.66)
+  ) !important;
+  color: #f3f9ff !important;
+  border-color: rgba(129, 186, 244, 0.62) !important;
+  box-shadow:
+    0 10px 24px rgba(64, 133, 208, 0.24),
+    0 0 22px rgba(98, 170, 244, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+/* =========================
+   Performance Mode
+========================= */
+body.performance-mode::before,
+body.performance-mode::after,
+body.performance-mode .card {
+  animation: none !important;
+}
+
+body.performance-mode .card,
+body.performance-mode .intent-sheet,
+body.performance-mode .space-tile,
+body.performance-mode .home-reflection,
+body.performance-mode .home-plan,
+body.performance-mode .notes-preview,
+body.performance-mode .notes-live-structure,
+body.performance-mode .focus-capture-card,
+body.performance-mode .session-panel,
+body.performance-mode .trajectory-panel,
+body.performance-mode .flashcard,
+body.performance-mode .shortcut-hint,
+body.performance-mode .settings-card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.performance-mode .settings-backdrop {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.performance-mode button,
+body.performance-mode .card,
+body.performance-mode .flashcard.switching,
+body.performance-mode .view,
+body.performance-mode .intent-sheet {
+  transition-duration: 0.12s !important;
+}
+
+body.performance-mode button::after {
+  transition:
+    transform 0.36s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.42s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+body.performance-mode .timer-ring-progress,
+body.performance-mode .focus-mini-progress {
+  filter: none !important;
+}
+
+body.performance-mode .flashcard.switching.slide-next,
+body.performance-mode .flashcard.switching.slide-prev {
+  filter: none !important;
 }
 
 /* Stronger specificity for active states inside session action rows. */
