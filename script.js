@@ -118,7 +118,49 @@ const trajectorySummaryText = document.getElementById("trajectorySummaryText");
 const trajectoryMetaText = document.getElementById("trajectoryMetaText");
 const flashcardView = document.querySelector(".flashcard-view");
 
-/* State */
+/* Deck state — grouped for clarity */
+const deckState = {
+  cards: [],
+  cardIndex: 0,
+  nextCardId: 1,
+  editingCardId: null,
+  dueNowMode: false,
+  mistakesMode: false,
+  slippingMode: false,
+  recentResults: [],
+  cardShownAt: 0,
+  recallStartedAt: 0,
+  reviewHistory: [],
+  reviewCursor: -1,
+  cardMotionDirection: "none",
+  feedbackTimer: null,
+  feedbackLocked: false,
+  recallByCardId: new Map(),
+  recallStats: { good: 0, okay: 0, miss: 0 },
+  trajectoryByCardId: new Map(),
+};
+
+/* Convenience aliases so existing code references work unchanged */
+let cards = deckState.cards;
+let cardIndex = deckState.cardIndex;
+let nextCardId = deckState.nextCardId;
+let editingCardId = deckState.editingCardId;
+let dueNowMode = deckState.dueNowMode;
+let mistakesMode = deckState.mistakesMode;
+let slippingMode = deckState.slippingMode;
+let recentResults = deckState.recentResults;
+let cardShownAt = deckState.cardShownAt;
+let recallStartedAt = deckState.recallStartedAt;
+let reviewHistory = deckState.reviewHistory;
+let reviewCursor = deckState.reviewCursor;
+let cardMotionDirection = deckState.cardMotionDirection;
+let feedbackTimer = deckState.feedbackTimer;
+let feedbackLocked = deckState.feedbackLocked;
+const recallByCardId = deckState.recallByCardId;
+const recallStats = deckState.recallStats;
+const trajectoryByCardId = deckState.trajectoryByCardId;
+
+/* Timer / focus state */
 let timer = null;
 let timeLeft = FOCUS_TIME;
 let focusDuration = FOCUS_TIME;
@@ -127,31 +169,14 @@ let breakMinutes = DEFAULT_BREAK_MINUTES;
 let paused = false;
 let chimeEnabled = true;
 let focusSessionActive = false;
-let cards = [];
-let cardIndex = 0;
 let startX = 0;
-let cardMotionDirection = "none";
-let nextCardId = 1;
-let editingCardId = null;
-const recallByCardId = new Map();
-const recallStats = { good: 0, okay: 0, miss: 0 };
+
 const STORAGE_KEY = "brainfy_state_v1";
 const APP_BACKUP_SCHEMA = "brainfy-app-backup-v1";
 const AUTO_BACKUPS_KEY = "brainfy_auto_backups_v1";
 const AUTO_BACKUPS_LIMIT = 7;
 const DEFAULT_DAILY_GOAL = 20;
 const DEFAULT_FOCUS_DAILY_GOAL = 4;
-let feedbackTimer = null;
-let feedbackLocked = false;
-let reviewHistory = [];
-let reviewCursor = -1;
-let dueNowMode = false;
-let mistakesMode = false;
-let slippingMode = false;
-let recentResults = [];
-let cardShownAt = 0;
-let recallStartedAt = 0;
-const trajectoryByCardId = new Map();
 let notesDraft = "";
 let notesSaveTimer = null;
 let pendingGeneratedCards = [];
@@ -771,8 +796,16 @@ function persistState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(getSerializableState()));
     runDailyAutoBackup();
-  } catch {
-    // Ignore persistence failures in restricted contexts.
+  } catch (err) {
+    // Surface storage quota errors so the user knows their data isn't being saved.
+    const isQuota = err instanceof DOMException && (
+      err.name === "QuotaExceededError" ||
+      err.name === "NS_ERROR_DOM_QUOTA_REACHED"
+    );
+    if (isQuota) {
+      console.warn("[Brainfy] Storage quota exceeded — state not saved.");
+    }
+    // Other errors (e.g. private browsing restrictions) are silently ignored.
   }
 }
 
@@ -1334,13 +1367,16 @@ function startTimer() {
   if (timer || paused) return;
 
   timer = setInterval(() => {
-    if (timeLeft <= 0) {
-      endFocusSession();
-      return;
+    try {
+      if (timeLeft <= 0) {
+        endFocusSession();
+        return;
+      }
+      timeLeft -= 1;
+      updateTimer();
+    } catch (err) {
+      console.error("[Brainfy] Timer tick error:", err);
     }
-
-    timeLeft -= 1;
-    updateTimer();
   }, 1000);
   updateMiniTimerUI();
 }

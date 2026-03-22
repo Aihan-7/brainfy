@@ -856,21 +856,7 @@ button.ripple::after {
   color: #e9eef9 !important;
 }
 
-/* Add Flashcard – secondary action */
-#addCardBtn {
-  width: auto;
-  min-width: 200px;
-
-  padding: 12px 26px;
-  font-size: 0.95rem;
-
-  border-radius: 999px;
-
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.25),
-    0 8px 20px rgba(56,189,248,0.28),
-    0 12px 28px rgba(0,0,0,0.4);
-}
+/* Add Flashcard button sizing handled below in unified block */
 
 /* =========================
    Flashcard Flip (FIXED)
@@ -935,15 +921,7 @@ button.ripple::after {
 }
 
 
-/* Flashcards layout spacing – relaxed */
-.flashcards h3 {
-  margin-bottom: 28px;
-}
-
-.flashcard-inputs {
-  gap: 20px;              /* space between Question & Answer */
-  margin-bottom: 28px;   /* space before button */
-}
+/* Flashcards layout spacing */
 /* Flashcard inputs – glass style (same as intent input) */
 .flashcard-inputs input {
   width: 100%;
@@ -1072,217 +1050,6 @@ body.light-mode .card.focus-active::before {
   }
 }
 /* =========================
-   Flashcard Inputs – Force Glass Style
-========================= */
-
-.flashcard-inputs input {
-  background: rgba(2, 6, 23, 0.65) !important;
-  color: #e5e7eb !important;
-
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 999px;
-
-  padding: 14px 18px;
-  font-size: 0.95rem;
-
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-
-  box-shadow:
-    inset 0 1px 2px rgba(0,0,0,0.35),
-    0 0 0 rgba(56,189,248,0);
-
-  transition:
-    background 0.25s ease,
-    border-color 0.25s ease,
-    box-shadow 0.25s ease;
-}
-.flashcard-inputs input:focus {
-  outline: none;
-
-  background: rgba(2, 6, 23, 0.78) !important;
-  color: #e5e7eb !important;
-
-  border-color: rgba(56, 189, 248, 0.65);
-
-  box-shadow:
-    0 0 0 2px rgba(56, 189, 248, 0.22),
-    inset 0 1px 0 rgba(255,255,255,0.05);
-}
-.flashcard-inputs input::placeholder {
-  color: #94a3b8;
-  opacity: 0.7;
-}
-/* =========================
-   Flashcards – Spacing & Hierarchy Fix
-========================= */
-
-/* Overall stack spacing */
-.flashcards {
-  padding-top: 36px;
-}
-
-/* Title spacing */
-.flashcards h3 {
-  margin-bottom: 32px;
-}
-
-/* Input stack */
-.flashcard-inputs {
-  gap: 20px; /* more breathing room */
-}
-
-/* Make inputs wider than button */
-.flashcard-inputs input {
-  width: 100%;
-  max-width: 420px;
-}
-
-/* Extra separation before action */
-.flashcard-inputs input:last-of-type {
-  margin-bottom: 12px;
-}
-
-/* Add Flashcard button → smaller & secondary */
-#addCardBtn {
-  width: auto;
-  min-width: 220px;
-  padding: 12px 28px;
-
-  margin-top: 10px;
-
-  border-radius: 999px;
-  font-size: 0.95rem;
-}
-/* =========================
-   Flashcards – Button Style Match
-========================= */
-
-#addCardBtn {
-  width: auto;
-  min-width: 220px;
-  padding: 14px 32px;
-
-  border-radius: 999px; /* exact same as intent button */
-
-  background: linear-gradient(
-    180deg,
-    rgba(56,189,248,0.95),
-    rgba(14,165,233,0.95)
-  );
-
-  color: #020617;
-  font-weight: 600;
-  font-size: 0.95rem;
-
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.35),
-    0 10px 26px rgba(56,189,248,0.35),
-    0 16px 40px rgba(0,0,0,0.45);
-
-  transition:
-    transform 0.28s cubic-bezier(0.22,1,0.36,1),
-    box-shadow 0.28s ease,
-    filter 0.28s ease;
-}
-
-/* Hover = same feel as intent */
-#addCardBtn:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.05);
-}
-
-/* Press */
-#addCardBtn:active {
-  transform: scale(0.96);
-}
-/* =========================
-   Flashcards – Layout Polish
-========================= */
-
-.flashcards {
-  width: 100%;
-  max-width: 380px;
-  margin: 0 auto;
-  padding-top: 40px;
-
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 22px;
-}
-
-.flashcards h3 {
-  margin-bottom: 18px;
-  font-size: 1.6rem;
-  font-weight: 600;
-}
-
-.shortcut-hint {
-  width: 100%;
-  max-width: 430px;
-  margin-top: -8px;
-  margin-bottom: 2px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(173, 206, 241, 0.24);
-  background: rgba(18, 34, 62, 0.52);
-  color: rgba(216, 232, 249, 0.9);
-  font-size: 0.76rem;
-  letter-spacing: 0.2px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-.shortcut-hint.hidden {
-  display: none !important;
-}
-
-#dismissShortcutHintBtn {
-  width: auto !important;
-  min-width: 62px;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 10px;
-  font-size: 0.73rem;
-  font-weight: 650;
-  background: rgba(88, 104, 134, 0.34) !important;
-  color: #e9eef9 !important;
-  border: 1px solid rgba(206, 225, 247, 0.16) !important;
-  box-shadow: none !important;
-}
-
-/* Inputs stack */
-.flashcard-inputs {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-/* Inputs should be LONGER than button */
-.flashcard-inputs input {
-  width: 100%;
-  height: 56px;
-  padding: 0 20px;
-
-  border-radius: 999px;
-  font-size: 1rem;
-}
-
-/* Button smaller than inputs */
-#addCardBtn {
-  width: auto;
-  min-width: 180px;
-  padding: 14px 28px;
-  border-radius: 999px;
-  margin-top: 10px;
-}
-/* =========================
    Glass Inputs (Unified)
 ========================= */
 
@@ -1307,53 +1074,6 @@ input:focus {
   box-shadow:
     0 0 0 2px rgba(56, 189, 248, 0.25);
 }
-/* Same style as Begin Focus */
-#addCardBtn {
-  background: linear-gradient(
-    180deg,
-    rgba(56,189,248,0.95),
-    rgba(14,165,233,0.95)
-  );
-
-  color: #020617;
-  font-weight: 600;
-
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.35),
-    0 10px 26px rgba(56,189,248,0.35),
-    0 16px 40px rgba(0,0,0,0.45);
-}
-/* =========================
-   Flashcards – Vertical Rhythm
-========================= */
-
-.flashcards {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 28px; /* tighter but breathable */
-  padding-top: 32px;
-}
-
-/* Input section */
-.flashcard-inputs {
-  width: 100%;
-  max-width: 380px;
-
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-/* Inputs stay visually dominant */
-.flashcard-inputs input {
-  height: 56px;
-}
-
-/* Button slightly smaller */
-#addCardBtn {
-  margin-top: 10px;
-}
 /* =========================
    Flashcard Mode Separation
 ========================= */
@@ -1370,57 +1090,8 @@ input:focus {
   pointer-events: none;
 }
 /* =========================
-   Flashcard Centering
+   Flashcards – Canonical Layout (final rules below override earlier drafts)
 ========================= */
-
-.flashcard-view {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
-
-/* Card itself */
-.flashcard {
-  margin: 12px 0;
-}
-.flashcard-view::before {
-  content: "";
-  width: 60%;
-  height: 1px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    rgba(255,255,255,0.08),
-    transparent
-  );
-  margin-bottom: 12px;
-}
-/* Flashcard modes */
-.flashcard-inputs {
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-  margin-top: 32px;
-}
-
-/* Review mode hidden by default */
-.flashcard-view {
-  display: none;
-}
-
-/* When cards exist */
-.flashcards.has-cards .flashcard-inputs {
-  display: none;
-}
-
-.flashcards.has-cards .flashcard-view {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 28px;
-  margin-top: 40px;
-}
 #focusComplete {
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
@@ -3159,33 +2830,7 @@ body.light-mode #recallMiss {
     inset 0 1px 0 rgba(255, 255, 255, 0.28) !important;
 }
 
-/* Force vivid self-feedback buttons in light mode, above generic button tint. */
-body.light-mode .recall-controls #recallGood {
-  background: linear-gradient(
-    180deg,
-    rgba(46, 189, 120, 0.92),
-    rgba(28, 152, 94, 0.88)
-  ) !important;
-  color: #eafff3 !important;
-}
-
-body.light-mode .recall-controls #recallOkay {
-  background: linear-gradient(
-    180deg,
-    rgba(235, 186, 60, 0.92),
-    rgba(211, 153, 24, 0.88)
-  ) !important;
-  color: #fff7df !important;
-}
-
-body.light-mode .recall-controls #recallMiss {
-  background: linear-gradient(
-    180deg,
-    rgba(231, 95, 95, 0.92),
-    rgba(198, 62, 62, 0.88)
-  ) !important;
-  color: #fff0f0 !important;
-}
+/* recall button light-mode styles handled by the declarations above */
 
 /* Flashcard text contrast in light mode. */
 body.light-mode .flashcard .front,
@@ -3227,75 +2872,33 @@ body.light-mode #clearDeckBtn {
     inset 0 1px 0 rgba(255, 255, 255, 0.34) !important;
 }
 
-/* Keep semantic active glass states visible in light mode. */
-body.light-mode #dueNowBtn.active {
-  background: linear-gradient(
-    180deg,
-    rgba(71, 190, 128, 0.72),
-    rgba(46, 158, 101, 0.64)
-  ) !important;
-  color: #f1fff8 !important;
-  border-color: rgba(127, 222, 176, 0.58) !important;
-  box-shadow:
-    0 10px 22px rgba(46, 158, 101, 0.24),
-    0 0 20px rgba(71, 190, 128, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.32) !important;
+/* Light mode active states for toggle buttons — consolidated */
+body.light-mode :is(#dueNowBtn, .session-actions #dueNowBtn, .floating-session-panel .session-actions #dueNowBtn).active {
+  background: linear-gradient(180deg, rgba(54,186,121,0.9), rgba(33,156,98,0.84)) !important;
+  color: #f4fff9 !important;
+  border-color: rgba(122,230,178,0.78) !important;
+  box-shadow: 0 12px 26px rgba(33,156,98,0.34), 0 0 24px rgba(54,186,121,0.3), inset 0 1px 0 rgba(255,255,255,0.34) !important;
 }
 
-body.light-mode #mistakesModeBtn.active {
-  background: linear-gradient(
-    180deg,
-    rgba(230, 108, 108, 0.74),
-    rgba(196, 73, 73, 0.66)
-  ) !important;
-  color: #fff2f2 !important;
-  border-color: rgba(228, 122, 122, 0.62) !important;
-  box-shadow:
-    0 10px 24px rgba(196, 73, 73, 0.28),
-    0 0 22px rgba(230, 108, 108, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+body.light-mode :is(#mistakesModeBtn, .session-actions #mistakesModeBtn, .floating-session-panel .session-actions #mistakesModeBtn).active {
+  background: linear-gradient(180deg, rgba(239,84,84,0.92), rgba(207,48,48,0.86)) !important;
+  color: #fff4f4 !important;
+  border-color: rgba(252,143,143,0.82) !important;
+  box-shadow: 0 12px 26px rgba(207,48,48,0.38), 0 0 24px rgba(239,84,84,0.34), inset 0 1px 0 rgba(255,255,255,0.34) !important;
 }
 
-body.light-mode #slippingModeBtn.active {
-  background: linear-gradient(
-    180deg,
-    rgba(98, 170, 244, 0.74),
-    rgba(64, 133, 208, 0.66)
-  ) !important;
+body.light-mode :is(#slippingModeBtn, .session-actions #slippingModeBtn, .floating-session-panel .session-actions #slippingModeBtn).active {
+  background: linear-gradient(180deg, rgba(86,164,246,0.9), rgba(52,126,207,0.84)) !important;
+  color: #f4f9ff !important;
+  border-color: rgba(144,198,255,0.78) !important;
+  box-shadow: 0 12px 24px rgba(52,126,207,0.32), 0 0 22px rgba(86,164,246,0.28), inset 0 1px 0 rgba(255,255,255,0.34) !important;
+}
+
+body.light-mode :is(#autoBackupBtn, #perfModeBtn).active {
+  background: linear-gradient(180deg, rgba(98,170,244,0.74), rgba(64,133,208,0.66)) !important;
   color: #f3f9ff !important;
-  border-color: rgba(129, 186, 244, 0.62) !important;
-  box-shadow:
-    0 10px 24px rgba(64, 133, 208, 0.24),
-    0 0 22px rgba(98, 170, 244, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
-}
-
-body.light-mode #autoBackupBtn.active {
-  background: linear-gradient(
-    180deg,
-    rgba(98, 170, 244, 0.74),
-    rgba(64, 133, 208, 0.66)
-  ) !important;
-  color: #f3f9ff !important;
-  border-color: rgba(129, 186, 244, 0.62) !important;
-  box-shadow:
-    0 10px 24px rgba(64, 133, 208, 0.24),
-    0 0 22px rgba(98, 170, 244, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
-}
-
-body.light-mode #perfModeBtn.active {
-  background: linear-gradient(
-    180deg,
-    rgba(98, 170, 244, 0.74),
-    rgba(64, 133, 208, 0.66)
-  ) !important;
-  color: #f3f9ff !important;
-  border-color: rgba(129, 186, 244, 0.62) !important;
-  box-shadow:
-    0 10px 24px rgba(64, 133, 208, 0.24),
-    0 0 22px rgba(98, 170, 244, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+  border-color: rgba(129,186,244,0.62) !important;
+  box-shadow: 0 10px 24px rgba(64,133,208,0.24), 0 0 22px rgba(98,170,244,0.22), inset 0 1px 0 rgba(255,255,255,0.3) !important;
 }
 
 /* =========================
@@ -3353,48 +2956,4 @@ body.performance-mode .flashcard.switching.slide-prev {
   filter: none !important;
 }
 
-/* Stronger specificity for active states inside session action rows. */
-body.light-mode .session-actions #dueNowBtn.active,
-body.light-mode .floating-session-panel .session-actions #dueNowBtn.active {
-  background: linear-gradient(
-    180deg,
-    rgba(54, 186, 121, 0.9),
-    rgba(33, 156, 98, 0.84)
-  ) !important;
-  color: #f4fff9 !important;
-  border-color: rgba(122, 230, 178, 0.78) !important;
-  box-shadow:
-    0 12px 24px rgba(33, 156, 98, 0.34),
-    0 0 22px rgba(54, 186, 121, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.34) !important;
-}
-
-body.light-mode .session-actions #mistakesModeBtn.active,
-body.light-mode .floating-session-panel .session-actions #mistakesModeBtn.active {
-  background: linear-gradient(
-    180deg,
-    rgba(239, 84, 84, 0.92),
-    rgba(207, 48, 48, 0.86)
-  ) !important;
-  color: #fff4f4 !important;
-  border-color: rgba(252, 143, 143, 0.82) !important;
-  box-shadow:
-    0 12px 26px rgba(207, 48, 48, 0.38),
-    0 0 24px rgba(239, 84, 84, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.34) !important;
-}
-
-body.light-mode .session-actions #slippingModeBtn.active,
-body.light-mode .floating-session-panel .session-actions #slippingModeBtn.active {
-  background: linear-gradient(
-    180deg,
-    rgba(86, 164, 246, 0.9),
-    rgba(52, 126, 207, 0.84)
-  ) !important;
-  color: #f4f9ff !important;
-  border-color: rgba(144, 198, 255, 0.78) !important;
-  box-shadow:
-    0 12px 24px rgba(52, 126, 207, 0.32),
-    0 0 22px rgba(86, 164, 246, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.34) !important;
-}
+/* Active state specificity handled by consolidated :is() rules above */
