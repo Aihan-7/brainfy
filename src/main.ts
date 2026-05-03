@@ -1,6 +1,77 @@
 // ══════════════════════════════════════════════════
-//  Brainfy — script.js
+//  Brainfy — main.ts
 // ══════════════════════════════════════════════════
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+interface FlashCard {
+  q: string;
+  a: string;
+}
+
+interface Subject {
+  id:       number;
+  name:     string;
+  desc:     string;
+  docs:     number;
+  color:    string;
+  accessed: number;
+  cards?:   FlashCard[];
+}
+
+interface Task {
+  id:   number;
+  text: string;
+  done: boolean;
+}
+
+interface Milestone {
+  id:   number;
+  text: string;
+  done: boolean;
+}
+
+interface Session {
+  date:      string;   // ISO string
+  duration:  number;   // seconds
+  subjectId: number | null;
+}
+
+interface AmbientState {
+  lofi:   number;
+  rain:   number;
+  white:  number;
+  forest: number;
+}
+
+interface AppState {
+  userName:      string;
+  subjects:      Subject[];
+  tasks:         Task[];
+  milestones:    Milestone[];
+  sessions:      Session[];
+  focusDuration: number;
+  breakDuration: number;
+  ambient:       AmbientState;
+  sessionNotes:  string;
+  dailyGoal:     number;
+  streak:        number;
+  nextId:        number;
+}
+
+interface Quote {
+  t: string;
+  a: string;
+}
+
+interface AmbientNode {
+  gainNode: GainNode;
+  sources:  AudioNode[];
+}
+
+type AmbientKey = 'lofi' | 'rain' | 'white' | 'forest';
+type FcRating   = 'easy' | 'ok' | 'hard';
+type ViewName   = 'splash' | 'signin' | 'signup' | 'home' | 'focus' | 'library' | 'stats' | 'tasks';
 
 const STORAGE_KEY = 'brainfy_v3';
 const TIMER_C = 754;   // 2π × 120  (timer ring circumference)
@@ -20,23 +91,9 @@ const QUOTES = [
 const SUBJECT_COLORS = ['#7c3aed','#0891b2','#065f46','#9a3412','#1e40af','#b45309','#be185d'];
 
 // ── Flashcard data sets ──────────────────────────────────────────────────────
-const FLASHCARD_SETS = {
-  1: [
-    { q:'What is a stereocenter?', a:'A carbon atom bonded to four different groups, creating non-superimposable mirror images called enantiomers.' },
-    { q:'Define an SN2 reaction', a:'Bimolecular nucleophilic substitution — the nucleophile attacks from the back in a single concerted step, inverting the stereocenter (Walden inversion).' },
-    { q:"What is Markovnikov's Rule?", a:'In electrophilic addition, hydrogen adds to the carbon that already has more hydrogens, while the electrophile adds to the more substituted carbon.' },
-    { q:"Define aromaticity (Hückel's Rule)", a:'A cyclic, planar, fully conjugated system with 4n+2 π electrons (n = 0,1,2…) is aromatic and unusually stable.' },
-    { q:'What distinguishes R from S configuration?', a:'Using CIP priority rules, if the remaining three groups decrease in priority clockwise = R; counter-clockwise = S (with lowest-priority group pointing away).' },
-    { q:'What is a resonance structure?', a:'One of two or more Lewis structures for the same molecule differing only in electron distribution — the actual molecule is a hybrid of all.' },
-  ],
-  2: [
-    { q:'Define GDP', a:'Gross Domestic Product — total market value of all final goods and services produced within a country in a period. GDP = C + I + G + (X−M).' },
-    { q:'What is the Phillips Curve?', a:'An empirical inverse relationship between unemployment and inflation — as unemployment falls, inflation tends to rise, and vice versa.' },
-    { q:'Define monetary policy', a:'Central bank actions (adjusting interest rates, open market operations, reserve requirements) to control money supply and achieve macroeconomic stability.' },
-    { q:'What is the multiplier effect?', a:'An initial change in spending triggers a larger total change in income. Multiplier = 1 / (1 − MPC), where MPC is marginal propensity to consume.' },
-    { q:'Define an inflationary gap', a:'When actual GDP exceeds potential GDP, pushing the economy above full employment and creating upward price pressure.' },
-    { q:'What is the liquidity trap?', a:'When interest rates are near zero and monetary policy loses effectiveness because people hoard cash instead of investing or spending.' },
-  ],
+// Cards are stored per-subject in S.subjects[].cards (added by AI or user).
+// This default set is shown when a subject has no cards yet.
+const FLASHCARD_SETS: Record<string, FlashCard[]> = {
   default: [
     { q:'What is spaced repetition?', a:'A learning technique that schedules reviews at increasing intervals over time, exploiting the spacing effect to maximize long-term retention.' },
     { q:'Define active recall', a:'Deliberately retrieving information from memory (vs. passively re-reading), which strengthens neural pathways and dramatically improves retention.' },
@@ -49,56 +106,53 @@ const FLASHCARD_SETS = {
 
 // ── Default state ───────────────────────────────────────────────────────────
 const DEFAULT_STATE = {
-  userName: 'Alex',
-  subjects: [
-    { id:1, name:'Organic Chemistry', desc:'Stereochemistry & Reaction Mechanisms', docs:32, color:'#7c3aed', accessed: Date.now()-86400000 },
-    { id:2, name:'Macroeconomics',    desc:'Monetary Policy & Inflationary Gaps',  docs:18, color:'#0891b2', accessed: Date.now()-3600000  },
-    { id:3, name:'Exam Prep',         desc:'Final semester comprehensive review',  docs:24, color:'#065f46', accessed: Date.now()-7200000  },
-    { id:4, name:'Research Papers',   desc:'Peer-reviewed journals & metadata',    docs:12, color:'#9a3412', accessed: Date.now()-172800000 },
-  ],
-  tasks: [
-    { id:1, text:'Review Benzene notes',   done:false },
-    { id:2, text:'Quiz: GDP Components',   done:false },
-    { id:3, text:'Schedule mock exam',     done:false },
-  ],
-  milestones: [
-    { id:1, text:'Review Lecture 4',   done:true  },
-    { id:2, text:'Derive Equation X',  done:false },
-  ],
-  sessions: [],          // { date:ISO, duration:s, subjectId }
+  userName: '',
+  subjects:   [],
+  tasks:      [],
+  milestones: [],
+  sessions:   [],
   focusDuration: 25*60,
   breakDuration:  5*60,
   ambient: { lofi:0, rain:0, white:0, forest:0 },
   sessionNotes: '',
-  dailyGoal: 120,        // minutes
-  nextId: 20,
+  dailyGoal: 120,
+  streak: 0,
+  nextId: 1,
 };
 
 // ── Runtime state ───────────────────────────────────────────────────────────
-let S = {};          // persisted state (copy of DEFAULT_STATE + localStorage)
-let currentView = 'splash';
+let S: AppState = { ...DEFAULT_STATE };
+let currentView: ViewName = 'splash';
 
-const timer = {
-  interval: null,
-  timeLeft: 25*60,
-  totalTime: 25*60,
-  running: false,
-  mode: 'focus',     // 'focus' | 'break'
+const timer: {
+  interval:  ReturnType<typeof setInterval> | undefined;
+  timeLeft:  number;
+  totalTime: number;
+  running:   boolean;
+  mode:      'focus' | 'break';
+  subjectId: number | null;
+  intent:    string;
+} = {
+  interval:  undefined,
+  timeLeft:  25 * 60,
+  totalTime: 25 * 60,
+  running:   false,
+  mode:      'focus',
   subjectId: null,
-  intent: '',
+  intent:    '',
 };
 
 // ── Web Audio Ambient Engine ─────────────────────────────────────────────────
-let audioCtx = null;
-const ambientNodes = {};   // key → { gainNode, sources[] }
+let audioCtx: AudioContext | null = null;
+const ambientNodes: Partial<Record<AmbientKey, AmbientNode>> = {};
 
-function getCtx() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function getCtx(): AudioContext {
+  if (!audioCtx) audioCtx = new AudioContext();
   if (audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx;
 }
 
-function makeNoiseBuffer(ctx) {
+function makeNoiseBuffer(ctx: AudioContext): AudioBuffer {
   const len = 3 * ctx.sampleRate;
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const d   = buf.getChannelData(0);
@@ -106,7 +160,7 @@ function makeNoiseBuffer(ctx) {
   return buf;
 }
 
-function startAmbientKey(key, vol) {
+function startAmbientKey(key: AmbientKey, vol: number): void {
   const ctx = getCtx();
   if (ambientNodes[key]) { setAmbientVol(key, vol); return; }
 
@@ -190,26 +244,26 @@ function startAmbientKey(key, vol) {
   ambientNodes[key] = { gainNode: gain, sources };
 }
 
-function stopAmbientKey(key) {
+function stopAmbientKey(key: AmbientKey): void {
   const node = ambientNodes[key];
   if (!node || !audioCtx) return;
   const { gainNode, sources } = node;
   gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.4);
   setTimeout(() => {
-    sources.forEach(s => { try { if (s.stop) s.stop(); else s.disconnect(); } catch(_){} });
+    sources.forEach(s => { try { if ((s as AudioScheduledSourceNode).stop) (s as AudioScheduledSourceNode).stop(); else s.disconnect(); } catch(_){} });
     try { gainNode.disconnect(); } catch(_){}
     delete ambientNodes[key];
   }, 1500);
 }
 
-function setAmbientVol(key, vol) {
+function setAmbientVol(key: AmbientKey, vol: number): void {
   const node = ambientNodes[key];
   if (!node || !audioCtx) return;
   node.gainNode.gain.setTargetAtTime(vol / 100 * 0.35, audioCtx.currentTime, 0.2);
 }
 
-function syncAmbient() {
-  ['lofi','rain','white','forest'].forEach(k => {
+function syncAmbient(): void {
+  (['lofi','rain','white','forest'] as AmbientKey[]).forEach(k => {
     const v = S.ambient[k] || 0;
     if (v > 0) startAmbientKey(k, v);
     else       stopAmbientKey(k);
@@ -217,18 +271,23 @@ function syncAmbient() {
 }
 
 // ── Flashcard State ──────────────────────────────────────────────────────────
-const fc = { cards: [], idx: 0, flipped: false, scores: { easy:0, ok:0, hard:0 } };
+const fc: {
+  cards:   FlashCard[];
+  idx:     number;
+  flipped: boolean;
+  scores:  Record<FcRating, number>;
+} = { cards: [], idx: 0, flipped: false, scores: { easy: 0, ok: 0, hard: 0 } };
 
-function openFlashcards(subjectId) {
+function openFlashcards(subjectId: number): void {
   const subj  = S.subjects.find(s => s.id === subjectId);
-  const set   = FLASHCARD_SETS[subjectId] || FLASHCARD_SETS.default;
+  const set   = (subj?.cards?.length ? subj.cards : null) || FLASHCARD_SETS.default;
   fc.cards   = [...set];
   fc.idx     = 0;
   fc.flipped = false;
   fc.scores  = { easy:0, ok:0, hard:0 };
 
   const modal = document.getElementById('flashcardModal');
-  modal.classList.add('open');
+  modal?.classList.add('open');
   document.body.style.overflow = 'hidden';
 
   const label = document.getElementById('fcSubjectLabel');
@@ -237,8 +296,8 @@ function openFlashcards(subjectId) {
   renderFC();
 }
 
-function closeFlashcards() {
-  document.getElementById('flashcardModal').classList.remove('open');
+function closeFlashcards(): void {
+  document.getElementById('flashcardModal')?.classList.remove('open');
   document.body.style.overflow = '';
 }
 
@@ -276,9 +335,9 @@ function renderFC() {
   }
 
   // Score counters
-  ['easy','ok','hard'].forEach(k => {
-    const el = document.getElementById('fc' + k.charAt(0).toUpperCase() + k.slice(1) + 'Count');
-    if (el) el.textContent = fc.scores[k];
+  (['easy','ok','hard'] as FcRating[]).forEach(k => {
+    const elId = document.getElementById('fc' + k.charAt(0).toUpperCase() + k.slice(1) + 'Count');
+    if (elId) elId.textContent = String(fc.scores[k]);
   });
 }
 
@@ -290,12 +349,12 @@ function flipCard() {
   if (rating) rating.style.display = fc.flipped ? 'flex' : 'none';
 }
 
-function fcNav(dir) {
+function fcNav(dir: number): void {
   fc.idx = Math.max(0, Math.min(fc.cards.length - 1, fc.idx + dir));
   renderFC();
 }
 
-function rateCard(rating) {
+function rateCard(rating: FcRating): void {
   fc.scores[rating]++;
   if (fc.idx < fc.cards.length - 1) {
     fc.idx++;
@@ -304,7 +363,9 @@ function rateCard(rating) {
     // Session complete
     const { easy, ok, hard } = fc.scores;
     const total = easy + ok + hard;
-    document.getElementById('flashcardModal').innerHTML = `
+    const modal = document.getElementById('flashcardModal');
+    if (!modal) return;
+    modal.innerHTML = `
       <div style="max-width:500px;margin:80px auto;text-align:center;">
         <div style="font-size:56px;margin-bottom:20px;">🎉</div>
         <h2 style="font-size:28px;font-weight:900;color:white;margin-bottom:12px;">Session Complete!</h2>
@@ -354,9 +415,9 @@ function load() {
 }
 
 // ── Router ──────────────────────────────────────────────────────────────────
-function goTo(view) {
+function goTo(view: ViewName): void {
   // Smooth exit: fade out current view slightly before switching
-  const prevEl = document.querySelector('.view.active');
+  const prevEl = document.querySelector<HTMLElement>('.view.active');
   if (prevEl && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     prevEl.style.transition = 'opacity 0.12s ease, transform 0.12s ease';
     prevEl.style.opacity    = '0';
@@ -376,14 +437,14 @@ function goTo(view) {
   }, prevEl ? 100 : 0);
 }
 
-function _goToFinish(view) {
+function _goToFinish(view: ViewName): void {
   currentView = view;
 
-  const isApp = !['splash', 'signin', 'signup'].includes(view);
+  const isApp = !(['splash', 'signin', 'signup'] as ViewName[]).includes(view);
   document.body.classList.toggle('app-active', isApp);
 
-  document.querySelectorAll('[data-go]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.go === view);
+  document.querySelectorAll<HTMLElement>('[data-go]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset['go'] === view);
   });
 
   if (view === 'home')    renderHome();
@@ -394,9 +455,9 @@ function _goToFinish(view) {
 
   // Re-trigger stagger animations on stat cards
   if (view === 'home') {
-    document.querySelectorAll('.hd-stat').forEach(c => {
+    document.querySelectorAll<HTMLElement>('.hd-stat').forEach(c => {
       c.style.animation = 'none';
-      void c.offsetWidth; // reflow
+      void c.offsetWidth;
       c.style.animation = '';
     });
   }
@@ -405,24 +466,23 @@ function _goToFinish(view) {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-function todayStr() { return new Date().toDateString(); }
+function todayStr(): string { return new Date().toDateString(); }
 
-function todayFocusSec() {
+function todayFocusSec(): number {
   return S.sessions
     .filter(s => new Date(s.date).toDateString() === todayStr())
     .reduce((n, s) => n + s.duration, 0);
 }
 
-function calcScore() {
+function calcScore(): number {
   const hrs   = todayFocusSec() / 3600;
   const strk  = Math.min(40, (S.streak || 0) * 3);
   const focus = Math.min(40, hrs * 10);
   const sess  = Math.min(20, S.sessions.filter(s => new Date(s.date).toDateString() === todayStr()).length * 5);
-  const total = Math.round(strk + focus + sess);
-  return total || 82;
+  return Math.round(strk + focus + sess);
 }
 
-function timeAgo(ts) {
+function timeAgo(ts: number): string {
   const d = Date.now() - ts;
   const m = Math.floor(d / 60000);
   if (m < 60) return m + 'm ago';
@@ -431,7 +491,7 @@ function timeAgo(ts) {
   return Math.floor(h / 24) + 'd ago';
 }
 
-function fmtTime(sec) {
+function fmtTime(sec: number): string {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   if (h > 0) return h + 'h ' + m + 'm';
@@ -439,7 +499,10 @@ function fmtTime(sec) {
   return '<1m';
 }
 
-function el(id) { return document.getElementById(id); }
+function el(id: string): HTMLElement | null { return document.getElementById(id); }
+function elInput(id: string): HTMLInputElement | null { return document.getElementById(id) as HTMLInputElement | null; }
+function elSel(id: string): HTMLSelectElement | null { return document.getElementById(id) as HTMLSelectElement | null; }
+function elBtn(id: string): HTMLButtonElement | null { return document.getElementById(id) as HTMLButtonElement | null; }
 
 // ── HOME ────────────────────────────────────────────────────────────────────
 function renderHome() {
@@ -453,7 +516,7 @@ function renderHome() {
 
   // Streak label
   const sl = el('homeStreakLabel');
-  const streak = S.streak || 3;
+  const streak = S.streak || 0;
   if (sl) sl.textContent = streak + ' DAY STREAK';
 
   // Focus time
@@ -464,27 +527,27 @@ function renderHome() {
   // Sessions today
   const todaySessions = S.sessions.filter(s => new Date(s.date).toDateString() === todayStr());
   const sc = el('homeSessionCount');
-  if (sc) sc.textContent = todaySessions.length;
+  if (sc) sc.textContent = String(todaySessions.length);
 
   // Streak num
   const sn2 = el('homeStreakNum');
-  if (sn2) sn2.textContent = streak;
+  if (sn2) sn2.textContent = String(streak);
 
   // Score — animated countUp on ring + both stat displays
   const score = calcScore();
-  const ringC = 2 * Math.PI * 58; // r=58 new ring
+  const ringC = 2 * Math.PI * 58;
   const ring = el('focusScoreRing');
-  if (ring) ring.setAttribute('stroke-dashoffset', ringC * (1 - score / 100));
+  if (ring) ring.setAttribute('stroke-dashoffset', String(ringC * (1 - score / 100)));
 
-  function countUp(elId, target, duration) {
+  function countUp(elId: string, target: number, duration: number): void {
     const node = el(elId);
     if (!node) return;
-    if (reduced) { node.textContent = target; return; }
+    if (reduced) { node.textContent = String(target); return; }
     const start = performance.now();
-    const tick = (now) => {
+    const tick = (now: number) => {
       const p = Math.min((now - start) / duration, 1);
       const eased = 1 - Math.pow(1 - p, 3);
-      node.textContent = Math.round(eased * target);
+      node.textContent = String(Math.round(eased * target));
       if (p < 1) requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -525,8 +588,8 @@ function renderGoalProgress() {
 
 function promptGoal() {
   const cur = S.dailyGoal || 120;
-  const input = prompt(`Daily focus goal (minutes):\nCurrent: ${cur} min`, cur);
-  const parsed = parseInt(input, 10);
+  const input = prompt(`Daily focus goal (minutes):\nCurrent: ${cur} min`, String(cur));
+  const parsed = parseInt(input ?? '', 10);
   if (!isNaN(parsed) && parsed > 0) {
     S.dailyGoal = Math.max(5, Math.min(480, parsed));
     save();
@@ -545,7 +608,7 @@ function renderHomeHeatmap() {
   const now  = new Date();
 
   // Build day-indexed session counts for last 84 days
-  const counts = {};
+  const counts: Record<string, number> = {};
   S.sessions.forEach(s => {
     const key = new Date(s.date).toDateString();
     counts[key] = (counts[key] || 0) + 1;
@@ -574,7 +637,7 @@ function renderHomeHeatmap() {
 
   // Month labels
   if (labels) {
-    const months = [];
+    const months: string[] = [];
     for (let w = 11; w >= 0; w--) {
       const day = new Date(now);
       day.setDate(now.getDate() - w * 7);
@@ -653,7 +716,7 @@ function renderHomeSubjects() {
   `).join('');
 }
 
-function startSubject(id) {
+function startSubject(id: number): void {
   timer.subjectId = id;
   const s = S.subjects.find(x => x.id === id);
   if (s) s.accessed = Date.now();
@@ -680,9 +743,9 @@ function renderHomeTasks() {
     </div>
   `).join('');
 
-  list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+  list.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach(cb => {
     cb.addEventListener('change', () => {
-      const id = +cb.dataset.id;
+      const id = +(cb.dataset['id'] ?? '');
       const t = S.tasks.find(x => x.id === id);
       if (t) { t.done = cb.checked; save(); renderHomeTasks(); if (currentView === 'tasks') renderTasks(); }
     });
@@ -764,7 +827,7 @@ function renderFocusActive() {
     ts.textContent = s ? 'Deep Work: ' + s.name : 'Deep Work';
   }
 
-  const notes = el('quickNotesInput');
+  const notes = el('quickNotesInput') as HTMLTextAreaElement | null;
   if (notes) notes.value = S.sessionNotes;
 }
 
@@ -772,7 +835,7 @@ function renderAmbient() {
   const list = el('ambientList');
   if (!list) return;
 
-  const sounds = [
+  const sounds: { key: AmbientKey; label: string; icon: string; color: string; bg: string }[] = [
     { key:'lofi',   label:'Lo-Fi Beats',   icon:'music_note',      color:'var(--plight)',  bg:'rgba(124,58,237,0.12)' },
     { key:'rain',   label:'Rain Shower',   icon:'water_drop',      color:'var(--cyan)',    bg:'rgba(76,215,246,0.1)'  },
     { key:'forest', label:'Forest Wind',   icon:'forest',          color:'var(--green)',   bg:'rgba(78,222,163,0.1)'  },
@@ -801,9 +864,9 @@ function renderAmbient() {
   }).join('');
 
   // Toggle on button click
-  list.querySelectorAll('.amb-btn').forEach(btn => {
+  list.querySelectorAll<HTMLElement>('.amb-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const k = btn.dataset.amb;
+      const k = (btn as HTMLElement).dataset['amb'] as AmbientKey;
       if ((S.ambient[k] || 0) > 0) {
         S.ambient[k] = 0;
         stopAmbientKey(k);
@@ -816,10 +879,10 @@ function renderAmbient() {
   });
 
   // Volume slider
-  list.querySelectorAll('input[type="range"]').forEach(sl => {
+  list.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach(sl => {
     sl.addEventListener('input', e => {
       e.stopPropagation();
-      const k = sl.dataset.sound;
+      const k = sl.dataset['sound'] as AmbientKey;
       const v = +sl.value;
       S.ambient[k] = v;
       setAmbientVol(k, v);
@@ -846,9 +909,9 @@ function renderMilestones() {
     </div>
   `).join('');
 
-  list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+  list.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach(cb => {
     cb.addEventListener('change', () => {
-      const m = S.milestones.find(x => x.id === +cb.dataset.id);
+      const m = S.milestones.find(x => x.id === +(cb.dataset['id'] ?? ''));
       if (m) { m.done = cb.checked; save(); renderMilestones(); }
     });
   });
@@ -872,7 +935,7 @@ function updateTimerDisplay() {
   const ring = el('timerRing');
   if (ring) {
     const pct = timer.timeLeft / timer.totalTime;
-    ring.setAttribute('stroke-dashoffset', TIMER_C * (1 - pct));
+    ring.setAttribute('stroke-dashoffset', String(TIMER_C * (1 - pct)));
     ring.setAttribute('stroke', timer.mode === 'break' ? 'var(--green)' : 'var(--cyan)');
   }
 
@@ -880,7 +943,7 @@ function updateTimerDisplay() {
   if (lbl) lbl.textContent = timer.mode === 'break' ? 'BREAK' : 'REMAINING';
 }
 
-function setTimerBtn(running) {
+function setTimerBtn(running: boolean): void {
   const icon = el('playPauseIcon');
   if (icon) icon.textContent = running ? 'pause' : 'play_arrow';
 }
@@ -894,8 +957,8 @@ function startTimer() {
     timer.timeLeft = Math.max(0, timer.timeLeft - 1);
     updateTimerDisplay();
     if (timer.timeLeft === 0) {
-      clearInterval(timer.interval);
-      timer.interval = null;
+      clearInterval(timer.interval!);
+      timer.interval = undefined;
       timer.running  = false;
       setTimerBtn(false);
       if (timer.mode === 'focus') logSession();
@@ -919,7 +982,7 @@ function startTimer() {
 
 function pauseTimer() {
   clearInterval(timer.interval);
-  timer.interval = null;
+  timer.interval = undefined;
   timer.running  = false;
   document.body.classList.remove('timer-running');
   setTimerBtn(false);
@@ -953,9 +1016,9 @@ function logSession() {
   if (currentView === 'home') renderGoalProgress();
 }
 
-function beginFocusSession() {
-  const intentEl = el('focusIntentInput');
-  const subjEl   = el('focusSubjectSelect');
+function beginFocusSession(): void {
+  const intentEl = el('focusIntentInput') as HTMLInputElement | null;
+  const subjEl   = el('focusSubjectSelect') as HTMLSelectElement | null;
   timer.intent    = intentEl?.value?.trim() || 'Focus Session';
   timer.subjectId = subjEl?.value ? +subjEl.value : null;
   timer.mode      = 'focus';
@@ -991,7 +1054,7 @@ function exitFocusSession() {
 // ── LIBRARY ──────────────────────────────────────────────────────────────────
 function renderLibrary() {
   const grid   = el('libraryGrid');
-  const search = el('libSearchInput')?.value?.toLowerCase() || '';
+  const search = (elInput('libSearchInput')?.value ?? '').toLowerCase();
   if (!grid) return;
 
   const filtered = S.subjects.filter(s =>
@@ -1052,7 +1115,7 @@ function showAddSubject() {
   renderLibrary();
 }
 
-function deleteSubject(id) {
+function deleteSubject(id: number): void {
   if (!confirm('Remove this subject?')) return;
   S.subjects = S.subjects.filter(s => s.id !== id);
   save();
@@ -1082,12 +1145,12 @@ function renderSessionLog() {
     return;
   }
 
-  const subjectMap = {};
+  const subjectMap: Record<number, Subject> = {};
   S.subjects.forEach(s => { subjectMap[s.id] = s; });
 
   list.innerHTML = recent.map((sess, i) => {
     const d     = new Date(sess.date);
-    const subj  = subjectMap[sess.subjectId];
+    const subj  = sess.subjectId != null ? subjectMap[sess.subjectId] : undefined;
     const mins  = Math.round(sess.duration / 60);
     const color = subj?.color || 'var(--primary)';
     const name  = subj?.name  || 'Free Study';
@@ -1140,16 +1203,17 @@ function renderStatsBar() {
     const hrs  = S.sessions
       .filter(s => { const d = new Date(s.date); return d >= from && d < to; })
       .reduce((n, s) => n + s.duration/3600, 0);
-    buckets.push({ hrs: hrs || (Math.random()*5+1), label: from.toLocaleDateString('en-US',{month:'short',day:'numeric'}), isToday: false });
+    buckets.push({ hrs, label: from.toLocaleDateString('en-US',{month:'short',day:'numeric'}), isToday: false });
   }
   const todayH = todayFocusSec() / 3600;
-  buckets.push({ hrs: todayH || 5.7, label: 'Today', isToday: true });
+  buckets.push({ hrs: todayH, label: 'Today', isToday: true });
 
-  const maxH = Math.max(...buckets.map(b => b.hrs));
+  const maxH = Math.max(...buckets.map(b => b.hrs), 0.1);
   chart.innerHTML = buckets.map(b => {
-    const pct = Math.max(5, (b.hrs / maxH) * 100);
+    const pct = b.hrs > 0 ? Math.max(4, (b.hrs / maxH) * 100) : 4;
     const bg  = b.isToday ? 'var(--cyan)' : 'rgba(124,58,237,0.48)';
-    return `<div style="flex:1;height:${pct}%;background:${bg};border-radius:4px 4px 0 0;min-height:4px;transition:height 0.4s;"></div>`;
+    const op  = b.hrs === 0 ? '0.18' : '1';
+    return `<div style="flex:1;height:${pct}%;background:${bg};border-radius:4px 4px 0 0;min-height:4px;transition:height 0.4s;opacity:${op};"></div>`;
   }).join('');
 
   if (labels) labels.innerHTML = buckets.map(b => `<span style="font-size:10px;">${b.label}</span>`).join('');
@@ -1161,15 +1225,21 @@ function renderDonut() {
   const total  = el('totalHrsNum');
   if (!svg) return;
 
-  const subjects = S.subjects.length ? S.subjects : [
-    { name:'Untracked', color:'#7c3aed', docs:40 },
-    { name:'Deep Focus', color:'#4cd7f6', docs:30 },
-    { name:'Research',   color:'#4edea3', docs:20 },
-  ];
+  const subjects = S.subjects;
 
   const r = 55, cx = 75, cy = 75;
   const C = 2 * Math.PI * r;
-  const tot = subjects.reduce((n, s) => n + s.docs, 0);
+  const totalHrs = Math.round(S.sessions.reduce((n, s) => n + s.duration/3600, 0));
+  if (total) total.textContent = String(totalHrs);
+
+  if (!subjects.length) {
+    svg.setAttribute('viewBox', '0 0 150 150');
+    svg.innerHTML = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="16"/>`;
+    if (legend) legend.innerHTML = `<p style="font-size:12px;color:var(--muted);text-align:center;">No subjects yet</p>`;
+    return;
+  }
+
+  const tot = subjects.reduce((n, s) => n + s.docs, 0) || 1;
   let offset = C * 0.25;
 
   const arcs = subjects.map(s => {
@@ -1196,25 +1266,36 @@ function renderDonut() {
       </div>
     `).join('');
   }
-
-  const totalHrs = Math.round(S.sessions.reduce((n, s) => n + s.duration/3600, 0));
-  if (total) total.textContent = totalHrs || 124;
 }
 
 function renderHeatmap() {
   const grid = el('heatmapGrid');
   if (!grid) return;
-  // 7 rows × 30 cols  (rows = days of week, cols = time slots)
-  const rows = 7, cols = 30;
-  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-  grid.innerHTML = Array.from({ length: rows * cols }, (_, i) => {
-    const col  = i % cols;
-    const isMidDay = col > 5 && col < 22;
-    const raw  = isMidDay ? Math.random() : Math.random() * 0.25;
-    const show = Math.random() < (isMidDay ? 0.55 : 0.15);
-    const a    = show ? raw.toFixed(2) : '0.04';
-    return `<div style="aspect-ratio:1;border-radius:2px;background:rgba(124,58,237,${a});"></div>`;
-  }).join('');
+
+  // 7 rows (days of week Mon–Sun) × 12 cols (weeks)
+  const WEEKS = 12, DAYS = 7;
+  grid.style.gridTemplateColumns = `repeat(${WEEKS}, 1fr)`;
+
+  const now = new Date();
+  const counts: Record<string, number> = {};
+  S.sessions.forEach(s => {
+    const key = new Date(s.date).toDateString();
+    counts[key] = (counts[key] || 0) + 1;
+  });
+
+  const cells: string[] = [];
+  for (let w = WEEKS - 1; w >= 0; w--) {
+    for (let d = 0; d < DAYS; d++) {
+      const day = new Date(now);
+      day.setDate(now.getDate() - (w * 7 + (DAYS - 1 - d)));
+      const c = counts[day.toDateString()] || 0;
+      const level = c === 0 ? 0 : c === 1 ? 1 : c <= 3 ? 2 : c <= 5 ? 3 : 4;
+      const alphas = ['0.06', '0.28', '0.52', '0.76', '1'];
+      const title = `${day.toLocaleDateString('en-US',{month:'short',day:'numeric'})}: ${c} session${c !== 1 ? 's' : ''}`;
+      cells.push(`<div style="aspect-ratio:1;border-radius:2px;background:rgba(124,58,237,${alphas[level]});" title="${title}"></div>`);
+    }
+  }
+  grid.innerHTML = cells.join('');
 }
 
 // ── TASKS ────────────────────────────────────────────────────────────────────
@@ -1240,15 +1321,15 @@ function renderTasks() {
     </div>
   `).join('');
 
-  list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+  list.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach(cb => {
     cb.addEventListener('change', () => {
-      const t = S.tasks.find(x => x.id === +cb.dataset.id);
+      const t = S.tasks.find(x => x.id === +(cb.dataset['id'] ?? ''));
       if (t) { t.done = cb.checked; save(); renderTasks(); if (currentView === 'home') renderHomeTasks(); }
     });
   });
 }
 
-function addTask(text) {
+function addTask(text: string | undefined): void {
   if (!text?.trim()) return;
   S.tasks.push({ id: S.nextId++, text: text.trim(), done: false });
   save();
@@ -1256,14 +1337,14 @@ function addTask(text) {
   if (currentView === 'home') renderHomeTasks();
 }
 
-function deleteTask(id) {
+function deleteTask(id: number): void {
   S.tasks = S.tasks.filter(t => t.id !== id);
   save();
   renderTasks();
 }
 
 // ── TOAST ────────────────────────────────────────────────────────────────────
-function showToast(msg, type = 'info') {
+function showToast(msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info'): void {
   document.querySelector('.brainfy-toast')?.remove();
   const colors = {
     info:    'var(--plight)',
@@ -1307,7 +1388,7 @@ function handleLogout() {
 }
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
-function passwordStrength(pw) {
+function passwordStrength(pw: string): number {
   if (!pw) return 0;
   let s = 0;
   if (pw.length >= 8)  s++;
@@ -1317,51 +1398,49 @@ function passwordStrength(pw) {
   return s;
 }
 
-function showAuthError(id, msg) {
+function showAuthError(id: string, msg: string): void {
   const e = el(id);
   if (!e) return;
   e.textContent = msg;
   e.style.display = msg ? 'block' : 'none';
 }
 
-function setAuthLoading(btnId, loading) {
-  const btn = el(btnId);
+function setAuthLoading(btnId: string, loading: boolean): void {
+  const btn = elBtn(btnId);
   if (!btn) return;
   btn.disabled    = loading;
   btn.textContent = loading ? 'Please wait…' : (btnId === 'signinSubmitBtn' ? 'Sign In' : 'Create Account');
   btn.style.opacity = loading ? '0.7' : '1';
 }
 
-function handleSignIn() {
-  const email = el('signinEmail')?.value?.trim();
-  const pw    = el('signinPassword')?.value;
+function handleSignIn(): void {
+  const email = elInput('signinEmail')?.value?.trim();
+  const pw    = elInput('signinPassword')?.value;
   showAuthError('signinError', '');
 
   if (!email || !email.includes('@')) { showAuthError('signinError', 'Please enter a valid email address.'); return; }
   if (!pw || pw.length < 6)           { showAuthError('signinError', 'Password must be at least 6 characters.'); return; }
 
   setAuthLoading('signinSubmitBtn', true);
-  // Simulate async auth (replace with real backend call)
   setTimeout(() => {
     setAuthLoading('signinSubmitBtn', false);
     const stored = localStorage.getItem('brainfy_users');
-    const users  = stored ? JSON.parse(stored) : [];
+    const users: { name: string; email: string; pw: string }[] = stored ? JSON.parse(stored) : [];
     const user   = users.find(u => u.email === email && u.pw === pw);
     if (!user && users.length > 0 && users.some(u => u.email === email)) {
       showAuthError('signinError', 'Incorrect password. Please try again.');
       return;
     }
-    // Accept any credentials (demo mode) or found user
     S.userName = user?.name || email.split('@')[0];
     save();
     goTo('home');
   }, 800);
 }
 
-function handleSignup() {
-  const name  = el('signupName')?.value?.trim();
-  const email = el('signupEmail')?.value?.trim();
-  const pw    = el('signupPassword')?.value;
+function handleSignup(): void {
+  const name  = elInput('signupName')?.value?.trim();
+  const email = elInput('signupEmail')?.value?.trim();
+  const pw    = elInput('signupPassword')?.value;
   showAuthError('signupError', '');
 
   if (!name)                          { showAuthError('signupError', 'Please enter your name.'); return; }
@@ -1383,22 +1462,24 @@ function handleSignup() {
 }
 
 function handleGoogleSignIn() {
-  // Demo: just navigate in
-  S.userName = 'Alex';
+  S.userName = 'Student';
   save();
   goTo('home');
 }
 
-function showForgot() {
-  const email = el('signinEmail')?.value?.trim();
+function showForgot(): void {
+  const email = elInput('signinEmail')?.value?.trim();
   const msg   = email
-    ? `Password reset link sent to ${email} (demo mode — no email actually sent).`
+    ? `If an account exists for ${email}, a reset link will be sent shortly.`
     : 'Enter your email address above first, then click Forgot password.';
   showAuthError('signinError', msg);
-  if (el('signinError')) el('signinError').style.background = 'rgba(76,215,246,0.08)';
-  if (el('signinError')) el('signinError').style.borderColor = 'rgba(76,215,246,0.2)';
-  if (el('signinError')) el('signinError').style.color = 'var(--cyan)';
-  if (el('signinError')) el('signinError').style.display = 'block';
+  const errEl = el('signinError');
+  if (errEl) {
+    errEl.style.background  = 'rgba(76,215,246,0.08)';
+    errEl.style.borderColor = 'rgba(76,215,246,0.2)';
+    errEl.style.color       = 'var(--cyan)';
+    errEl.style.display     = 'block';
+  }
 }
 
 // ── EVENT LISTENERS ──────────────────────────────────────────────────────────
@@ -1415,15 +1496,17 @@ function initEvents() {
 
   // Password visibility toggles
   el('signinTogglePw')?.addEventListener('click', () => {
-    const inp  = el('signinPassword');
+    const inp  = elInput('signinPassword');
     const icon = el('signinPwIcon');
+    if (!inp || !icon) return;
     const show = inp.type === 'password';
     inp.type   = show ? 'text' : 'password';
     icon.textContent = show ? 'visibility' : 'visibility_off';
   });
   el('signupTogglePw')?.addEventListener('click', () => {
-    const inp  = el('signupPassword');
+    const inp  = elInput('signupPassword');
     const icon = el('signupPwIcon');
+    if (!inp || !icon) return;
     const show = inp.type === 'password';
     inp.type   = show ? 'text' : 'password';
     icon.textContent = show ? 'visibility' : 'visibility_off';
@@ -1431,7 +1514,7 @@ function initEvents() {
 
   // Password strength meter
   el('signupPassword')?.addEventListener('input', e => {
-    const v   = e.target.value;
+    const v   = (e.target as HTMLInputElement).value;
     const str = passwordStrength(v);
     const bar = el('signupStrengthBar');
     if (!bar) return;
@@ -1446,8 +1529,8 @@ function initEvents() {
   el('signupPassword')?.addEventListener('keydown', e => { if (e.key === 'Enter') handleSignup(); });
 
   // Sidebar nav
-  document.querySelectorAll('[data-go]').forEach(btn => {
-    btn.addEventListener('click', () => goTo(btn.dataset.go));
+  document.querySelectorAll<HTMLElement>('[data-go]').forEach(btn => {
+    btn.addEventListener('click', () => goTo(btn.dataset['go'] as ViewName));
   });
 
   // Sidebar Start Session
@@ -1463,12 +1546,12 @@ function initEvents() {
   el('viewAllBtn')?.addEventListener('click', () => goTo('library'));
 
   // Focus: preset buttons
-  document.querySelectorAll('.preset-btn').forEach(btn => {
+  document.querySelectorAll<HTMLElement>('.preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active-preset', 'btn-primary'));
       btn.classList.add('active-preset');
-      S.focusDuration = +btn.dataset.focus * 60;
-      S.breakDuration = +btn.dataset.break * 60;
+      S.focusDuration = +(btn.dataset['focus'] ?? '25') * 60;
+      S.breakDuration = +(btn.dataset['break'] ?? '5') * 60;
       save();
     });
   });
@@ -1508,11 +1591,11 @@ function initEvents() {
   });
 
   // Note tags
-  document.querySelectorAll('.note-tag').forEach(btn => {
+  document.querySelectorAll<HTMLElement>('.note-tag').forEach(btn => {
     btn.addEventListener('click', () => {
-      const input = el('quickNotesInput');
+      const input = el('quickNotesInput') as HTMLTextAreaElement | null;
       if (input) {
-        input.value += (input.value ? '\n' : '') + btn.dataset.tag + ' ';
+        input.value += (input.value ? '\n' : '') + btn.dataset['tag'] + ' ';
         S.sessionNotes = input.value;
         save();
         input.focus();
@@ -1522,7 +1605,7 @@ function initEvents() {
 
   // Quick notes autosave
   el('quickNotesInput')?.addEventListener('input', e => {
-    S.sessionNotes = e.target.value;
+    S.sessionNotes = (e.target as HTMLTextAreaElement).value;
     save();
   });
 
@@ -1539,14 +1622,14 @@ function initEvents() {
 
   // Tasks: add
   el('addNewTaskBtn')?.addEventListener('click', () => {
-    const input = el('newTaskInput');
+    const input = elInput('newTaskInput');
     addTask(input?.value);
     if (input) input.value = '';
   });
-  el('newTaskInput')?.addEventListener('keydown', e => {
+  elInput('newTaskInput')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
-      addTask(e.target.value);
-      e.target.value = '';
+      addTask((e.target as HTMLInputElement).value);
+      (e.target as HTMLInputElement).value = '';
     }
   });
 
@@ -1569,9 +1652,9 @@ function initEvents() {
     showToast('No new notifications', 'info');
   });
   el('focusSettingsBtn')?.addEventListener('click', () => {
-    const dur = prompt(`Focus duration (minutes):`, Math.round(S.focusDuration / 60));
+    const dur = prompt(`Focus duration (minutes):`, String(Math.round(S.focusDuration / 60)));
     if (!dur || isNaN(+dur) || +dur < 1) return;
-    const brk = prompt(`Break duration (minutes):`, Math.round(S.breakDuration / 60));
+    const brk = prompt(`Break duration (minutes):`, String(Math.round(S.breakDuration / 60)));
     if (!brk || isNaN(+brk) || +brk < 1) return;
     S.focusDuration = +dur * 60;
     S.breakDuration = +brk * 60;
@@ -1604,10 +1687,11 @@ function initEvents() {
 //  never see it. All calls go through /api/chat.
 // ══════════════════════════════════════════════════
 
-let aiHistory  = [];
-let aiTypingEl = null;
-let aiIsOpen   = false;
-let aiAvailable = false;   // set after /api/ai-status check
+interface AIMessage { role: 'user' | 'assistant'; content: string; }
+let aiHistory:   AIMessage[]        = [];
+let aiTypingEl:  HTMLElement | null = null;
+let aiIsOpen     = false;
+let aiAvailable  = false;
 
 // ── Check if server has AI configured ──────────
 async function checkAIStatus() {
@@ -1627,7 +1711,7 @@ async function checkAIStatus() {
     aiAvailable = false;
   }
   // Sidebar dot: green = ready, grey = offline
-  const dot = document.querySelector('#aiNavBtn .ai-dot');
+  const dot = document.querySelector<HTMLElement>('#aiNavBtn .ai-dot');
   if (dot) dot.style.background = aiAvailable ? 'var(--green)' : 'var(--muted)';
 }
 
@@ -1682,7 +1766,7 @@ function buildSystemPrompt() {
 }
 
 // ── API call → /api/chat proxy ──────────────────
-async function callClaude(userText) {
+async function callClaude(userText: string): Promise<void> {
   if (!aiAvailable) { showAIOffline(); return; }
 
   aiHistory.push({ role: 'user', content: userText });
@@ -1727,7 +1811,8 @@ async function callClaude(userText) {
 
   } catch(e) {
     hideAITyping();
-    appendAIMsg('error', `**Something went wrong:** ${e.message}`);
+    const msg = e instanceof Error ? e.message : String(e);
+    appendAIMsg('error', `**Something went wrong:** ${msg}`);
   }
 }
 
@@ -1749,13 +1834,13 @@ const AI_QUICK = {
   tips: () => `Based on my ${Math.round(todayFocusSec()/60)} minutes of focus today and a score of ${calcScore()}/100 — give me 3 sharp, actionable tips to improve my study performance.`,
 };
 
-function aiQuickAction(type) {
-  const prompt = AI_QUICK[type]?.();
-  if (prompt) callClaude(prompt);
+function aiQuickAction(type: keyof typeof AI_QUICK): void {
+  const msg = AI_QUICK[type]?.();
+  if (msg) callClaude(msg);
 }
 
 // ── Message rendering ────────────────────────────
-function appendAIMsg(role, text) {
+function appendAIMsg(role: 'user' | 'assistant' | 'error', text: string): void {
   const feed = document.getElementById('aiMessages');
   if (!feed) return;
 
@@ -1792,7 +1877,7 @@ function appendAIMsg(role, text) {
   feed.scrollTop = feed.scrollHeight;
 }
 
-function appendAIAction(label, fn) {
+function appendAIAction(label: string, fn: () => void): void {
   const feed = document.getElementById('aiMessages');
   if (!feed) return;
   const wrap = document.createElement('div');
@@ -1830,7 +1915,7 @@ function hideAITyping() {
 }
 
 // ── Markdown → safe HTML ─────────────────────────
-function formatAIText(raw) {
+function formatAIText(raw: string): string {
   return raw
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
@@ -1884,23 +1969,23 @@ function clearAIChat() {
   if (feed) { feed.innerHTML = ''; showAIWelcome(); }
 }
 
-function clearAIInput() {
-  const inp = document.getElementById('aiInput');
+function clearAIInput(): void {
+  const inp = document.getElementById('aiInput') as HTMLTextAreaElement | null;
   if (inp) { inp.value = ''; inp.style.height = 'auto'; }
 }
 
-function handleAISend() {
-  const inp = document.getElementById('aiInput');
+function handleAISend(): void {
+  const inp = document.getElementById('aiInput') as HTMLTextAreaElement | null;
   const text = inp?.value?.trim();
   if (!text) return;
   callClaude(text);
 }
 
 // ── Import AI-generated flashcards ───────────────
-function importAIFlashcards(text) {
-  const pairs = [];
+function importAIFlashcards(text: string): void {
+  const pairs: FlashCard[] = [];
   const lines = text.split('\n');
-  let q = null;
+  let q: string | null = null;
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed.startsWith('Q:')) { q = trimmed.slice(2).trim(); }
@@ -1969,7 +2054,7 @@ function initSplashObserver() {
   document.querySelectorAll('#splash-bento .bento-card').forEach(card => observer.observe(card));
 
   // Philosophy headings
-  document.querySelectorAll('#splash-phil .phil-head').forEach((el, i) => {
+  document.querySelectorAll<HTMLElement>('#splash-phil .phil-head').forEach((el, i) => {
     el.style.transitionDelay = (i * 0.1) + 's';
     observer.observe(el);
   });
