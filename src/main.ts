@@ -59,6 +59,7 @@ interface AppState {
   sessionNotes:  string;
   dailyGoal:     number;
   streak:        number;
+  bestStreak:    number;
   nextId:        number;
 }
 
@@ -120,6 +121,7 @@ const DEFAULT_STATE = {
   sessionNotes: '',
   dailyGoal: 120,
   streak: 0,
+  bestStreak: 0,
   nextId: 1,
 };
 
@@ -569,7 +571,7 @@ function renderHome() {
   const sn2 = el('homeStreakNum');
   if (sn2) sn2.textContent = String(streak);
 
-  // Score — animated countUp on ring + both stat displays
+  // ── Score ring + badges ───────────────────────
   const score = calcScore();
   const ringC = 2 * Math.PI * 58;
   const ring = el('focusScoreRing');
@@ -590,6 +592,77 @@ function renderHome() {
   }
   countUp('focusScoreNum', score, 900);
   countUp('homeScoreStatNum', score, 900);
+
+  // ── Focus trend badge (today vs yesterday) ────
+  const trend = el('homeFocusTrend');
+  if (trend) {
+    const todaySec     = todayFocusSec();
+    const yesterdayStr = new Date(Date.now() - 86400000).toDateString();
+    const yesterdaySec = S.sessions
+      .filter(s => new Date(s.date).toDateString() === yesterdayStr)
+      .reduce((n, s) => n + s.duration, 0);
+    if (todaySec > 0 && yesterdaySec > 0) {
+      const pct = Math.round(((todaySec - yesterdaySec) / yesterdaySec) * 100);
+      const up  = pct >= 0;
+      trend.textContent        = (up ? '↑ ' : '↓ ') + Math.abs(pct) + '%';
+      trend.style.color        = up ? 'var(--green)' : '#f97316';
+      trend.style.background   = up ? 'rgba(78,222,163,0.1)' : 'rgba(249,115,22,0.1)';
+      trend.style.display      = 'inline';
+    } else {
+      trend.style.display = 'none';
+    }
+  }
+
+  // ── Score rank badge ──────────────────────────
+  const rankBadge = el('homeScoreRankBadge');
+  if (rankBadge) {
+    if (score >= 80) {
+      rankBadge.textContent = 'EXCELLENT'; rankBadge.style.color = 'var(--cyan)'; rankBadge.style.background = 'rgba(76,215,246,0.1)';
+    } else if (score >= 60) {
+      rankBadge.textContent = 'GREAT';     rankBadge.style.color = 'var(--green)'; rankBadge.style.background = 'rgba(78,222,163,0.1)';
+    } else if (score >= 40) {
+      rankBadge.textContent = 'GOOD';      rankBadge.style.color = 'var(--plight)'; rankBadge.style.background = 'rgba(124,58,237,0.12)';
+    } else if (score > 0) {
+      rankBadge.textContent = 'BUILDING';  rankBadge.style.color = 'var(--muted)'; rankBadge.style.background = 'rgba(255,255,255,0.05)';
+    }
+    rankBadge.style.display = score > 0 ? 'inline' : 'none';
+  }
+
+  // ── Best streak badge ─────────────────────────
+  const bestBadge = el('homeStreakBestBadge');
+  if (bestBadge) {
+    const best = S.bestStreak || 0;
+    bestBadge.style.display = best > 0 ? 'inline' : 'none';
+    if (best > 0) bestBadge.textContent = 'BEST ' + best;
+  }
+
+  // ── Sessions goal badge ───────────────────────
+  const sessGoalBadge = el('homeSessionGoalBadge');
+  if (sessGoalBadge) {
+    const sessGoal = Math.max(1, Math.ceil(S.dailyGoal / (S.focusDuration / 60)));
+    const todaySessCount = S.sessions.filter(s => new Date(s.date).toDateString() === todayStr()).length;
+    sessGoalBadge.textContent = `GOAL: ${sessGoal}`;
+    sessGoalBadge.style.display = 'inline';
+    if (todaySessCount >= sessGoal) {
+      sessGoalBadge.textContent = 'DONE ✓';
+      sessGoalBadge.style.color = 'var(--green)';
+    }
+  }
+
+  // ── Cognitive state label + tip ───────────────
+  const stateLabel = el('homeFocusStateLabel');
+  const scoreTip   = el('focusScoreTip');
+  type ScoreTier = { label: string; tip: string };
+  const tiers: ScoreTier[] = [
+    { label: 'Getting Started',  tip: 'Complete your first session to begin building your score.' },
+    { label: 'Building Momentum', tip: 'Good start — consistency is key.' },
+    { label: 'Focus Mode',        tip: 'Solid effort today. Keep your sessions going.' },
+    { label: 'Deep Focus',        tip: 'Strong consistency — you\'re in a great rhythm.' },
+    { label: 'Flow State',        tip: 'Peak performance today. Outstanding work.' },
+  ];
+  const tier = score === 0 ? tiers[0] : score < 25 ? tiers[1] : score < 50 ? tiers[2] : score < 75 ? tiers[3] : tiers[4];
+  if (stateLabel) stateLabel.textContent = tier.label;
+  if (scoreTip)   scoreTip.textContent   = tier.tip;
 
   renderFocusTimeChart();
   renderHomeSubjects();
@@ -1047,8 +1120,22 @@ function logSession() {
     const s = S.subjects.find(x => x.id === timer.subjectId);
     if (s) { s.accessed = Date.now(); s.docs++; }
   }
+
+  // ── Update streak ──────────────────────────────
+  const today = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+  // Sessions before the one we just added
+  const prev = S.sessions.slice(0, -1);
+  const hadToday     = prev.some(s => new Date(s.date).toDateString() === today);
+  const hadYesterday = prev.some(s => new Date(s.date).toDateString() === yesterday);
+
+  if (!hadToday) {
+    // First session of this day
+    S.streak = hadYesterday ? (S.streak || 0) + 1 : 1;
+    S.bestStreak = Math.max(S.bestStreak || 0, S.streak);
+  }
+
   save();
-  // Update goal progress if home is visible
   if (currentView === 'home') renderGoalProgress();
 }
 
@@ -1165,6 +1252,41 @@ function renderStats() {
   renderDonut();
   renderHeatmap();
   renderSessionLog();
+  renderStatsInsight();
+}
+
+function renderStatsInsight() {
+  const title = el('statsInsightTitle');
+  const body  = el('statsInsightBody');
+  if (!title || !body) return;
+
+  const totalSess  = S.sessions.length;
+  const totalMins  = Math.round(S.sessions.reduce((n, s) => n + s.duration, 0) / 60);
+  const streak     = S.streak || 0;
+  const bestStreak = S.bestStreak || 0;
+
+  if (totalSess === 0) {
+    title.textContent = 'Your journey starts with the first session.';
+    body.textContent  = 'Complete a focus session to begin building your personal study insights. Your data stays here — no fake numbers.';
+    return;
+  }
+
+  // Find most studied subject
+  const subjCounts: Record<number, number> = {};
+  S.sessions.forEach(s => { if (s.subjectId != null) subjCounts[s.subjectId] = (subjCounts[s.subjectId] || 0) + 1; });
+  const topSubjId   = Object.entries(subjCounts).sort((a, b) => +b[1] - +a[1])[0]?.[0];
+  const topSubj     = S.subjects.find(s => s.id === +topSubjId);
+
+  if (streak >= 3) {
+    title.textContent = `${streak}-day streak — real consistency.`;
+    body.textContent  = `You've studied ${totalMins} minutes across ${totalSess} session${totalSess !== 1 ? 's' : ''}${bestStreak > streak ? ` — your personal best is ${bestStreak} days` : ''}.${topSubj ? ` ${topSubj.name} is your most visited subject.` : ''}`;
+  } else if (totalSess >= 5) {
+    title.textContent = `${totalSess} sessions logged — you're building a habit.`;
+    body.textContent  = `${totalMins} total minutes of focused study.${topSubj ? ` ${topSubj.name} is your most studied subject.` : ''} Keep your streak alive to unlock your best performance.`;
+  } else {
+    title.textContent = `${totalSess} session${totalSess !== 1 ? 's' : ''} logged — great start.`;
+    body.textContent  = `You've put in ${totalMins} focused minutes so far. Study consistently every day to build your streak and improve your focus score.`;
+  }
 }
 
 function renderSessionLog() {
