@@ -1,0 +1,17 @@
+# ── Secrets — NEVER commit these ──────────────────
+.env
+.env.local
+.env.*.local
+
+# ── OS junk ───────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Node ──────────────────────────────────────────
+node_modules/
+npm-debug.log*
+
+# ── Editor ────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
