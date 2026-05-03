@@ -2,6 +2,8 @@
 .env
 .env.local
 .env.*.local
+serviceAccountKey.json
+*firebase-adminsdk*.json
 
 # ── OS junk ───────────────────────────────────────
 .DS_Store

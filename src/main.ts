@@ -2,6 +2,9 @@
 //  Brainfy — main.ts
 // ══════════════════════════════════════════════════
 
+// ── Firebase global (loaded via CDN compat build) ─
+declare const firebase: any;
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface FlashCard {
@@ -141,6 +144,10 @@ const timer: {
   subjectId: null,
   intent:    '',
 };
+
+// ── Firebase auth state ──────────────────────────────────────────────────────
+let firebaseUser: any = null;   // current Firebase user object
+let idToken:      string | null = null;  // cached ID token (refreshed automatically)
 
 // ── Web Audio Ambient Engine ─────────────────────────────────────────────────
 let audioCtx: AudioContext | null = null;
@@ -401,7 +408,16 @@ document.addEventListener('keydown', e => {
 
 // ── Persistence ─────────────────────────────────────────────────────────────
 function save() {
+  // Always save locally for instant access
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch(_) {}
+  // Push to Firestore if signed in (fire-and-forget)
+  if (idToken) {
+    fetch('/api/data/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken, state: S }),
+    }).catch(() => {}); // silent — local copy is always the fallback
+  }
 }
 
 function load() {
@@ -411,6 +427,26 @@ function load() {
     else      S = structuredClone(DEFAULT_STATE);
   } catch(_) {
     S = structuredClone(DEFAULT_STATE);
+  }
+}
+
+// Load state from Firestore (called after sign-in)
+async function loadFromCloud(): Promise<void> {
+  if (!idToken) return;
+  try {
+    const res  = await fetch('/api/data/load', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    });
+    const data = await res.json();
+    if (data.state) {
+      S = { ...DEFAULT_STATE, ...data.state };
+      // Keep local copy in sync
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch(_) {}
+    }
+  } catch(_) {
+    // Network issue — keep local state as-is
   }
 }
 
@@ -1379,12 +1415,9 @@ function showToast(msg: string, type: 'info' | 'success' | 'warning' | 'error' =
 // ── LOGOUT ───────────────────────────────────────────────────────────────────
 function handleLogout() {
   if (!confirm('Sign out of Brainfy?')) return;
-  // Preserve timer state — stop if running
   pauseTimer();
   document.body.classList.remove('focus-active');
-  S = structuredClone(DEFAULT_STATE);
-  save();
-  goTo('splash');
+  handleSignOut();
 }
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
@@ -1413,6 +1446,42 @@ function setAuthLoading(btnId: string, loading: boolean): void {
   btn.style.opacity = loading ? '0.7' : '1';
 }
 
+// ── Firebase auth error → friendly message ────────
+function friendlyAuthError(code: string): string {
+  switch (code) {
+    case 'auth/user-not-found':
+    case 'auth/invalid-credential':   return 'No account found with that email or password.';
+    case 'auth/wrong-password':       return 'Incorrect password. Please try again.';
+    case 'auth/email-already-in-use': return 'An account already exists with that email.';
+    case 'auth/weak-password':        return 'Password must be at least 6 characters.';
+    case 'auth/invalid-email':        return 'Please enter a valid email address.';
+    case 'auth/too-many-requests':    return 'Too many attempts. Please wait a moment and try again.';
+    case 'auth/network-request-failed': return 'Network error. Check your connection and try again.';
+    default: return 'Something went wrong. Please try again.';
+  }
+}
+
+// Called after successful Firebase sign-in — syncs cloud state then navigates
+async function onFirebaseSignIn(user: any, displayName?: string): Promise<void> {
+  firebaseUser = user;
+  idToken = await user.getIdToken();
+
+  // Refresh token automatically before it expires (every 55 min)
+  setInterval(async () => {
+    if (firebaseUser) idToken = await firebaseUser.getIdToken(true);
+  }, 55 * 60 * 1000);
+
+  // Load cloud state; if none, seed with local or default
+  await loadFromCloud();
+
+  // If a display name was just set (sign-up), store it
+  if (displayName) S.userName = displayName;
+  else if (!S.userName) S.userName = user.displayName || user.email?.split('@')[0] || 'Student';
+
+  save();
+  goTo('home');
+}
+
 function handleSignIn(): void {
   const email = elInput('signinEmail')?.value?.trim();
   const pw    = elInput('signinPassword')?.value;
@@ -1422,19 +1491,12 @@ function handleSignIn(): void {
   if (!pw || pw.length < 6)           { showAuthError('signinError', 'Password must be at least 6 characters.'); return; }
 
   setAuthLoading('signinSubmitBtn', true);
-  setTimeout(() => {
-    setAuthLoading('signinSubmitBtn', false);
-    const stored = localStorage.getItem('brainfy_users');
-    const users: { name: string; email: string; pw: string }[] = stored ? JSON.parse(stored) : [];
-    const user   = users.find(u => u.email === email && u.pw === pw);
-    if (!user && users.length > 0 && users.some(u => u.email === email)) {
-      showAuthError('signinError', 'Incorrect password. Please try again.');
-      return;
-    }
-    S.userName = user?.name || email.split('@')[0];
-    save();
-    goTo('home');
-  }, 800);
+  firebase.auth().signInWithEmailAndPassword(email, pw)
+    .then((cred: any) => onFirebaseSignIn(cred.user))
+    .catch((err: any) => {
+      setAuthLoading('signinSubmitBtn', false);
+      showAuthError('signinError', friendlyAuthError(err.code));
+    });
 }
 
 function handleSignup(): void {
@@ -1448,38 +1510,57 @@ function handleSignup(): void {
   if (!pw || pw.length < 8)           { showAuthError('signupError', 'Password must be at least 8 characters.'); return; }
 
   setAuthLoading('signupSubmitBtn', true);
-  setTimeout(() => {
-    setAuthLoading('signupSubmitBtn', false);
-    // Persist user (demo)
-    const stored = localStorage.getItem('brainfy_users');
-    const users  = stored ? JSON.parse(stored) : [];
-    users.push({ name, email, pw });
-    localStorage.setItem('brainfy_users', JSON.stringify(users));
-    S.userName = name;
-    save();
-    goTo('home');
-  }, 800);
+  firebase.auth().createUserWithEmailAndPassword(email, pw)
+    .then((cred: any) => {
+      // Save display name in Firebase profile (non-blocking)
+      cred.user.updateProfile({ displayName: name }).catch(() => {});
+      return onFirebaseSignIn(cred.user, name);
+    })
+    .catch((err: any) => {
+      setAuthLoading('signupSubmitBtn', false);
+      showAuthError('signupError', friendlyAuthError(err.code));
+    });
 }
 
-function handleGoogleSignIn() {
-  S.userName = 'Student';
-  save();
-  goTo('home');
+function handleGoogleSignIn(): void {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(provider)
+    .then((result: any) => onFirebaseSignIn(result.user, result.user.displayName || undefined))
+    .catch((err: any) => {
+      if (err.code !== 'auth/popup-closed-by-user') {
+        showAuthError('signinError', friendlyAuthError(err.code));
+      }
+    });
+}
+
+function handleSignOut(): void {
+  firebase.auth().signOut().then(() => {
+    firebaseUser = null;
+    idToken      = null;
+    S = structuredClone(DEFAULT_STATE);
+    try { localStorage.removeItem(STORAGE_KEY); } catch(_) {}
+    goTo('splash');
+  });
 }
 
 function showForgot(): void {
   const email = elInput('signinEmail')?.value?.trim();
-  const msg   = email
-    ? `If an account exists for ${email}, a reset link will be sent shortly.`
-    : 'Enter your email address above first, then click Forgot password.';
-  showAuthError('signinError', msg);
-  const errEl = el('signinError');
-  if (errEl) {
-    errEl.style.background  = 'rgba(76,215,246,0.08)';
-    errEl.style.borderColor = 'rgba(76,215,246,0.2)';
-    errEl.style.color       = 'var(--cyan)';
-    errEl.style.display     = 'block';
+  if (!email || !email.includes('@')) {
+    showAuthError('signinError', 'Enter your email address above first, then click Forgot password.');
+    return;
   }
+  firebase.auth().sendPasswordResetEmail(email)
+    .then(() => {
+      showAuthError('signinError', `Reset link sent to ${email} — check your inbox.`);
+      const errEl = el('signinError');
+      if (errEl) {
+        errEl.style.background  = 'rgba(76,215,246,0.08)';
+        errEl.style.borderColor = 'rgba(76,215,246,0.2)';
+        errEl.style.color       = 'var(--cyan)';
+        errEl.style.display     = 'block';
+      }
+    })
+    .catch((err: any) => showAuthError('signinError', friendlyAuthError(err.code)));
 }
 
 // ── EVENT LISTENERS ──────────────────────────────────────────────────────────
@@ -2072,9 +2153,25 @@ function init() {
   timer.timeLeft  = S.focusDuration;
   timer.totalTime = S.focusDuration;
   initEvents();
-  goTo('splash');
   initSplashObserver();
-  checkAIStatus();   // probe server for AI availability (no API key on client)
+  checkAIStatus();
+
+  // ── Firebase auth observer ────────────────────
+  // Fires once on load: if user was already signed in, skip splash and
+  // load their cloud state. If not, show splash as normal.
+  firebase.auth().onAuthStateChanged(async (user: any) => {
+    if (user) {
+      firebaseUser = user;
+      idToken = await user.getIdToken();
+      await loadFromCloud();
+      if (!S.userName) S.userName = user.displayName || user.email?.split('@')[0] || 'Student';
+      // Only auto-navigate if we're still on splash/signin/signup
+      const authViews: ViewName[] = ['splash', 'signin', 'signup'];
+      if (authViews.includes(currentView)) goTo('home');
+    } else {
+      goTo('splash');
+    }
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);

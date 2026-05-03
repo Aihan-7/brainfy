@@ -1,10 +1,9 @@
 // ══════════════════════════════════════════════════
 //  Brainfy — server.js
-//  Zero-dependency Node.js server
-//  • Serves static files
-//  • Proxies AI — supports Groq OR Anthropic
-//    Set ONE key in .env — server auto-detects.
-//    Groq is preferred (faster + free tier).
+//  Node.js server with:
+//   • Static file serving
+//   • AI proxy (Groq or Anthropic)
+//   • Firebase Admin — Auth verification + Firestore
 // ══════════════════════════════════════════════════
 
 const http  = require('http');
@@ -30,14 +29,38 @@ if (fs.existsSync(envFile)) {
   });
 }
 
-// ── Provider detection ─────────────────────────────
-//  Priority: Groq → Anthropic → none
+// ── Firebase Admin ─────────────────────────────────
+let db   = null;   // Firestore instance
+let auth = null;   // Auth instance
+
+const SA_PATH = path.join(DIR, 'serviceAccountKey.json');
+if (fs.existsSync(SA_PATH)) {
+  try {
+    const admin = require('firebase-admin');
+    const serviceAccount = JSON.parse(fs.readFileSync(SA_PATH, 'utf8'));
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    db   = admin.firestore();
+    auth = admin.auth();
+    console.log('  🔥  Firebase Admin ready');
+  } catch (e) {
+    console.warn('  ⚠️   Firebase Admin failed to init:', e.message);
+  }
+} else {
+  console.log('  ℹ️   No serviceAccountKey.json — Firebase disabled');
+}
+
+// ── Helper: verify Firebase ID token ──────────────
+async function verifyToken(idToken) {
+  if (!auth) throw new Error('Firebase not configured');
+  const decoded = await auth.verifyIdToken(idToken);
+  return decoded; // { uid, email, name, ... }
+}
+
+// ── Provider detection (AI) ────────────────────────
 const GROQ_KEY      = process.env.GROQ_API_KEY      || '';
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
-
 const PROVIDER = GROQ_KEY ? 'groq' : ANTHROPIC_KEY ? 'anthropic' : null;
 
-// Default models (override with AI_MODEL= in .env)
 const DEFAULT_MODELS = {
   groq:      'llama-3.3-70b-versatile',
   anthropic: 'claude-3-5-haiku-20241022',
@@ -60,11 +83,11 @@ const MIME = {
 };
 
 // ── HTTPS helper ───────────────────────────────────
-function httpsPost(hostname, path, headers, payload) {
+function httpsPost(hostname, reqPath, headers, payload) {
   return new Promise((resolve, reject) => {
     const buf = Buffer.from(JSON.stringify(payload));
     const req = https.request(
-      { hostname, port: 443, path, method: 'POST',
+      { hostname, port: 443, path: reqPath, method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': buf.length, ...headers } },
       res => {
         let data = '';
@@ -81,11 +104,8 @@ function httpsPost(hostname, path, headers, payload) {
   });
 }
 
-// ── Groq (OpenAI-compatible) ───────────────────────
-//  Normalises response → Anthropic-style so the
-//  frontend never needs to know which provider runs.
+// ── Groq ───────────────────────────────────────────
 async function callGroq(body) {
-  // Convert Anthropic-style body → OpenAI format
   const messages = [];
   if (body.system) messages.push({ role: 'system', content: body.system });
   messages.push(...(body.messages || []));
@@ -97,7 +117,6 @@ async function callGroq(body) {
     { model: MODEL, messages, max_tokens: body.max_tokens || 1024 }
   );
 
-  // Normalise → Anthropic shape
   if (result.status === 200) {
     const choice = result.body.choices?.[0];
     const usage  = result.body.usage || {};
@@ -122,7 +141,6 @@ async function callAnthropic(body) {
   );
 }
 
-// ── Unified chat call ──────────────────────────────
 function callAI(body) {
   return PROVIDER === 'groq' ? callGroq(body) : callAnthropic(body);
 }
@@ -142,11 +160,11 @@ function readBody(req) {
 
 // ── HTTP Server ────────────────────────────────────
 const server = http.createServer(async (req, res) => {
-  const pathname = url.parse(req.url).pathname;
+  const { pathname } = url.parse(req.url);
 
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
   const json = (status, obj) => {
@@ -156,7 +174,12 @@ const server = http.createServer(async (req, res) => {
 
   // ── GET /api/ai-status ────────────────────────
   if (req.method === 'GET' && pathname === '/api/ai-status') {
-    json(200, { configured: !!PROVIDER, provider: PROVIDER, model: MODEL });
+    json(200, {
+      configured: !!PROVIDER,
+      provider:   PROVIDER,
+      model:      MODEL,
+      firebase:   !!db,
+    });
     return;
   }
 
@@ -172,6 +195,56 @@ const server = http.createServer(async (req, res) => {
       json(result.status, result.body);
     } catch(e) {
       json(500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── POST /api/auth/verify ─────────────────────
+  //  Body: { idToken: string }
+  //  Returns: { uid, email, name }
+  if (req.method === 'POST' && pathname === '/api/auth/verify') {
+    if (!auth) { json(503, { error: 'Firebase not configured' }); return; }
+    try {
+      const { idToken } = await readBody(req);
+      const decoded = await verifyToken(idToken);
+      json(200, { uid: decoded.uid, email: decoded.email, name: decoded.name || '' });
+    } catch(e) {
+      json(401, { error: 'Invalid or expired token' });
+    }
+    return;
+  }
+
+  // ── POST /api/data/save ───────────────────────
+  //  Body: { idToken: string, state: AppState }
+  //  Saves state to Firestore users/{uid}/data
+  if (req.method === 'POST' && pathname === '/api/data/save') {
+    if (!db) { json(503, { error: 'Firebase not configured' }); return; }
+    try {
+      const { idToken, state } = await readBody(req);
+      const decoded = await verifyToken(idToken);
+      await db.collection('users').doc(decoded.uid).set({
+        state,
+        updatedAt: new Date().toISOString(),
+      });
+      json(200, { ok: true });
+    } catch(e) {
+      json(e.message === 'Invalid or expired token' ? 401 : 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── POST /api/data/load ───────────────────────
+  //  Body: { idToken: string }
+  //  Returns: { state: AppState | null }
+  if (req.method === 'POST' && pathname === '/api/data/load') {
+    if (!db) { json(503, { error: 'Firebase not configured' }); return; }
+    try {
+      const { idToken } = await readBody(req);
+      const decoded = await verifyToken(idToken);
+      const doc = await db.collection('users').doc(decoded.uid).get();
+      json(200, { state: doc.exists ? doc.data().state : null });
+    } catch(e) {
+      json(e.message === 'Invalid or expired token' ? 401 : 500, { error: e.message });
     }
     return;
   }
@@ -203,11 +276,14 @@ server.listen(PORT, () => {
   console.log('');
   if (!PROVIDER) {
     console.log('  ⚠️   AI disabled — add a key to .env:');
-    console.log('       GROQ_API_KEY=gsk_...        (free, fastest)');
-    console.log('       ANTHROPIC_API_KEY=sk-ant-... (alternative)');
+    console.log('       GROQ_API_KEY=gsk_...');
+    console.log('       ANTHROPIC_API_KEY=sk-ant-...');
   } else {
     const badge = PROVIDER === 'groq' ? '⚡ Groq' : '🤖 Anthropic';
     console.log(`  ✅  AI ready — ${badge} · ${MODEL}`);
+  }
+  if (!db) {
+    console.log('  ⚠️   Firebase disabled — add serviceAccountKey.json');
   }
   console.log('');
 });
