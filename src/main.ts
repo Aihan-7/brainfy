@@ -12,14 +12,25 @@ interface FlashCard {
   a: string;
 }
 
-interface Subject {
+interface Doc {
   id:       number;
   name:     string;
-  desc:     string;
-  docs:     number;
-  color:    string;
-  accessed: number;
-  cards?:   FlashCard[];
+  type:     'note' | 'link' | 'file';
+  content:  string;   // note text | URL | base64 data URI
+  mime?:    string;
+  size?:    number;   // bytes
+  date:     number;
+}
+
+interface Subject {
+  id:        number;
+  name:      string;
+  desc:      string;
+  docs:      number;
+  color:     string;
+  accessed:  number;
+  cards?:    FlashCard[];
+  documents?: Doc[];
 }
 
 interface Task {
@@ -1202,6 +1213,19 @@ function exitFocusSession() {
 }
 
 // ── LIBRARY ──────────────────────────────────────────────────────────────────
+// ── Document helpers ─────────────────────────────
+function docIcon(type: Doc['type']): string {
+  if (type === 'note') return 'sticky_note_2';
+  if (type === 'link') return 'link';
+  return 'draft';
+}
+
+function docSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
 function renderLibrary() {
   const grid   = el('libraryGrid');
   const search = (elInput('libSearchInput')?.value ?? '').toLowerCase();
@@ -1212,7 +1236,7 @@ function renderLibrary() {
   );
 
   grid.innerHTML = `
-    <div onclick="showAddSubject()" style="min-height:170px;border-radius:14px;border:2px dashed rgba(255,255,255,0.1);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:pointer;transition:border-color 0.2s;padding:24px;"
+    <div onclick="showAddSubject()" style="min-height:200px;border-radius:14px;border:2px dashed rgba(255,255,255,0.1);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:pointer;transition:border-color 0.2s;padding:24px;"
       onmouseover="this.style.borderColor='rgba(124,58,237,0.4)'"
       onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
       <div style="width:44px;height:44px;background:rgba(124,58,237,0.12);border-radius:50%;display:flex;align-items:center;justify-content:center;">
@@ -1220,10 +1244,14 @@ function renderLibrary() {
       </div>
       <div style="font-weight:600;font-size:14px;color:var(--text);">New Subject</div>
     </div>
-    ${filtered.map(s => `
+    ${filtered.map(s => {
+      const docs = s.documents || [];
+      const previewDocs = docs.slice(0, 3);
+      return `
       <div class="subj-card" style="min-height:200px;position:relative;display:flex;flex-direction:column;" onclick="startSubject(${s.id})">
+        <!-- Header -->
         <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
-          <div style="width:44px;height:44px;background:${s.color}20;border-radius:12px;display:flex;align-items:center;justify-content:center;">
+          <div style="width:44px;height:44px;background:${s.color}20;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid ${s.color}30;">
             <span class="ms" style="font-size:24px;color:${s.color};">menu_book</span>
           </div>
           <button onclick="event.stopPropagation();deleteSubject(${s.id})"
@@ -1232,21 +1260,271 @@ function renderLibrary() {
             <span class="ms" style="font-size:16px;">close</span>
           </button>
         </div>
+        <!-- Title + desc -->
         <div style="font-weight:700;font-size:15px;margin-bottom:5px;">${s.name}</div>
         <div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px;flex:1;">${s.desc}</div>
-        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:12px;">
-          <span class="ms" style="font-size:14px;">description</span>
-          <span>${s.docs} Documents</span>
-          <span style="margin-left:auto;">${timeAgo(s.accessed)}</span>
+
+        <!-- Documents section -->
+        <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:12px;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);font-family:'Space Grotesk';">DOCUMENTS · ${docs.length}</span>
+            <button onclick="event.stopPropagation();openDocModal(${s.id})"
+              style="display:flex;align-items:center;gap:4px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.25);border-radius:6px;color:var(--plight);font-size:11px;font-weight:600;cursor:pointer;padding:3px 8px;font-family:'Manrope',sans-serif;transition:background 0.15s;"
+              onmouseover="this.style.background='rgba(124,58,237,0.22)'" onmouseout="this.style.background='rgba(124,58,237,0.12)'">
+              <span class="ms" style="font-size:14px;">add</span> Add
+            </button>
+          </div>
+          ${docs.length === 0 ? `
+            <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0;opacity:0.6;">No documents yet</p>
+          ` : `
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              ${previewDocs.map(d => `
+                <div onclick="event.stopPropagation();openDoc(${s.id},${d.id})"
+                  style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);cursor:pointer;transition:background 0.15s;group"
+                  onmouseover="this.style.background='rgba(255,255,255,0.07)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+                  <span class="ms" style="font-size:15px;color:${s.color};flex-shrink:0;">${docIcon(d.type)}</span>
+                  <span style="font-size:12px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.name}</span>
+                  <button onclick="event.stopPropagation();deleteDoc(${s.id},${d.id})"
+                    style="background:transparent;border:none;color:rgba(255,255,255,0.2);cursor:pointer;padding:2px;display:flex;align-items:center;flex-shrink:0;"
+                    onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(255,255,255,0.2)'">
+                    <span class="ms" style="font-size:13px;">close</span>
+                  </button>
+                </div>
+              `).join('')}
+              ${docs.length > 3 ? `<p style="font-size:11px;color:var(--muted);text-align:center;padding:4px 0;cursor:pointer;" onclick="event.stopPropagation();openDocModal(${s.id})">+${docs.length - 3} more</p>` : ''}
+            </div>
+          `}
         </div>
+
+        <!-- Flashcards button -->
         <button onclick="event.stopPropagation();openFlashcards(${s.id})"
           style="width:100%;padding:8px;border-radius:8px;background:${s.color}18;border:1px solid ${s.color}35;color:${s.color};font-size:12px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.15s;"
           onmouseover="this.style.background='${s.color}28'" onmouseout="this.style.background='${s.color}18'">
           <span class="ms" style="font-size:15px;">style</span> Review Flashcards
         </button>
       </div>
-    `).join('')}
+    `}).join('')}
   `;
+}
+
+// ── Doc modal state ──────────────────────────────
+let docModalSubjId: number | null = null;
+let docModalTab: 'file' | 'note' | 'link' = 'file';
+
+function openDocModal(subjId: number): void {
+  docModalSubjId = subjId;
+  docModalTab = 'file';
+  const s = S.subjects.find(x => x.id === subjId);
+  if (!s) return;
+  const modal = el('docModal');
+  const title = el('docModalTitle');
+  if (title) title.textContent = s.name;
+  renderDocModal();
+  if (modal) { modal.style.display = 'flex'; requestAnimationFrame(() => modal.classList.add('open')); }
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDocModal(): void {
+  const modal = el('docModal');
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
+  document.body.style.overflow = '';
+  docModalSubjId = null;
+}
+
+function setDocTab(tab: 'file' | 'note' | 'link'): void {
+  docModalTab = tab;
+  renderDocModal();
+}
+
+function renderDocModal(): void {
+  const body = el('docModalBody');
+  if (!body) return;
+
+  const tabs: { key: 'file' | 'note' | 'link'; label: string; icon: string }[] = [
+    { key: 'file', label: 'File', icon: 'upload_file' },
+    { key: 'note', label: 'Note', icon: 'sticky_note_2' },
+    { key: 'link', label: 'Link', icon: 'link' },
+  ];
+
+  body.innerHTML = `
+    <!-- Tabs -->
+    <div style="display:flex;gap:6px;margin-bottom:20px;">
+      ${tabs.map(t => `
+        <button onclick="setDocTab('${t.key}')"
+          style="flex:1;padding:8px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;transition:all 0.15s;
+            ${docModalTab === t.key
+              ? 'background:rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.4);color:var(--plight);'
+              : 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:var(--muted);'}
+          display:flex;align-items:center;justify-content:center;gap:6px;">
+          <span class="ms" style="font-size:16px;">${t.icon}</span>${t.label}
+        </button>
+      `).join('')}
+    </div>
+
+    ${docModalTab === 'file' ? `
+      <!-- File upload -->
+      <div id="docDropZone"
+        style="border:2px dashed rgba(255,255,255,0.12);border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;"
+        onclick="el('docFileInput').click()"
+        ondragover="event.preventDefault();this.style.borderColor='rgba(124,58,237,0.5)';this.style.background='rgba(124,58,237,0.06)'"
+        ondragleave="this.style.borderColor='rgba(255,255,255,0.12)';this.style.background=''"
+        ondrop="event.preventDefault();this.style.borderColor='rgba(255,255,255,0.12)';this.style.background='';handleDocDrop(event)">
+        <span class="ms" style="font-size:40px;color:var(--plight);display:block;margin-bottom:10px;">cloud_upload</span>
+        <div style="font-weight:600;font-size:14px;margin-bottom:6px;">Drop files here or click to browse</div>
+        <div style="font-size:12px;color:var(--muted);">PDF, images, text files — up to 5 MB</div>
+      </div>
+      <input type="file" id="docFileInput" style="display:none;" multiple accept="*/*" onchange="handleDocFileSelect(this)">
+      <div id="docFilePreview" style="margin-top:12px;display:flex;flex-direction:column;gap:6px;"></div>
+    ` : docModalTab === 'note' ? `
+      <!-- Note -->
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0.06em;display:block;margin-bottom:6px;">TITLE</label>
+          <input id="docNoteTitle" type="text" placeholder="e.g. Chapter 3 Summary" class="auth-input" style="background:rgba(255,255,255,0.05);">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0.06em;display:block;margin-bottom:6px;">CONTENT</label>
+          <textarea id="docNoteContent" placeholder="Write your notes here..." class="auth-input" style="height:140px;resize:vertical;background:rgba(255,255,255,0.05);"></textarea>
+        </div>
+        <button onclick="saveDocNote()" class="btn-primary" style="padding:10px;font-size:14px;border-radius:10px;">Save Note</button>
+      </div>
+    ` : `
+      <!-- Link -->
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0.06em;display:block;margin-bottom:6px;">LABEL</label>
+          <input id="docLinkLabel" type="text" placeholder="e.g. Khan Academy Video" class="auth-input" style="background:rgba(255,255,255,0.05);">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0.06em;display:block;margin-bottom:6px;">URL</label>
+          <input id="docLinkUrl" type="url" placeholder="https://..." class="auth-input" style="background:rgba(255,255,255,0.05);">
+        </div>
+        <button onclick="saveDocLink()" class="btn-primary" style="padding:10px;font-size:14px;border-radius:10px;">Save Link</button>
+      </div>
+    `}
+
+    <!-- Existing docs list -->
+    ${(() => {
+      if (docModalSubjId === null) return '';
+      const s = S.subjects.find(x => x.id === docModalSubjId);
+      const docs = s?.documents || [];
+      if (!docs.length) return '';
+      return `
+        <div style="margin-top:20px;border-top:1px solid rgba(255,255,255,0.07);padding-top:16px;">
+          <p style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:10px;">ALL DOCUMENTS · ${docs.length}</p>
+          <div style="display:flex;flex-direction:column;gap:5px;">
+            ${docs.map(d => `
+              <div onclick="openDoc(${docModalSubjId},${d.id})"
+                style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);cursor:pointer;transition:background 0.15s;"
+                onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+                <span class="ms" style="font-size:17px;color:var(--plight);flex-shrink:0;">${docIcon(d.type)}</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.name}</div>
+                  <div style="font-size:10px;color:var(--muted);">${d.type.toUpperCase()}${d.size ? ' · ' + docSize(d.size) : ''} · ${timeAgo(d.date)}</div>
+                </div>
+                <button onclick="event.stopPropagation();deleteDoc(${docModalSubjId},${d.id});renderDocModal()"
+                  style="background:transparent;border:none;color:rgba(255,255,255,0.2);cursor:pointer;padding:4px;display:flex;align-items:center;"
+                  onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(255,255,255,0.2)'">
+                  <span class="ms" style="font-size:15px;">delete</span>
+                </button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    })()}
+  `;
+}
+
+function handleDocFileSelect(input: HTMLInputElement): void {
+  const files = Array.from(input.files || []);
+  files.forEach(file => readAndAddDoc(file));
+  input.value = '';
+}
+
+function handleDocDrop(e: DragEvent): void {
+  const files = Array.from(e.dataTransfer?.files || []);
+  files.forEach(file => readAndAddDoc(file));
+}
+
+function readAndAddDoc(file: File): void {
+  if (docModalSubjId === null) return;
+  const MAX = 5 * 1024 * 1024; // 5 MB
+  if (file.size > MAX) { showToast(`${file.name} is too large (max 5 MB)`, 'warning'); return; }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    addDocToSubject({
+      id:      S.nextId++,
+      name:    file.name,
+      type:    'file',
+      content: reader.result as string,
+      mime:    file.type,
+      size:    file.size,
+      date:    Date.now(),
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveDocNote(): void {
+  const title   = (elInput('docNoteTitle')?.value ?? '').trim();
+  const content = (document.getElementById('docNoteContent') as HTMLTextAreaElement | null)?.value.trim() ?? '';
+  if (!title) { showToast('Please enter a title', 'warning'); return; }
+  addDocToSubject({ id: S.nextId++, name: title, type: 'note', content, date: Date.now() });
+}
+
+function saveDocLink(): void {
+  const label = (elInput('docLinkLabel')?.value ?? '').trim();
+  const url   = (elInput('docLinkUrl')?.value ?? '').trim();
+  if (!label || !url) { showToast('Please enter both a label and URL', 'warning'); return; }
+  const name = label || url;
+  addDocToSubject({ id: S.nextId++, name, type: 'link', content: url, date: Date.now() });
+}
+
+function addDocToSubject(doc: Doc): void {
+  if (docModalSubjId === null) return;
+  const s = S.subjects.find(x => x.id === docModalSubjId);
+  if (!s) return;
+  if (!s.documents) s.documents = [];
+  s.documents.unshift(doc);
+  s.docs = s.documents.length;
+  save();
+  renderDocModal();
+  renderLibrary();
+  showToast(`"${doc.name}" added`, 'success');
+}
+
+function deleteDoc(subjId: number, docId: number): void {
+  const s = S.subjects.find(x => x.id === subjId);
+  if (!s) return;
+  s.documents = (s.documents || []).filter(d => d.id !== docId);
+  s.docs = s.documents.length;
+  save();
+  renderLibrary();
+}
+
+function openDoc(subjId: number, docId: number): void {
+  const s = S.subjects.find(x => x.id === subjId);
+  const d = s?.documents?.find(x => x.id === docId);
+  if (!d) return;
+  if (d.type === 'link') {
+    window.open(d.content, '_blank', 'noopener');
+  } else if (d.type === 'note') {
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(`<html><head><title>${d.name}</title><style>body{font-family:sans-serif;max-width:700px;margin:40px auto;padding:20px;line-height:1.7;color:#1e293b;}</style></head><body><h2>${d.name}</h2><pre style="white-space:pre-wrap;">${d.content}</pre></body></html>`);
+      w.document.close();
+    }
+  } else {
+    // File — trigger download
+    const a = document.createElement('a');
+    a.href     = d.content;
+    a.download = d.name;
+    a.click();
+  }
 }
 
 function showAddSubject() {

@@ -2176,6 +2176,30 @@
   </div>
 </div>
 
+<!-- ── Document Modal ── -->
+<div id="docModal" style="display:none;position:fixed;inset:0;z-index:200;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);opacity:0;transition:opacity 0.22s ease;" onclick="if(event.target===this)closeDocModal()">
+  <div style="background:#0d1628;border:1px solid rgba(255,255,255,0.12);border-radius:20px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,0.6);transform:translateY(16px) scale(0.98);transition:transform 0.22s cubic-bezier(0.34,1.2,0.64,1);margin:16px;">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 22px 16px;border-bottom:1px solid rgba(255,255,255,0.07);position:sticky;top:0;background:#0d1628;border-radius:20px 20px 0 0;z-index:1;">
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:3px;">DOCUMENTS</div>
+        <div id="docModalTitle" style="font-size:16px;font-weight:700;color:var(--text);"></div>
+      </div>
+      <button onclick="closeDocModal()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--muted);cursor:pointer;padding:6px;display:flex;align-items:center;transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
+        <span class="ms" style="font-size:18px;">close</span>
+      </button>
+    </div>
+    <!-- Body -->
+    <div id="docModalBody" style="padding:20px 22px 24px;"></div>
+  </div>
+</div>
+
+<style>
+  #docModal.open { opacity: 1; }
+  #docModal.open > div { transform: translateY(0) scale(1); }
+  #docModal textarea.auth-input { font-family: 'Manrope', sans-serif; }
+</style>
+
 <!-- Firebase SDK (compat — loads firebase global) -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
