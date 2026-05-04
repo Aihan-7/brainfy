@@ -1333,6 +1333,79 @@ function closeDocModal(): void {
   docModalSubjId = null;
 }
 
+// ── FOOTER MODAL ─────────────────────────────────────────────────────────────
+
+const FOOTER_CONTENT: Record<string, { title: string; html: string }> = {
+  privacy: {
+    title: 'Privacy Policy',
+    html: `
+      <p>Last updated: May 2026</p>
+      <h3>What we collect</h3>
+      <p>Brainfy collects only what you give us: your name, email address, and the study data you create (subjects, flashcards, sessions, tasks). No tracking pixels, no ad networks.</p>
+      <h3>How we use it</h3>
+      <p>Your data is used solely to power your personal study experience — syncing across devices via Firebase and generating AI summaries via the LLM you've configured. We never sell or share your data with third parties.</p>
+      <h3>Data storage</h3>
+      <p>Study data is stored in Firebase Firestore under your user ID. It is encrypted at rest and in transit. You can delete your account at any time and all associated data will be removed.</p>
+      <h3>AI processing</h3>
+      <p>When you use AI import features, document content is sent to the configured LLM provider (Groq or Anthropic) for processing. Please review their respective privacy policies for how they handle inference data.</p>
+      <h3>Contact</h3>
+      <p>Questions? Email us at <a href="mailto:${`aihan@mifthas.com`}">aihan@mifthas.com</a></p>
+    `,
+  },
+  terms: {
+    title: 'Terms of Service',
+    html: `
+      <p>Last updated: May 2026</p>
+      <h3>Use of the service</h3>
+      <p>Brainfy is a personal productivity and study tool. You may use it for lawful educational purposes. You may not use it to process or store content that infringes copyright, is harmful, or violates any applicable law.</p>
+      <h3>Your content</h3>
+      <p>You retain full ownership of any notes, flashcards, and documents you create. By storing them with Brainfy you grant us a limited licence to process them solely for the purpose of providing the service to you.</p>
+      <h3>AI features</h3>
+      <p>AI-generated summaries and flashcards are provided as study aids. Always verify important information from authoritative sources. We are not responsible for inaccuracies in AI output.</p>
+      <h3>Availability</h3>
+      <p>We aim for high availability but do not guarantee uninterrupted service. We reserve the right to modify or discontinue features with reasonable notice.</p>
+      <h3>Limitation of liability</h3>
+      <p>Brainfy is provided "as is". To the maximum extent permitted by law we are not liable for any indirect, incidental, or consequential damages arising from use of the service.</p>
+      <h3>Contact</h3>
+      <p>Questions? Email <a href="mailto:aihan@mifthas.com">aihan@mifthas.com</a></p>
+    `,
+  },
+};
+
+function openFooterLink(page: string): void {
+  if (page === 'community') {
+    window.open('https://github.com/Aihan-7/brainfy', '_blank', 'noopener');
+    return;
+  }
+  if (page === 'contact') {
+    window.location.href = 'mailto:aihan@mifthas.com';
+    return;
+  }
+  const data = FOOTER_CONTENT[page];
+  if (!data) return;
+  const modal = el('footerModal') as HTMLElement;
+  const title = el('footerModalTitle') as HTMLElement;
+  const body  = el('footerModalBody') as HTMLElement;
+  title.textContent = data.title;
+  body.innerHTML    = data.html;
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => requestAnimationFrame(() => modal.classList.add('open')));
+}
+
+function closeFooterModal(): void {
+  const modal = el('footerModal') as HTMLElement;
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
+  document.body.style.overflow = '';
+}
+
+// Allow Escape key to close footer modal
+document.addEventListener('keydown', (e: KeyboardEvent) => {
+  if (e.key === 'Escape') closeFooterModal();
+});
+
 function setDocTab(tab: 'file' | 'note' | 'link'): void {
   docModalTab = tab;
   renderDocModal();

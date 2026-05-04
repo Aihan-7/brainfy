@@ -1314,10 +1314,10 @@
       <span style="font-weight:800;font-size:14px;color:var(--plighter);letter-spacing:-0.01em;">Brainfy</span>
     </div>
     <div style="display:flex;gap:24px;">
-      <span style="cursor:pointer;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Privacy</span>
-      <span style="cursor:pointer;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Terms</span>
-      <span style="cursor:pointer;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Community</span>
-      <span style="cursor:pointer;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Contact</span>
+      <span style="cursor:pointer;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'" onclick="openFooterLink('privacy')">Privacy</span>
+      <span style="cursor:pointer;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'" onclick="openFooterLink('terms')">Terms</span>
+      <span style="cursor:pointer;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'" onclick="openFooterLink('community')">Community</span>
+      <span style="cursor:pointer;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'" onclick="openFooterLink('contact')">Contact</span>
     </div>
     <p>© 2026 Brainfy. Focus Deeply.</p>
   </footer>
@@ -1766,10 +1766,10 @@
     <!-- Footer -->
     <footer style="border-top:1px solid var(--border);padding-top:18px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px;">
       <div style="display:flex;gap:20px;">
-        <span style="cursor:pointer;">Privacy</span>
-        <span style="cursor:pointer;">Terms</span>
-        <span style="cursor:pointer;">Community</span>
-        <span style="cursor:pointer;">Contact</span>
+        <span style="cursor:pointer;" onclick="openFooterLink('privacy')">Privacy</span>
+        <span style="cursor:pointer;" onclick="openFooterLink('terms')">Terms</span>
+        <span style="cursor:pointer;" onclick="openFooterLink('community')">Community</span>
+        <span style="cursor:pointer;" onclick="openFooterLink('contact')">Contact</span>
       </div>
       <span>© 2026 Brainfy. Focus Deeply.</span>
     </footer>
@@ -1957,7 +1957,10 @@
     <!-- Footer -->
     <footer style="margin-top:60px;border-top:1px solid var(--border);padding-top:20px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px;">
       <div style="display:flex;gap:20px;">
-        <span>Privacy</span><span>Terms</span><span>Community</span><span>Contact</span>
+        <span style="cursor:pointer;" onclick="openFooterLink('privacy')">Privacy</span>
+        <span style="cursor:pointer;" onclick="openFooterLink('terms')">Terms</span>
+        <span style="cursor:pointer;" onclick="openFooterLink('community')">Community</span>
+        <span style="cursor:pointer;" onclick="openFooterLink('contact')">Contact</span>
       </div>
       <span>© 2026 Brainfy. Focus Deeply.</span>
     </footer>
@@ -2451,5 +2454,29 @@
 </script>
 
 <script src="script.js"></script>
+
+<!-- ── Footer Legal Modal ── -->
+<div id="footerModal" style="display:none;position:fixed;inset:0;z-index:300;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);backdrop-filter:blur(8px);opacity:0;transition:opacity 0.22s ease;" onclick="if(event.target===this)closeFooterModal()">
+  <div style="background:rgba(15,22,41,0.98);border:1px solid rgba(255,255,255,0.08);border-radius:18px;width:min(580px,92vw);max-height:78vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6),0 0 0 1px rgba(124,58,237,0.12);transform:translateY(16px) scale(0.97);transition:transform 0.28s cubic-bezier(0.34,1.56,0.64,1);">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 0;">
+      <h2 id="footerModalTitle" style="font-size:18px;font-weight:800;color:var(--text);margin:0;"></h2>
+      <button onclick="closeFooterModal()" style="background:rgba(255,255,255,0.06);border:none;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
+        <span class="ms" style="font-size:18px;">close</span>
+      </button>
+    </div>
+    <!-- Body -->
+    <div id="footerModalBody" style="padding:18px 24px 28px;overflow-y:auto;font-size:14px;line-height:1.75;color:var(--muted);"></div>
+  </div>
+</div>
+<style>
+  #footerModal.open { opacity:1; }
+  #footerModal.open > div { transform:translateY(0) scale(1); }
+  #footerModalBody h3 { color:var(--text);font-size:13px;font-weight:700;margin:18px 0 6px;letter-spacing:0.03em;text-transform:uppercase; }
+  #footerModalBody p  { margin:0 0 10px; }
+  #footerModalBody a  { color:var(--plight);text-decoration:none; }
+  #footerModalBody a:hover { text-decoration:underline; }
+</style>
+
 </body>
 </html>
