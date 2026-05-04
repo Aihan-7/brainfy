@@ -1349,7 +1349,7 @@ const FOOTER_CONTENT: Record<string, { title: string; html: string }> = {
       <h3>AI processing</h3>
       <p>When you use AI import features, document content is sent to the configured LLM provider (Groq or Anthropic) for processing. Please review their respective privacy policies for how they handle inference data.</p>
       <h3>Contact</h3>
-      <p>Questions? Email us at <a href="mailto:${`aihan@mifthas.com`}">aihan@mifthas.com</a></p>
+      <p>Questions? Email us at <a href="mailto:aihan@mifthas.com">aihan@mifthas.com</a></p>
     `,
   },
   terms: {
@@ -1383,14 +1383,15 @@ function openFooterLink(page: string): void {
   }
   const data = FOOTER_CONTENT[page];
   if (!data) return;
-  const modal = el('footerModal') as HTMLElement;
-  const title = el('footerModalTitle') as HTMLElement;
-  const body  = el('footerModalBody') as HTMLElement;
+  const modal = el('footerModal');
+  const title = el('footerModalTitle');
+  const body  = el('footerModalBody');
+  if (!modal || !title || !body) return;
   title.textContent = data.title;
   body.innerHTML    = data.html;
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
-  requestAnimationFrame(() => requestAnimationFrame(() => modal.classList.add('open')));
+  requestAnimationFrame(() => modal.classList.add('open'));
 }
 
 function closeFooterModal(): void {
