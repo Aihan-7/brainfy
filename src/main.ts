@@ -557,6 +557,23 @@ function renderHome() {
   const streak = S.streak || 0;
   if (sl) sl.textContent = streak + ' DAY STREAK';
 
+  // Dynamic subtitle
+  const sub = el('homeSubtitle');
+  if (sub) {
+    const todayMins = Math.round(todayFocusSec() / 60);
+    const goal      = S.dailyGoal || 120;
+    const pct       = Math.round((todayMins / goal) * 100);
+    if (todayMins === 0) {
+      sub.textContent = 'Ready for a deep focus session? Your first session starts the streak.';
+    } else if (pct >= 100) {
+      sub.textContent = `Goal crushed! ${todayMins} min of deep focus today — exceptional work.`;
+    } else if (pct >= 60) {
+      sub.textContent = `${todayMins} min in — ${goal - todayMins} min left to hit your daily goal. Keep going.`;
+    } else {
+      sub.textContent = `${todayMins} min focused today. ${goal - todayMins} min left to reach your goal.`;
+    }
+  }
+
   // Focus time
   const secs = todayFocusSec();
   const ft = el('homeFocusTime');
@@ -806,23 +823,33 @@ function renderHomeSubjects() {
     c.innerHTML = '<p style="color:var(--muted);font-size:13px;grid-column:span 2;">No subjects yet — add some in the Library.</p>';
     return;
   }
-  c.innerHTML = recent.map(s => `
+  c.innerHTML = recent.map(s => {
+    const subjSessions = S.sessions.filter(x => x.subjectId === s.id);
+    const subjMins     = Math.round(subjSessions.reduce((n, x) => n + x.duration, 0) / 60);
+    const timeLabel    = subjMins >= 60 ? `${Math.floor(subjMins/60)}h ${subjMins % 60}m` : subjMins > 0 ? `${subjMins}m` : null;
+    const metaLabel    = timeLabel
+      ? `${timeLabel} · ${subjSessions.length} session${subjSessions.length !== 1 ? 's' : ''}`
+      : subjSessions.length > 0
+        ? `${subjSessions.length} session${subjSessions.length !== 1 ? 's' : ''}`
+        : 'Not started yet';
+    const progressPct  = Math.min(100, (subjSessions.length / 10) * 100);
+    return `
     <div class="subj-card" data-id="${s.id}" onclick="startSubject(${s.id})"
-      onmouseenter="this.style.borderColor='${s.color}66';this.style.boxShadow='0 4px 24px ${s.color}22'"
+      onmouseenter="this.style.borderColor='${s.color}55';this.style.boxShadow='0 8px 32px ${s.color}22'"
       onmouseleave="this.style.borderColor='';this.style.boxShadow=''">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
-        <span style="font-size:10px;letter-spacing:0.08em;color:var(--muted);">ETA: ${Math.ceil(s.docs/8)} HRS</span>
-        <div style="width:28px;height:28px;border-radius:7px;background:${s.color}22;display:flex;align-items:center;justify-content:center;">
-          <span class="ms" style="font-size:16px;color:${s.color};">menu_book</span>
+        <div style="width:34px;height:34px;border-radius:9px;background:${s.color}20;border:1px solid ${s.color}35;display:flex;align-items:center;justify-content:center;">
+          <span class="ms" style="font-size:17px;color:${s.color};">menu_book</span>
         </div>
+        <span style="font-size:10px;letter-spacing:0.06em;color:var(--muted);font-family:'Space Grotesk';padding:3px 8px;background:rgba(255,255,255,0.04);border-radius:6px;border:1px solid rgba(255,255,255,0.07);">${metaLabel}</span>
       </div>
-      <div style="font-weight:700;font-size:14px;margin-bottom:4px;">${s.name}</div>
-      <div style="font-size:12px;color:var(--muted);line-height:1.4;margin-bottom:14px;">${s.desc}</div>
-      <div style="height:2px;background:rgba(255,255,255,0.07);border-radius:2px;">
-        <div style="width:${Math.min(85, s.docs % 100)}%;height:100%;background:${s.color};border-radius:2px;"></div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:var(--text);">${s.name}</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.4;margin-bottom:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${s.desc}</div>
+      <div style="height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;">
+        <div style="width:${progressPct}%;height:100%;background:${s.color};border-radius:2px;transition:width 0.6s ease;opacity:0.85;"></div>
       </div>
     </div>
-  `).join('');
+  `}).join('');
 }
 
 function startSubject(id: number): void {

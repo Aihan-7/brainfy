@@ -731,6 +731,112 @@
         animation: none !important;
       }
     }
+
+    /* ══════════════════════════════════════════
+       DASHBOARD DESIGN ENHANCEMENT
+    ══════════════════════════════════════════ */
+
+    /* ── Richer glass cards ── */
+    .glass {
+      background: rgba(255,255,255,0.055) !important;
+      border: 1px solid rgba(255,255,255,0.11) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+    }
+
+    /* ── Per-card colored hover glows ── */
+    .hd-stat { transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease !important; }
+    .hd-stat:nth-child(1):hover { transform: translateY(-4px) !important; box-shadow: 0 12px 40px rgba(124,58,237,0.28), 0 0 0 1px rgba(124,58,237,0.22) !important; border-color: rgba(124,58,237,0.35) !important; }
+    .hd-stat:nth-child(2):hover { transform: translateY(-4px) !important; box-shadow: 0 12px 40px rgba(76,215,246,0.22), 0 0 0 1px rgba(76,215,246,0.22) !important; border-color: rgba(76,215,246,0.35) !important; }
+    .hd-stat:nth-child(3):hover { transform: translateY(-4px) !important; box-shadow: 0 12px 40px rgba(249,115,22,0.22), 0 0 0 1px rgba(249,115,22,0.18) !important; border-color: rgba(249,115,22,0.3) !important; }
+    .hd-stat:nth-child(4):hover { transform: translateY(-4px) !important; box-shadow: 0 12px 40px rgba(78,222,163,0.22), 0 0 0 1px rgba(78,222,163,0.18) !important; border-color: rgba(78,222,163,0.3) !important; }
+
+    /* ── Ambient orbs behind home content ── */
+    .home-orb {
+      position: fixed; pointer-events: none; border-radius: 50%;
+      filter: blur(90px); opacity: 0.5; z-index: 0;
+    }
+    #homeView > .home-content { position: relative; z-index: 1; }
+
+    /* ── Goal bar shimmer when active ── */
+    @keyframes goalShimmer {
+      0%   { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    #goalProgressBar {
+      background: linear-gradient(90deg, var(--primary) 0%, var(--cyan) 50%, var(--primary) 100%) !important;
+      background-size: 200% 100% !important;
+      animation: goalShimmer 3s linear infinite;
+      box-shadow: 0 0 12px rgba(124,58,237,0.4);
+    }
+
+    /* ── Subject card improvements ── */
+    .subj-card {
+      background: rgba(255,255,255,0.055) !important;
+      border: 1px solid rgba(255,255,255,0.09) !important;
+      border-radius: 14px !important;
+      padding: 16px !important;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease !important;
+      cursor: pointer !important;
+    }
+    .subj-card:hover { transform: translateY(-3px) !important; }
+    .subj-card:active { transform: scale(0.98) !important; }
+
+    /* ── Sidebar enhancements ── */
+    #appSidebar {
+      background: linear-gradient(180deg, #060d1e 0%, #080f21 100%) !important;
+      border-right: 1px solid rgba(255,255,255,0.07) !important;
+    }
+    .nav-btn.active {
+      background: linear-gradient(90deg, rgba(124,58,237,0.25) 0%, rgba(124,58,237,0.05) 100%) !important;
+      box-shadow: inset 3px 0 0 var(--primary), 0 0 20px rgba(124,58,237,0.08) !important;
+    }
+    .nav-btn { border-radius: 10px !important; margin: 1px 8px !important; width: calc(100% - 16px) !important; }
+
+    /* ── Cognitive ring ambient glow ── */
+    #homeView .ring-glow-wrap {
+      position: absolute; inset: -20px;
+      background: radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%);
+      pointer-events: none; border-radius: 50%;
+    }
+
+    /* ── Greeting section ── */
+    #homeGreeting { font-size: 32px !important; letter-spacing: -0.03em !important; }
+    #homeSubtitle { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+    /* ── Stat number typography ── */
+    .hd-stat .stat-num { font-size: 32px !important; font-weight: 800 !important; letter-spacing: -0.02em; }
+
+    /* ── Task row improvements ── */
+    .task-row {
+      padding: 8px 10px !important;
+      border-radius: 8px !important;
+      transition: background 0.15s ease !important;
+    }
+    .task-row:hover { background: rgba(255,255,255,0.04) !important; }
+
+    /* ── View All / ghost button upgrade ── */
+    .btn-ghost {
+      background: rgba(255,255,255,0.04) !important;
+      border: 1px solid rgba(255,255,255,0.1) !important;
+      color: var(--muted) !important;
+      transition: background 0.18s, color 0.18s, border-color 0.18s !important;
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,0.08) !important; color: var(--text) !important; border-color: rgba(255,255,255,0.18) !important; }
+
+    /* ── Start Session button gradient ── */
+    #homeStartBtn {
+      background: linear-gradient(135deg, var(--primary) 0%, #5b21b6 100%) !important;
+      box-shadow: 0 0 24px rgba(124,58,237,0.4), 0 4px 12px rgba(0,0,0,0.3) !important;
+      transition: box-shadow 0.2s, transform 0.15s !important;
+    }
+    #homeStartBtn:hover { box-shadow: 0 0 36px rgba(124,58,237,0.55), 0 6px 18px rgba(0,0,0,0.35) !important; transform: translateY(-1px) !important; }
+    #homeStartBtn:active { transform: scale(0.97) !important; }
+
+    @media (prefers-reduced-motion: reduce) {
+      #goalProgressBar { animation: none !important; }
+      .hd-stat { animation: none !important; }
+    }
   </style>
 </head>
 <body>
@@ -1264,7 +1370,7 @@
       <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:24px;">
         <div>
           <label style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0.06em;display:block;margin-bottom:7px;">YOUR NAME</label>
-          <input id="signupName" type="text" placeholder="Alex" class="auth-input" autocomplete="name"/>
+          <input id="signupName" type="text" placeholder="Your name" class="auth-input" autocomplete="name"/>
         </div>
         <div>
           <label style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0.06em;display:block;margin-bottom:7px;">EMAIL</label>
@@ -1371,8 +1477,12 @@
 <!-- ══════════════════════════════════════════
      HOME VIEW — REDESIGNED
 ══════════════════════════════════════════ -->
-<div id="homeView" class="view app-view">
-  <div style="padding:28px 36px 60px;max-width:1300px;">
+<div id="homeView" class="view app-view" style="position:relative;">
+  <!-- Ambient background orbs -->
+  <div class="home-orb" style="width:500px;height:500px;background:radial-gradient(circle,rgba(124,58,237,0.12),transparent 70%);top:-100px;right:-80px;"></div>
+  <div class="home-orb" style="width:400px;height:400px;background:radial-gradient(circle,rgba(76,215,246,0.07),transparent 70%);bottom:0;left:10%;"></div>
+
+  <div class="home-content" style="padding:28px 36px 60px;max-width:1300px;">
 
     <!-- ── Hero Greeting ── -->
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;gap:16px;">
@@ -1386,10 +1496,10 @@
             <span class="pulse pulse-green"></span> FOCUS ACTIVE
           </div>
         </div>
-        <h1 id="homeGreeting" style="font-size:30px;font-weight:900;color:white;letter-spacing:-0.025em;margin-bottom:6px;line-height:1.1;">Good morning, Alex</h1>
-        <p style="font-size:14px;color:var(--muted);line-height:1.5;">Ready for your deep work session? You're ahead of your goal today.</p>
+        <h1 id="homeGreeting" style="font-size:30px;font-weight:900;color:white;letter-spacing:-0.025em;margin-bottom:6px;line-height:1.1;">Good morning</h1>
+        <p id="homeSubtitle" style="font-size:14px;color:var(--muted);line-height:1.5;"></p>
       </div>
-      <button onclick="goTo('focus')" class="btn-primary" style="padding:11px 22px;font-size:14px;display:flex;align-items:center;gap:8px;flex-shrink:0;margin-top:6px;border-radius:12px;">
+      <button id="homeStartBtn" onclick="goTo('focus')" class="btn-primary" style="padding:11px 22px;font-size:14px;display:flex;align-items:center;gap:8px;flex-shrink:0;margin-top:6px;border-radius:12px;">
         <span class="ms" style="font-size:18px;">play_arrow</span> Start Session
       </button>
     </div>
@@ -1513,7 +1623,7 @@
 
         <!-- Focus Score Ring -->
         <div class="glass" style="padding:22px;border-radius:18px;text-align:center;position:relative;overflow:hidden;">
-          <div style="position:absolute;bottom:-40px;left:50%;transform:translateX(-50%);width:160px;height:160px;background:radial-gradient(circle,rgba(76,215,246,0.08),transparent);border-radius:50%;pointer-events:none;"></div>
+          <div style="position:absolute;bottom:-40px;left:50%;transform:translateX(-50%);width:200px;height:200px;background:radial-gradient(circle,rgba(124,58,237,0.13),rgba(76,215,246,0.06) 50%,transparent 70%);border-radius:50%;pointer-events:none;"></div>
           <p style="font-size:10px;letter-spacing:0.12em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:16px;">COGNITIVE STATE</p>
           <div style="position:relative;width:140px;height:140px;margin:0 auto 14px;">
             <svg width="140" height="140" style="overflow:visible;">
@@ -1598,7 +1708,7 @@
       </div>
       <span>© 2026 Brainfy. Focus Deeply.</span>
     </footer>
-  </div>
+  </div><!-- /home-content -->
 </div><!-- /homeView -->
 
 
