@@ -2409,9 +2409,9 @@ async function onFirebaseSignIn(user: any, displayName?: string): Promise<void> 
   // Load cloud state; if none, seed with local or default
   await loadFromCloud();
 
-  // If a display name was just set (sign-up), store it
-  if (displayName) S.userName = displayName;
-  else if (!S.userName) S.userName = user.displayName || user.email?.split('@')[0] || 'Student';
+  // Always sync name from the real Firebase user — overrides any stale cloud value
+  const realName = displayName || user.displayName || user.email?.split('@')[0] || 'Student';
+  S.userName = realName;
 
   save();
   goTo('home');
@@ -3099,7 +3099,8 @@ function init() {
       firebaseUser = user;
       idToken = await user.getIdToken();
       await loadFromCloud();
-      if (!S.userName) S.userName = user.displayName || user.email?.split('@')[0] || 'Student';
+      // Always use real Firebase identity — never let stale Firestore data override the name
+      S.userName = user.displayName || user.email?.split('@')[0] || 'Student';
       // Only auto-navigate if we're still on splash/signin/signup
       const authViews: ViewName[] = ['splash', 'signin', 'signup'];
       if (authViews.includes(currentView)) goTo('home');
