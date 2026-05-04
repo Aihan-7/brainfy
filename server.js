@@ -199,6 +199,97 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── POST /api/youtube ─────────────────────────
+  //  Body: { url: string }
+  //  Fetches transcript + title, returns { title, transcript, author }
+  if (req.method === 'POST' && pathname === '/api/youtube') {
+    if (!PROVIDER) { json(503, { error: 'AI not configured' }); return; }
+    try {
+      const { url: ytUrl } = await readBody(req);
+      const videoIdMatch = ytUrl.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
+      if (!videoIdMatch) { json(400, { error: 'Invalid YouTube URL' }); return; }
+      const videoId = videoIdMatch[1];
+
+      // Fetch title via oEmbed (no API key needed)
+      const { YoutubeTranscript } = require('youtube-transcript');
+      const oembedRes = await new Promise((resolve, reject) => {
+        const req2 = https.get(
+          `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`,
+          res2 => { let d = ''; res2.on('data', c => d += c); res2.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } }); }
+        );
+        req2.on('error', reject);
+      });
+
+      // Fetch transcript
+      let transcriptText = '';
+      try {
+        const segments = await YoutubeTranscript.fetchTranscript(videoId);
+        transcriptText = segments.map(s => s.text).join(' ').replace(/\s+/g, ' ').trim();
+        // Trim to ~12 000 chars to stay within token limits
+        if (transcriptText.length > 12000) transcriptText = transcriptText.slice(0, 12000) + '…';
+      } catch(_) {
+        transcriptText = ''; // transcript unavailable — AI will use title only
+      }
+
+      json(200, {
+        videoId,
+        title:      oembedRes.title      || 'YouTube Video',
+        author:     oembedRes.author_name || '',
+        thumbnail:  `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+        transcript: transcriptText,
+      });
+    } catch(e) {
+      json(500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── POST /api/process-content ─────────────────
+  //  Body: { content, contentType, title, subjName }
+  //  Returns: { flashcards:[{q,a}], summary, outline }
+  if (req.method === 'POST' && pathname === '/api/process-content') {
+    if (!PROVIDER) { json(503, { error: 'AI not configured' }); return; }
+    try {
+      const { content, contentType, title, subjName } = await readBody(req);
+
+      const systemPrompt = `You are an expert study assistant. Analyze the provided content and return a JSON object with exactly this structure:
+{
+  "flashcards": [{"q": "question", "a": "answer"}, ...],
+  "summary": "A well-structured markdown summary with headings, bullet points and key concepts. 300-500 words.",
+  "outline": ["Topic 1", "  • Subtopic 1a", "  • Subtopic 1b", "Topic 2", ...]
+}
+
+Rules:
+- Generate 8-15 high-quality flashcards covering key concepts
+- Flashcard questions should test real understanding, not trivial facts
+- Summary should use ## headings and bullet points
+- Outline should be a flat string array representing hierarchy with indentation
+- Return ONLY the JSON, no markdown fences`;
+
+      const userMsg = contentType === 'youtube'
+        ? `Video title: "${title}"\nSubject: ${subjName}\n\nTranscript:\n${content || '(transcript unavailable — generate from title)'}`
+        : `Document: "${title}"\nSubject: ${subjName}\n\nContent:\n${content}`;
+
+      const aiBody = {
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMsg }],
+        max_tokens: 2048,
+      };
+
+      const result = await callAI(aiBody);
+      if (result.status !== 200) { json(result.status, result.body); return; }
+
+      const text = result.body.content?.[0]?.text || '';
+      // Strip potential markdown fences
+      const clean = text.replace(/^```(?:json)?\n?/,'').replace(/\n?```$/,'').trim();
+      const parsed = JSON.parse(clean);
+      json(200, parsed);
+    } catch(e) {
+      json(500, { error: e.message });
+    }
+    return;
+  }
+
   // ── POST /api/auth/verify ─────────────────────
   //  Body: { idToken: string }
   //  Returns: { uid, email, name }

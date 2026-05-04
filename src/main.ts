@@ -1268,7 +1268,7 @@ function renderLibrary() {
         <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:12px;margin-bottom:10px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <span style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);font-family:'Space Grotesk';">DOCUMENTS · ${docs.length}</span>
-            <button onclick="event.stopPropagation();openDocModal(${s.id})"
+            <button id="addDocBtn_${s.id}" onclick="event.stopPropagation();openAIImportPicker(${s.id}, this)"
               style="display:flex;align-items:center;gap:4px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.25);border-radius:6px;color:var(--plight);font-size:11px;font-weight:600;cursor:pointer;padding:3px 8px;font-family:'Manrope',sans-serif;transition:background 0.15s;"
               onmouseover="this.style.background='rgba(124,58,237,0.22)'" onmouseout="this.style.background='rgba(124,58,237,0.12)'">
               <span class="ms" style="font-size:14px;">add</span> Add
@@ -1548,6 +1548,440 @@ function deleteSubject(id: number): void {
   S.subjects = S.subjects.filter(s => s.id !== id);
   save();
   renderLibrary();
+}
+
+// ══════════════════════════════════════════════════
+//  AI IMPORT — file & YouTube → flashcards + notes
+// ══════════════════════════════════════════════════
+
+interface AIImportResult {
+  flashcards: { q: string; a: string }[];
+  summary:    string;
+  outline:    string[];
+}
+
+let aiImportSubjId: number | null = null;
+let aiImportSource: 'file' | 'youtube' | null = null;
+let aiImportResult: AIImportResult | null = null;
+let aiImportResultTab: 'flashcards' | 'summary' | 'outline' = 'flashcards';
+
+// ── Picker popup ─────────────────────────────────
+function openAIImportPicker(subjId: number, anchorEl: HTMLElement): void {
+  aiImportSubjId = subjId;
+  const picker   = el('aiImportPicker');
+  if (!picker) return;
+
+  // Close if already open for same button
+  if (picker.classList.contains('open')) { closeAIImportPicker(); return; }
+
+  const rect = anchorEl.getBoundingClientRect();
+  picker.style.top  = (rect.bottom + 8 + window.scrollY) + 'px';
+  picker.style.left = Math.min(rect.left, window.innerWidth - 240) + 'px';
+  picker.classList.add('open');
+
+  // Click-outside to close
+  setTimeout(() => {
+    document.addEventListener('click', handlePickerOutside, { once: true, capture: true });
+  }, 10);
+}
+
+function handlePickerOutside(e: MouseEvent): void {
+  const picker = el('aiImportPicker');
+  if (picker && !picker.contains(e.target as Node)) closeAIImportPicker();
+}
+
+function closeAIImportPicker(): void {
+  const picker = el('aiImportPicker');
+  if (!picker) return;
+  picker.style.animation = 'none';
+  picker.style.opacity   = '0';
+  picker.style.transform = 'scale(0.9) translateY(-6px)';
+  picker.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
+  setTimeout(() => {
+    picker.classList.remove('open');
+    picker.style.cssText = '';
+  }, 160);
+}
+
+// ── Modal open/close ─────────────────────────────
+function startAIImport(source: 'file' | 'youtube'): void {
+  closeAIImportPicker();
+  aiImportSource = source;
+  aiImportResult = null;
+  const s      = S.subjects.find(x => x.id === aiImportSubjId);
+  const nameEl = el('aiImportSubjName');
+  if (nameEl && s) nameEl.textContent = s.name;
+  const modal = el('aiImportModal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => modal.classList.add('visible'));
+  });
+  document.body.style.overflow = 'hidden';
+  renderAIImportStep('input');
+}
+
+function closeAIImport(): void {
+  const modal = el('aiImportModal');
+  if (!modal) return;
+  modal.classList.remove('visible');
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
+  document.body.style.overflow = '';
+}
+
+// ── Step renderer ────────────────────────────────
+type AIImportStep = 'input' | 'processing' | 'result';
+
+function renderAIImportStep(step: AIImportStep): void {
+  const body = el('aiImportBody');
+  if (!body) return;
+
+  if (step === 'input') {
+    body.innerHTML = aiImportSource === 'youtube' ? renderYTInput() : renderFileInput();
+  } else if (step === 'processing') {
+    body.innerHTML = renderProcessing();
+  } else {
+    body.innerHTML = renderResult();
+  }
+}
+
+function renderYTInput(): string {
+  return `
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.18);border-radius:12px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#ef4444"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);">YouTube → Study Materials</div>
+          <div style="font-size:11px;color:var(--muted);">AI reads the transcript and generates flashcards + notes</div>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);display:block;margin-bottom:8px;">VIDEO URL</label>
+        <input id="ytUrlInput" type="url" class="auth-input" placeholder="https://www.youtube.com/watch?v=..." style="background:rgba(255,255,255,0.05);" onkeydown="if(event.key==='Enter')processYouTube()">
+      </div>
+      <button onclick="processYouTube()" class="btn-primary" style="padding:12px;font-size:14px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;">
+        <span class="ms" style="font-size:18px;">auto_awesome</span> Generate Study Materials
+      </button>
+    </div>
+  `;
+}
+
+function renderFileInput(): string {
+  return `
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div
+        id="aiDropZone"
+        style="border:2px dashed rgba(124,58,237,0.25);border-radius:16px;padding:36px 24px;text-align:center;cursor:pointer;transition:all 0.2s;"
+        onclick="el('aiFileInput').click()"
+        ondragover="event.preventDefault();this.style.borderColor='rgba(124,58,237,0.6)';this.style.background='rgba(124,58,237,0.06)'"
+        ondragleave="this.style.borderColor='rgba(124,58,237,0.25)';this.style.background=''"
+        ondrop="event.preventDefault();this.style.borderColor='rgba(124,58,237,0.25)';this.style.background='';handleAIFileDrop(event)">
+        <div style="width:56px;height:56px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.25);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+          <span class="ms" style="font-size:28px;color:var(--plight);">cloud_upload</span>
+        </div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;">Drop your file here</div>
+        <div style="font-size:12px;color:var(--muted);">PDF, TXT, MD, images · up to 10 MB</div>
+      </div>
+      <input type="file" id="aiFileInput" style="display:none;" accept=".pdf,.txt,.md,.csv,.doc,.docx,image/*" onchange="handleAIFileSelect(this)">
+      <div id="aiFileChosen" style="display:none;align-items:center;gap:12px;padding:12px 14px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:12px;">
+        <span class="ms" style="font-size:22px;color:var(--plight);">draft</span>
+        <div style="flex:1;min-width:0;">
+          <div id="aiFileName" style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+          <div id="aiFileSize" style="font-size:11px;color:var(--muted);"></div>
+        </div>
+        <button onclick="clearAIFile()" style="background:transparent;border:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;"><span class="ms" style="font-size:18px;">close</span></button>
+      </div>
+      <button id="aiFileProcessBtn" onclick="processFile()" class="btn-primary" style="padding:12px;font-size:14px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;opacity:0.4;cursor:not-allowed;" disabled>
+        <span class="ms" style="font-size:18px;">auto_awesome</span> Generate Study Materials
+      </button>
+    </div>
+  `;
+}
+
+function renderProcessing(): string {
+  return `
+    <div style="text-align:center;padding:20px 0 10px;">
+      <!-- Orbiting dots animation -->
+      <div style="position:relative;width:80px;height:80px;margin:0 auto 24px;">
+        <div style="position:absolute;inset:0;border-radius:50%;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);"></div>
+        <div style="position:absolute;inset:50%;margin:-12px 0 0 -12px;">
+          <div class="proc-dot" style="background:var(--primary);"></div>
+          <div class="proc-dot" style="background:var(--cyan);"></div>
+          <div class="proc-dot" style="background:var(--green);"></div>
+        </div>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+          <span class="ms" style="font-size:26px;color:var(--plight);">auto_awesome</span>
+        </div>
+      </div>
+      <div id="procStepLabel" class="step-label" style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px;">Reading content…</div>
+      <div id="procStepSub" class="step-label" style="font-size:12px;color:var(--muted);">Hang tight — this takes about 10 seconds</div>
+      <!-- Step dots -->
+      <div style="display:flex;justify-content:center;gap:6px;margin-top:24px;">
+        ${['Reading','Analysing','Flashcards','Notes'].map((s,i) => `
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px;">
+            <div id="stepDot${i}" style="width:8px;height:8px;border-radius:50%;background:${i===0?'var(--primary)':'rgba(255,255,255,0.12)'};transition:background 0.3s ease;"></div>
+            <div style="font-size:9px;color:var(--muted);font-family:'Space Grotesk';letter-spacing:0.04em;">${s.toUpperCase()}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderResult(): string {
+  if (!aiImportResult) return '<p style="color:var(--muted);">No results.</p>';
+  const r = aiImportResult;
+  const tabs: { key: typeof aiImportResultTab; label: string; icon: string }[] = [
+    { key: 'flashcards', label: `Flashcards (${r.flashcards.length})`, icon: 'style' },
+    { key: 'summary',    label: 'Summary',  icon: 'article' },
+    { key: 'outline',    label: 'Outline',  icon: 'format_list_bulleted' },
+  ];
+
+  let tabContent = '';
+  if (aiImportResultTab === 'flashcards') {
+    tabContent = `<div style="display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;padding-right:4px;">
+      ${r.flashcards.map((fc, i) => `
+        <div class="fc-result-item" style="animation-delay:${i*0.04}s">
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:var(--plight);font-family:'Space Grotesk';margin-bottom:5px;">Q</div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;">${fc.q}</div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:var(--green);font-family:'Space Grotesk';margin-bottom:5px;">A</div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.5;">${fc.a}</div>
+        </div>
+      `).join('')}
+    </div>`;
+  } else if (aiImportResultTab === 'summary') {
+    // Convert basic markdown to HTML
+    const html = r.summary
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^### (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^\*\s+(.+)$/gm, '<li>$1</li>')
+      .replace(/^- (.+)$/gm, '<li>$1</li>')
+      .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/^(?!<[hup])/gm, '<p>').replace(/<p><\/p>/g, '');
+    tabContent = `<div class="ai-summary" style="max-height:320px;overflow-y:auto;padding-right:4px;">${html}</div>`;
+  } else {
+    tabContent = `<div style="max-height:320px;overflow-y:auto;padding-right:4px;display:flex;flex-direction:column;gap:3px;">
+      ${r.outline.map(line => {
+        const isSub = line.startsWith('  ') || line.startsWith('\t') || line.startsWith('•') || line.startsWith('-');
+        return `<div class="outline-item ${isSub ? 'outline-sub' : 'outline-topic'}">${line.replace(/^[\s•\-]+/, isSub ? '· ' : '')}</div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <!-- Success banner -->
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(78,222,163,0.08);border:1px solid rgba(78,222,163,0.2);border-radius:12px;">
+        <span class="ms" style="font-size:22px;color:var(--green);">check_circle</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--green);">Study materials ready!</div>
+          <div style="font-size:11px;color:var(--muted);">${r.flashcards.length} flashcards · summary · outline generated</div>
+        </div>
+      </div>
+      <!-- Tabs -->
+      <div style="display:flex;gap:6px;">
+        ${tabs.map(t => `
+          <button class="ai-result-tab ${aiImportResultTab === t.key ? 'active' : ''}" onclick="setAIResultTab('${t.key}')">
+            <span class="ms" style="font-size:14px;display:block;margin-bottom:2px;">${t.icon}</span>${t.label}
+          </button>
+        `).join('')}
+      </div>
+      <!-- Tab content -->
+      <div id="aiResultContent">${tabContent}</div>
+      <!-- Save button -->
+      <button onclick="saveAIResults()" class="btn-primary" style="padding:12px;font-size:14px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,var(--primary),#6d28d9);box-shadow:0 0 24px rgba(124,58,237,0.4);">
+        <span class="ms" style="font-size:18px;">save</span> Save to Subject
+      </button>
+    </div>
+  `;
+}
+
+function setAIResultTab(tab: typeof aiImportResultTab): void {
+  aiImportResultTab = tab;
+  renderAIImportStep('result');
+}
+
+// ── File handling ────────────────────────────────
+let aiImportFileData: { name: string; content: string; size: number; mime: string } | null = null;
+
+function handleAIFileSelect(input: HTMLInputElement): void {
+  const file = input.files?.[0];
+  if (!file) return;
+  readAIFile(file);
+  input.value = '';
+}
+
+function handleAIFileDrop(e: DragEvent): void {
+  const file = e.dataTransfer?.files?.[0];
+  if (file) readAIFile(file);
+}
+
+function readAIFile(file: File): void {
+  const MAX = 10 * 1024 * 1024;
+  if (file.size > MAX) { showToast('File too large (max 10 MB)', 'warning'); return; }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const content = reader.result as string;
+    aiImportFileData = { name: file.name, content, size: file.size, mime: file.type };
+
+    const chosen = el('aiFileChosen');
+    const nameEl = el('aiFileName');
+    const sizeEl = el('aiFileSize');
+    const btn    = el('aiFileProcessBtn') as HTMLButtonElement | null;
+    const zone   = el('aiDropZone');
+    if (chosen) { chosen.style.display = 'flex'; }
+    if (nameEl) nameEl.textContent = file.name;
+    if (sizeEl) sizeEl.textContent = docSize(file.size);
+    if (zone)   zone.style.display = 'none';
+    if (btn)    { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
+  };
+  // Read as text for text files, dataURL for others
+  if (file.type.startsWith('text/') || /\.(txt|md|csv|json)$/i.test(file.name)) {
+    reader.readAsText(file);
+  } else {
+    reader.readAsDataURL(file);
+  }
+}
+
+function clearAIFile(): void {
+  aiImportFileData = null;
+  const chosen = el('aiFileChosen');
+  const zone   = el('aiDropZone');
+  const btn    = el('aiFileProcessBtn') as HTMLButtonElement | null;
+  if (chosen) chosen.style.display = 'none';
+  if (zone)   zone.style.display = '';
+  if (btn)    { btn.disabled = true; btn.style.opacity = '0.4'; btn.style.cursor = 'not-allowed'; }
+}
+
+// ── Processing ───────────────────────────────────
+function advanceProcStep(step: number, label: string, sub: string): void {
+  const labelEl = el('procStepLabel');
+  const subEl   = el('procStepSub');
+  if (labelEl) { labelEl.style.animation = 'none'; labelEl.textContent = label; labelEl.style.animation = ''; }
+  if (subEl)   { subEl.style.animation   = 'none'; subEl.textContent   = sub;   subEl.style.animation   = ''; }
+  for (let i = 0; i <= 3; i++) {
+    const dot = el('stepDot' + i);
+    if (dot) dot.style.background = i <= step ? 'var(--primary)' : 'rgba(255,255,255,0.12)';
+  }
+}
+
+async function processYouTube(): Promise<void> {
+  const url = (elInput('ytUrlInput')?.value ?? '').trim();
+  if (!url) { showToast('Please enter a YouTube URL', 'warning'); return; }
+
+  renderAIImportStep('processing');
+  advanceProcStep(0, 'Fetching video info…', 'Getting transcript from YouTube');
+
+  try {
+    const infoRes  = await fetch('/api/youtube', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url }) });
+    const info     = await infoRes.json();
+    if (!infoRes.ok) throw new Error(info.error || 'YouTube fetch failed');
+
+    advanceProcStep(1, 'Analysing content…', `"${info.title}" · ${info.transcript ? 'transcript loaded' : 'using title only'}`);
+    await new Promise(r => setTimeout(r, 600));
+
+    advanceProcStep(2, 'Generating flashcards…', 'AI is extracting key concepts');
+
+    const s = S.subjects.find(x => x.id === aiImportSubjId);
+    const procRes = await fetch('/api/process-content', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ content: info.transcript, contentType: 'youtube', title: info.title, subjName: s?.name || '' }),
+    });
+    const result = await procRes.json();
+    if (!procRes.ok) throw new Error(result.error || 'AI processing failed');
+
+    advanceProcStep(3, 'Preparing notes…', 'Almost done!');
+    await new Promise(r => setTimeout(r, 400));
+
+    aiImportResult = result;
+    aiImportResultTab = 'flashcards';
+
+    // Auto-save the YouTube video as a link doc
+    if (aiImportSubjId !== null) {
+      addDocToSubject({ id: S.nextId++, name: info.title, type: 'link', content: url, date: Date.now() });
+    }
+
+    renderAIImportStep('result');
+  } catch(e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    showToast('Error: ' + msg, 'error');
+    renderAIImportStep('input');
+  }
+}
+
+async function processFile(): Promise<void> {
+  if (!aiImportFileData) return;
+  const { name, content, size, mime } = aiImportFileData;
+
+  renderAIImportStep('processing');
+  advanceProcStep(0, 'Reading file…', name);
+  await new Promise(r => setTimeout(r, 300));
+
+  advanceProcStep(1, 'Analysing content…', 'Extracting key concepts');
+
+  try {
+    const s = S.subjects.find(x => x.id === aiImportSubjId);
+    // For base64 files, send just the data (AI can handle images too if provider supports it)
+    const textContent = content.startsWith('data:') ? `[File: ${name}]` : content.slice(0, 12000);
+
+    const procRes = await fetch('/api/process-content', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ content: textContent, contentType: 'file', title: name, subjName: s?.name || '' }),
+    });
+
+    advanceProcStep(2, 'Generating flashcards…', 'AI is creating study cards');
+    const result = await procRes.json();
+    if (!procRes.ok) throw new Error(result.error || 'Processing failed');
+
+    advanceProcStep(3, 'Preparing notes…', 'Finishing up');
+    await new Promise(r => setTimeout(r, 400));
+
+    aiImportResult = result;
+    aiImportResultTab = 'flashcards';
+
+    // Auto-save the file as a doc
+    if (aiImportSubjId !== null) {
+      addDocToSubject({ id: S.nextId++, name, type: 'file', content, mime, size, date: Date.now() });
+    }
+
+    renderAIImportStep('result');
+  } catch(e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    showToast('Error: ' + msg, 'error');
+    renderAIImportStep('input');
+  }
+}
+
+function saveAIResults(): void {
+  if (!aiImportResult || aiImportSubjId === null) return;
+  const s = S.subjects.find(x => x.id === aiImportSubjId);
+  if (!s) return;
+
+  // Merge flashcards into subject
+  if (!s.cards) s.cards = [];
+  const newCards = aiImportResult.flashcards.map(fc => ({ q: fc.q, a: fc.a }));
+  s.cards.push(...newCards);
+
+  // Save summary as a note doc
+  if (aiImportResult.summary) {
+    if (!s.documents) s.documents = [];
+    s.documents.unshift({
+      id:      S.nextId++,
+      name:    'AI Summary',
+      type:    'note',
+      content: aiImportResult.summary,
+      date:    Date.now(),
+    });
+    s.docs = s.documents.length;
+  }
+
+  save();
+  renderLibrary();
+  closeAIImport();
+  showToast(`${newCards.length} flashcards + summary saved to ${s.name}`, 'success');
 }
 
 // ── STATS ────────────────────────────────────────────────────────────────────
