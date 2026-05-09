@@ -2200,7 +2200,8 @@ function renderHeatmap() {
         return;
     // 7 rows (days of week Mon–Sun) × 12 cols (weeks)
     const WEEKS = 12, DAYS = 7;
-    grid.style.gridTemplateColumns = `repeat(${WEEKS}, 1fr)`;
+    grid.style.gridTemplateColumns = `repeat(${WEEKS}, 16px)`;
+    grid.style.justifyContent = 'start';
     const now = new Date();
     const counts = {};
     S.sessions.forEach(s => {
