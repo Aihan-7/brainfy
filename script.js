@@ -2249,26 +2249,38 @@ function renderHeatmap() {
     const grid = el('heatmapGrid');
     if (!grid)
         return;
-    // 7 rows (days of week Mon–Sun) × 12 cols (weeks)
-    const WEEKS = 12, DAYS = 7;
-    grid.style.gridTemplateColumns = `repeat(${WEEKS}, 16px)`;
-    grid.style.justifyContent = 'start';
+    // 24-hour × 14-day heatmap  (cols = hours 0–23, rows = days oldest→newest)
+    const HOURS = 24, DAYS = 14;
+    grid.style.gridTemplateColumns = `repeat(${HOURS}, 1fr)`;
+    grid.style.gridAutoRows = '1fr';
+    grid.style.height = '154px';
+    grid.style.justifyContent = '';
+    // Build lookup: "dateKey|hour" → total focus minutes
     const now = new Date();
-    const counts = {};
+    const intensity = {};
     S.sessions.forEach(s => {
-        const key = new Date(s.date).toDateString();
-        counts[key] = (counts[key] || 0) + 1;
+        const d = new Date(s.date);
+        const key = `${d.toDateString()}|${d.getHours()}`;
+        intensity[key] = (intensity[key] || 0) + s.duration / 60;
     });
+    const maxMins = Math.max(...Object.values(intensity), 1);
     const cells = [];
-    for (let w = WEEKS - 1; w >= 0; w--) {
-        for (let d = 0; d < DAYS; d++) {
-            const day = new Date(now);
-            day.setDate(now.getDate() - (w * 7 + (DAYS - 1 - d)));
-            const c = counts[day.toDateString()] || 0;
-            const level = c === 0 ? 0 : c === 1 ? 1 : c <= 3 ? 2 : c <= 5 ? 3 : 4;
-            const alphas = ['0.06', '0.28', '0.52', '0.76', '1'];
-            const title = `${day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}: ${c} session${c !== 1 ? 's' : ''}`;
-            cells.push(`<div style="aspect-ratio:1;border-radius:2px;background:rgba(124,58,237,${alphas[level]});" title="${title}"></div>`);
+    for (let day = DAYS - 1; day >= 0; day--) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - day);
+        const dayStr = d.toDateString();
+        const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        for (let h = 0; h < HOURS; h++) {
+            const mins = intensity[`${dayStr}|${h}`] || 0;
+            const ratio = mins / maxMins;
+            const alpha = mins === 0 ? '0.06'
+                : ratio < 0.25 ? '0.25'
+                    : ratio < 0.5 ? '0.5'
+                        : ratio < 0.75 ? '0.75'
+                            : '1';
+            const hourLabel = h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`;
+            cells.push(`<div style="border-radius:2px;background:rgba(124,58,237,${alpha});" ` +
+                `title="${dayLabel} · ${hourLabel}: ${Math.round(mins)} min"></div>`);
         }
     }
     grid.innerHTML = cells.join('');
