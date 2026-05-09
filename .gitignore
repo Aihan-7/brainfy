@@ -15,9 +15,9 @@ npm-debug.log*
 package-lock.json
 
 # ── TypeScript build output ────────────────────────
-# script.js is compiled from src/main.ts — commit the .ts source, not the output
-script.js
-script.js.map
+# script.js is committed so it deploys with the repo
+# script.js
+# script.js.map
 
 # ── Editor ────────────────────────────────────────
 .vscode/

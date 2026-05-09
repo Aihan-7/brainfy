@@ -139,6 +139,7 @@ const DEFAULT_STATE = {
 // ── Runtime state ───────────────────────────────────────────────────────────
 let S: AppState = { ...DEFAULT_STATE };
 let currentView: ViewName = 'splash';
+let fcModalHTML = ''; // saved on first open; restored when modal closes
 
 const timer: {
   interval:  ReturnType<typeof setInterval> | undefined;
@@ -307,7 +308,10 @@ function openFlashcards(subjectId: number): void {
   fc.scores  = { easy:0, ok:0, hard:0 };
 
   const modal = document.getElementById('flashcardModal');
-  modal?.classList.add('open');
+  if (!modal) return;
+  if (!fcModalHTML) fcModalHTML = modal.innerHTML; // capture original structure once
+  else modal.innerHTML = fcModalHTML;              // restore if previously replaced
+  modal.classList.add('open');
   document.body.style.overflow = 'hidden';
 
   const label = document.getElementById('fcSubjectLabel');
@@ -317,7 +321,9 @@ function openFlashcards(subjectId: number): void {
 }
 
 function closeFlashcards(): void {
-  document.getElementById('flashcardModal')?.classList.remove('open');
+  const modal = document.getElementById('flashcardModal');
+  if (modal && fcModalHTML) modal.innerHTML = fcModalHTML;
+  modal?.classList.remove('open');
   document.body.style.overflow = '';
 }
 
@@ -3105,7 +3111,9 @@ function init() {
       const authViews: ViewName[] = ['splash', 'signin', 'signup'];
       if (authViews.includes(currentView)) goTo('home');
     } else {
-      goTo('splash');
+      // Only redirect to splash from app views — don't bounce users off sign-in/sign-up
+      const authViews: ViewName[] = ['splash', 'signin', 'signup'];
+      if (!authViews.includes(currentView)) goTo('splash');
     }
   });
 }
