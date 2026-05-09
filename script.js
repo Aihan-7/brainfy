@@ -2656,6 +2656,38 @@ function initEvents() {
     });
     document.addEventListener('fullscreenchange', updateFsIcon);
     document.addEventListener('webkitfullscreenchange', updateFsIcon);
+    // ── Fullscreen idle cursor/UI hide after 5 s ───────
+    let fsIdleTimer = null;
+    function fsWake() {
+        fsTarget.classList.remove('fs-idle');
+        if (fsIdleTimer)
+            clearTimeout(fsIdleTimer);
+        if (isFullscreen()) {
+            fsIdleTimer = setTimeout(() => fsTarget.classList.add('fs-idle'), 5000);
+        }
+    }
+    function fsCleanup() {
+        fsTarget.classList.remove('fs-idle');
+        if (fsIdleTimer) {
+            clearTimeout(fsIdleTimer);
+            fsIdleTimer = null;
+        }
+    }
+    fsTarget.addEventListener('mousemove', fsWake);
+    fsTarget.addEventListener('mousedown', fsWake);
+    fsTarget.addEventListener('keydown', fsWake);
+    document.addEventListener('fullscreenchange', () => {
+        if (isFullscreen())
+            fsWake();
+        else
+            fsCleanup();
+    });
+    document.addEventListener('webkitfullscreenchange', () => {
+        if (isFullscreen())
+            fsWake();
+        else
+            fsCleanup();
+    });
     el('focusNotifBtn')?.addEventListener('click', () => {
         showToast('No new notifications', 'info');
     });

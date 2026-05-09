@@ -643,6 +643,30 @@
       z-index: 1;
     }
 
+    /* ── Fullscreen idle: fade everything except ring + digits ── */
+    #focusTopBar,
+    #focusControls,
+    #exitSessionBtn,
+    #timerLabel {
+      transition: opacity 0.6s ease, visibility 0.6s ease;
+    }
+    #focusActiveLayout.fs-idle:fullscreen #focusTopBar,
+    #focusActiveLayout.fs-idle:-webkit-full-screen #focusTopBar,
+    #focusActiveLayout.fs-idle:fullscreen #focusControls,
+    #focusActiveLayout.fs-idle:-webkit-full-screen #focusControls,
+    #focusActiveLayout.fs-idle:fullscreen #exitSessionBtn,
+    #focusActiveLayout.fs-idle:-webkit-full-screen #exitSessionBtn,
+    #focusActiveLayout.fs-idle:fullscreen #timerLabel,
+    #focusActiveLayout.fs-idle:-webkit-full-screen #timerLabel {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    #focusActiveLayout.fs-idle:fullscreen,
+    #focusActiveLayout.fs-idle:-webkit-full-screen {
+      cursor: none;
+    }
+
     /* ── AI message bubbles: spring slide-in ── */
     @keyframes msgSpringIn {
       from { opacity: 0; transform: translateY(10px) scale(0.97); }
@@ -2127,7 +2151,7 @@
         </div>
 
         <!-- Controls -->
-        <div style="display:flex;align-items:center;gap:20px;">
+        <div id="focusControls" style="display:flex;align-items:center;gap:20px;">
           <button id="timerResetBtn"
             style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.15s,color 0.15s;"
             onmouseover="this.style.background='rgba(255,255,255,0.11)';this.style.color='var(--text)'"
