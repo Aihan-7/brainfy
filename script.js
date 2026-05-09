@@ -550,9 +550,13 @@ function renderHome() {
     // ── Score ring + badges ───────────────────────
     const score = calcScore();
     const ringC = 2 * Math.PI * 58;
+    const ringOffset = String(ringC * (1 - score / 100));
     const ring = el('focusScoreRing');
     if (ring)
-        ring.setAttribute('stroke-dashoffset', String(ringC * (1 - score / 100)));
+        ring.setAttribute('stroke-dashoffset', ringOffset);
+    const glowRing = el('focusScoreGlow');
+    if (glowRing)
+        glowRing.setAttribute('stroke-dashoffset', ringOffset);
     function countUp(elId, target, duration) {
         const node = el(elId);
         if (!node)
