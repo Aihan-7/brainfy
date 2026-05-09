@@ -1716,6 +1716,9 @@
     <button class="nav-btn" data-go="tasks">
       <span class="ms nav-icon">checklist</span> Tasks
     </button>
+    <button class="nav-btn" data-go="timetable">
+      <span class="ms nav-icon">calendar_month</span> Timetable
+    </button>
 
     <div style="height:1px;background:var(--border);margin:8px 4px;"></div>
 
@@ -2417,6 +2420,116 @@
 
 
 <!-- ══════════════════════════════════════════
+     TIMETABLE VIEW
+══════════════════════════════════════════ -->
+<div id="timetableView" class="view app-view">
+  <div style="max-width:1100px;margin:0 auto;padding:36px 32px;">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:32px;gap:16px;flex-wrap:wrap;">
+      <div>
+        <h1 style="font-size:24px;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;">Timetable</h1>
+        <p style="font-size:13px;color:var(--muted);">Plan your week, block your study time.</p>
+      </div>
+      <button id="addBlockBtn" class="btn-primary" style="padding:10px 20px;font-size:13px;display:flex;align-items:center;gap:8px;border-radius:12px;flex-shrink:0;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Block
+      </button>
+    </div>
+
+    <!-- Week grid -->
+    <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:16px;overflow:hidden;">
+
+      <!-- Day headers -->
+      <div id="ttDayHeaders" style="display:grid;grid-template-columns:64px repeat(7,1fr);border-bottom:1px solid var(--border);">
+        <div style="padding:12px 8px;font-size:10px;color:var(--muted);font-family:'Space Grotesk';letter-spacing:0.08em;"></div>
+      </div>
+
+      <!-- Hour rows -->
+      <div id="ttGrid" style="display:grid;grid-template-columns:64px repeat(7,1fr);max-height:600px;overflow-y:auto;">
+      </div>
+    </div>
+
+    <!-- Legend / upcoming -->
+    <div style="margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+      <!-- Today's blocks -->
+      <div class="glass" style="padding:20px;">
+        <p style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:14px;">TODAY'S SCHEDULE</p>
+        <div id="ttTodayList" style="display:flex;flex-direction:column;gap:8px;">
+          <p style="font-size:13px;color:var(--muted);">No blocks scheduled for today.</p>
+        </div>
+      </div>
+
+      <!-- This week summary -->
+      <div class="glass" style="padding:20px;">
+        <p style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:14px;">THIS WEEK</p>
+        <div id="ttWeekSummary" style="display:flex;flex-direction:column;gap:8px;">
+          <p style="font-size:13px;color:var(--muted);">No blocks this week yet.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Add/Edit block modal -->
+  <div id="ttModal" style="display:none;position:fixed;inset:0;z-index:200;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);opacity:0;transition:opacity 0.22s ease;" onclick="if(event.target===this)closeTTModal()">
+    <div style="background:#0d1628;border:1px solid var(--border);border-radius:20px;width:100%;max-width:420px;padding:28px;transform:translateY(16px) scale(0.98);transition:transform 0.22s cubic-bezier(0.34,1.2,0.64,1);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;">
+        <h3 id="ttModalTitle" style="font-size:16px;font-weight:800;">Add Block</h3>
+        <button onclick="closeTTModal()" style="background:rgba(255,255,255,0.06);border:none;border-radius:8px;width:30px;height:30px;cursor:pointer;color:var(--muted);font-size:18px;display:flex;align-items:center;justify-content:center;">×</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <input id="ttBlockTitle" type="text" placeholder="Block title (e.g. Physics, Deep Work…)"
+          style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:11px;color:var(--text);font-family:'Manrope',sans-serif;font-size:14px;outline:none;transition:border-color 0.18s;"
+          onfocus="this.style.borderColor='rgba(124,58,237,0.5)'" onblur="this.style.borderColor='var(--border)'"/>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;font-weight:600;letter-spacing:0.04em;">DAY</label>
+            <select id="ttBlockDay" style="width:100%;padding:10px 12px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:11px;color:var(--text);font-family:'Manrope',sans-serif;font-size:13px;outline:none;appearance:none;cursor:pointer;">
+              <option value="0">Monday</option><option value="1">Tuesday</option><option value="2">Wednesday</option>
+              <option value="3">Thursday</option><option value="4">Friday</option><option value="5">Saturday</option><option value="6">Sunday</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;font-weight:600;letter-spacing:0.04em;">COLOR</label>
+            <div id="ttColorPicker" style="display:flex;gap:6px;align-items:center;padding:6px 0;">
+              <div class="tt-color" data-color="#7c3aed" style="width:22px;height:22px;border-radius:50%;background:#7c3aed;cursor:pointer;border:2px solid rgba(255,255,255,0.5);"></div>
+              <div class="tt-color" data-color="#4cd7f6" style="width:22px;height:22px;border-radius:50%;background:#4cd7f6;cursor:pointer;border:2px solid transparent;"></div>
+              <div class="tt-color" data-color="#4edea3" style="width:22px;height:22px;border-radius:50%;background:#4edea3;cursor:pointer;border:2px solid transparent;"></div>
+              <div class="tt-color" data-color="#f59e0b" style="width:22px;height:22px;border-radius:50%;background:#f59e0b;cursor:pointer;border:2px solid transparent;"></div>
+              <div class="tt-color" data-color="#f87171" style="width:22px;height:22px;border-radius:50%;background:#f87171;cursor:pointer;border:2px solid transparent;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;font-weight:600;letter-spacing:0.04em;">START</label>
+            <input id="ttBlockStart" type="time" value="09:00"
+              style="width:100%;padding:10px 12px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:11px;color:var(--text);font-family:'Manrope',sans-serif;font-size:13px;outline:none;"/>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;font-weight:600;letter-spacing:0.04em;">END</label>
+            <input id="ttBlockEnd" type="time" value="10:00"
+              style="width:100%;padding:10px 12px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:11px;color:var(--text);font-family:'Manrope',sans-serif;font-size:13px;outline:none;"/>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:24px;">
+        <button id="ttDeleteBtn" onclick="deleteTTBlock()" style="display:none;padding:11px 18px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:11px;color:#f87171;font-size:13px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;">Delete</button>
+        <button onclick="closeTTModal()" style="flex:1;padding:11px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:11px;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;">Cancel</button>
+        <button id="ttSaveBtn" onclick="saveTTBlock()" class="btn-primary" style="flex:1;padding:11px;font-size:14px;border-radius:11px;">Save</button>
+      </div>
+    </div>
+  </div>
+</div><!-- /timetableView -->
+
+
+<!-- ══════════════════════════════════════════
      AI STUDY COMPANION PANEL
 ══════════════════════════════════════════ -->
 <div id="aiPanel">
@@ -2761,6 +2874,8 @@
   /* Footer modal */
   #footerModal.open { opacity: 1; }
   #footerModal.open > div { transform: translateY(0) scale(1); }
+  #ttModal.open { opacity: 1; }
+  #ttModal.open > div { transform: translateY(0) scale(1); }
   #footerModalBody h3 { color:var(--text);font-size:13px;font-weight:700;margin:18px 0 6px;letter-spacing:0.03em;text-transform:uppercase; }
   #footerModalBody p  { margin:0 0 10px; }
   #footerModalBody a  { color:var(--plight);text-decoration:none; }
