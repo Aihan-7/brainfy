@@ -629,11 +629,18 @@
     #focusActiveLayout:-webkit-full-screen #focusTimerGrid {
       grid-template-columns: 1fr !important;
     }
+    /* Top bar stays above the scaled timer */
+    #focusActiveLayout:fullscreen #focusTopBar,
+    #focusActiveLayout:-webkit-full-screen #focusTopBar {
+      position: relative;
+      z-index: 20;
+    }
     /* Scale the whole timer block as one unit — ring + controls stay proportional */
     #focusActiveLayout:fullscreen #focusTimerCenter,
     #focusActiveLayout:-webkit-full-screen #focusTimerCenter {
       transform: scale(1.65);
       transform-origin: center center;
+      z-index: 1;
     }
 
     /* ── AI message bubbles: spring slide-in ── */
@@ -2038,7 +2045,7 @@
   <div id="focusActiveLayout" style="min-height:100vh;flex-direction:column;">
 
     <!-- Top bar -->
-    <div style="padding:14px 24px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;backdrop-filter:blur(12px);background:rgba(11,19,38,0.7);">
+    <div id="focusTopBar" style="padding:14px 24px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;backdrop-filter:blur(12px);background:rgba(11,19,38,0.7);position:relative;z-index:10;">
       <div style="display:flex;align-items:center;gap:12px;">
         <div style="width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);flex-shrink:0;"></div>
         <div>
