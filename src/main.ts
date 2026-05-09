@@ -2663,7 +2663,7 @@ function initEvents() {
 
   // ── Splash: View Pricing ───────────────────────────
   el('viewPricingBtn')?.addEventListener('click', () => {
-    showToast('Brainfy is free forever. No pricing tiers.', 'success');
+    document.getElementById('splash-pricing')?.scrollIntoView({ behavior: 'smooth' });
   });
 
   // ── Home: Exploration View ─────────────────────────

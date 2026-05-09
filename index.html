@@ -852,6 +852,14 @@
       #goalProgressBar { animation: none !important; }
       .hd-stat { animation: none !important; }
     }
+
+    /* ── Pricing responsive ── */
+    #pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start; }
+    @media (max-width: 860px) {
+      #pricing-grid { grid-template-columns: 1fr; max-width: 440px; margin: 0 auto; }
+      #pricing-grid > div[style*="scale(1.03)"] { transform: none !important; }
+      #pricing-grid > div[style*="scale(1.03)"]:hover { transform: translateY(-4px) !important; }
+    }
   </style>
 </head>
 <body>
@@ -1292,8 +1300,139 @@
   </section>
 
   <!-- ════════════════════════════
-       CTA SECTION
+       PRICING SECTION
   ════════════════════════════ -->
+  <section id="splash-pricing" style="padding:0 40px 110px;max-width:1240px;margin:0 auto;width:100%;">
+    <div style="text-align:center;margin-bottom:56px;">
+      <p style="font-size:10px;letter-spacing:0.18em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;margin-bottom:12px;">PRICING</p>
+      <h2 style="font-size:clamp(26px,3.5vw,42px);font-weight:900;letter-spacing:-0.025em;color:white;margin-bottom:14px;">Simple, honest pricing</h2>
+      <p style="font-size:16px;color:var(--muted);max-width:420px;margin:0 auto;line-height:1.65;">Start free. Upgrade when you're ready to go deeper.</p>
+    </div>
+
+    <div id="pricing-grid">
+
+      <!-- ── Student (Free) ── -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:22px;padding:32px;position:relative;transition:border-color 0.2s,transform 0.2s,box-shadow 0.2s;"
+           onmouseover="this.style.borderColor='rgba(124,58,237,0.35)';this.style.transform='translateY(-4px)';this.style.boxShadow='0 20px 50px rgba(0,0,0,0.35)'"
+           onmouseout="this.style.borderColor='';this.style.transform='';this.style.boxShadow=''">
+        <p style="font-size:11px;letter-spacing:0.14em;color:var(--muted);font-weight:700;margin-bottom:10px;">STUDENT</p>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:6px;">
+          <span style="font-size:42px;font-weight:900;color:white;letter-spacing:-0.03em;">Free</span>
+        </div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.5;">Everything you need to get started.</p>
+        <button onclick="goTo('signup')" class="btn-primary" style="width:100%;padding:13px;font-size:14px;font-weight:700;border-radius:12px;margin-bottom:28px;background:rgba(124,58,237,0.22);border:1px solid rgba(124,58,237,0.35);color:var(--plight);box-shadow:none;">Get started free</button>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--green);">check_circle</span>Pomodoro focus timer
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--green);">check_circle</span>Up to 3 subjects
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--green);">check_circle</span>Manual flashcards
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--green);">check_circle</span>Daily task list
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--green);">check_circle</span>Basic analytics
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);">
+            <span class="ms" style="font-size:16px;color:var(--muted2);">remove_circle</span>Cloud sync
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);">
+            <span class="ms" style="font-size:16px;color:var(--muted2);">remove_circle</span>AI tutor
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);">
+            <span class="ms" style="font-size:16px;color:var(--muted2);">remove_circle</span>Ambient sounds
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Student+ (Most Popular) ── -->
+      <div style="background:linear-gradient(160deg,rgba(124,58,237,0.18),rgba(76,215,246,0.07));border:1.5px solid rgba(124,58,237,0.5);border-radius:22px;padding:32px;position:relative;transform:scale(1.03);box-shadow:0 0 60px rgba(124,58,237,0.2);transition:transform 0.2s,box-shadow 0.2s;"
+           onmouseover="this.style.transform='scale(1.03) translateY(-4px)';this.style.boxShadow='0 28px 60px rgba(124,58,237,0.32)'"
+           onmouseout="this.style.transform='scale(1.03)';this.style.boxShadow='0 0 60px rgba(124,58,237,0.2)'">
+        <div style="position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--primary),#6d28d9);color:white;font-size:10px;font-weight:800;letter-spacing:0.1em;padding:5px 16px;border-radius:20px;white-space:nowrap;">MOST POPULAR</div>
+        <p style="font-size:11px;letter-spacing:0.14em;color:var(--plight);font-weight:700;margin-bottom:10px;">STUDENT+</p>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:6px;">
+          <span style="font-size:42px;font-weight:900;color:white;letter-spacing:-0.03em;">$7</span>
+          <span style="font-size:15px;color:var(--muted);font-weight:500;">/month</span>
+        </div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.5;">For students serious about their results.</p>
+        <button onclick="goTo('signup')" class="btn-primary" style="width:100%;padding:13px;font-size:14px;font-weight:700;border-radius:12px;margin-bottom:28px;background:linear-gradient(135deg,var(--primary),#6d28d9);box-shadow:0 6px 24px rgba(124,58,237,0.45);">Start Student+</button>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Everything in Student
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Unlimited subjects
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Cloud sync across devices
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Brainfy AI tutor
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>100 AI flashcards / month
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Ambient focus sounds
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Advanced analytics
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);">
+            <span class="ms" style="font-size:16px;color:var(--muted2);">remove_circle</span>Document / PDF import
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Deep Worker ── -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:22px;padding:32px;position:relative;transition:border-color 0.2s,transform 0.2s,box-shadow 0.2s;"
+           onmouseover="this.style.borderColor='rgba(76,215,246,0.35)';this.style.transform='translateY(-4px)';this.style.boxShadow='0 20px 50px rgba(0,0,0,0.35)'"
+           onmouseout="this.style.borderColor='';this.style.transform='';this.style.boxShadow=''">
+        <p style="font-size:11px;letter-spacing:0.14em;color:var(--cyan);font-weight:700;margin-bottom:10px;">DEEP WORKER</p>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:6px;">
+          <span style="font-size:42px;font-weight:900;color:white;letter-spacing:-0.03em;">$14</span>
+          <span style="font-size:15px;color:var(--muted);font-weight:500;">/month</span>
+        </div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.5;">For those who take deep work seriously.</p>
+        <button onclick="goTo('signup')" class="btn-primary" style="width:100%;padding:13px;font-size:14px;font-weight:700;border-radius:12px;margin-bottom:28px;background:linear-gradient(135deg,#0891b2,#0e7490);box-shadow:0 6px 24px rgba(76,215,246,0.28);">Start Deep Worker</button>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Everything in Student+
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Unlimited AI flashcards
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>PDF & document import
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>YouTube → flashcards
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Deep focus analytics
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Priority support
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Early access to new features
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
+            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Custom study schedule AI
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ════════════════════════════
+       CTA SECTION
   <section style="padding:0 40px 90px;max-width:1240px;margin:0 auto;width:100%;">
     <div id="splash-cta" style="text-align:center;padding:76px 40px;border-radius:28px;background:linear-gradient(135deg,rgba(124,58,237,0.14),rgba(76,215,246,0.07));border:1px solid rgba(124,58,237,0.2);position:relative;overflow:hidden;">
       <div style="position:absolute;top:-100px;left:50%;transform:translateX(-50%);width:500px;height:500px;background:radial-gradient(circle,rgba(124,58,237,0.1),transparent 68%);pointer-events:none;"></div>
