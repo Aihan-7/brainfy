@@ -2398,6 +2398,8 @@ function friendlyAuthError(code: string): string {
     case 'auth/invalid-email':        return 'Please enter a valid email address.';
     case 'auth/too-many-requests':    return 'Too many attempts. Please wait a moment and try again.';
     case 'auth/network-request-failed': return 'Network error. Check your connection and try again.';
+    case 'auth/unauthorized-domain':    return 'This domain is not authorised for sign-in. Contact support.';
+    case 'auth/popup-blocked':          return 'Pop-up blocked by your browser. Allow pop-ups and try again.';
     default: return 'Something went wrong. Please try again.';
   }
 }
