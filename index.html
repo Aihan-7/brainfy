@@ -614,6 +614,44 @@
       text-shadow: 0 0 32px rgba(76,215,246,0.55);
     }
 
+    /* ── Focus: fullscreen mode ── */
+    #focusActiveLayout:fullscreen,
+    #focusActiveLayout:-webkit-full-screen {
+      background: #080e1d;
+      display: flex !important;
+      flex-direction: column;
+    }
+    #focusActiveLayout:fullscreen .focus-fs-hide,
+    #focusActiveLayout:-webkit-full-screen .focus-fs-hide { display: none !important; }
+    #focusActiveLayout:fullscreen .focus-fs-center,
+    #focusActiveLayout:-webkit-full-screen .focus-fs-center {
+      grid-column: 1 / -1 !important;
+      justify-content: center;
+      align-items: center;
+    }
+    #focusActiveLayout:fullscreen #focusTimerGrid,
+    #focusActiveLayout:-webkit-full-screen #focusTimerGrid {
+      grid-template-columns: 1fr !important;
+    }
+    #focusActiveLayout:fullscreen #focusTimerCenter svg,
+    #focusActiveLayout:-webkit-full-screen #focusTimerCenter svg {
+      width: 360px; height: 360px;
+    }
+    #focusActiveLayout:fullscreen #focusTimerCenter svg circle,
+    #focusActiveLayout:-webkit-full-screen #focusTimerCenter svg circle {
+      cx: 180; cy: 180; r: 156;
+    }
+    #focusActiveLayout:fullscreen #timerRing,
+    #focusActiveLayout:-webkit-full-screen #timerRing {
+      stroke-dasharray: 980;
+      transform-origin: 180px 180px;
+    }
+    #focusActiveLayout:fullscreen #timerDisplay,
+    #focusActiveLayout:-webkit-full-screen #timerDisplay { font-size: 88px !important; }
+    /* Fullscreen top bar: show exit hint */
+    #focusActiveLayout:fullscreen #focusFsBar,
+    #focusActiveLayout:-webkit-full-screen #focusFsBar { opacity: 1 !important; pointer-events: auto !important; }
+
     /* ── AI message bubbles: spring slide-in ── */
     @keyframes msgSpringIn {
       from { opacity: 0; transform: translateY(10px) scale(0.97); }
@@ -2025,6 +2063,12 @@
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
+        <button id="focusFullscreenBtn" style="width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.07);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.15s,color 0.15s;"
+          onmouseover="this.style.background='rgba(255,255,255,0.1)';this.style.color='var(--text)'"
+          onmouseout="this.style.background='rgba(255,255,255,0.05)';this.style.color='var(--muted)'"
+          aria-label="Toggle fullscreen">
+          <svg id="fsExpandIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+        </button>
         <button id="focusNotifBtn" style="width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.07);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.15s,color 0.15s;"
           onmouseover="this.style.background='rgba(255,255,255,0.1)';this.style.color='var(--text)'"
           onmouseout="this.style.background='rgba(255,255,255,0.05)';this.style.color='var(--muted)'"
@@ -2041,10 +2085,10 @@
     </div>
 
     <!-- 3 columns -->
-    <div style="display:grid;grid-template-columns:220px 1fr 264px;flex:1;min-height:calc(100vh - 57px);">
+    <div id="focusTimerGrid" style="display:grid;grid-template-columns:220px 1fr 264px;flex:1;min-height:calc(100vh - 57px);">
 
       <!-- ── Left: Ambient + Milestones ── -->
-      <div style="border-right:1px solid rgba(255,255,255,0.06);padding:20px 16px;display:flex;flex-direction:column;gap:0;overflow-y:auto;">
+      <div class="focus-fs-hide" style="border-right:1px solid rgba(255,255,255,0.06);padding:20px 16px;display:flex;flex-direction:column;gap:0;overflow-y:auto;">
 
         <!-- Ambient section -->
         <div style="margin-bottom:24px;">
@@ -2076,7 +2120,7 @@
       </div>
 
       <!-- ── Center: Timer ── -->
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:40px;padding:48px 40px;">
+      <div id="focusTimerCenter" class="focus-fs-center" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:40px;padding:48px 40px;">
 
         <!-- Ring -->
         <div style="position:relative;width:280px;height:280px;">
@@ -2128,7 +2172,7 @@
       </div>
 
       <!-- ── Right: Quick Notes + Quote ── -->
-      <div style="border-left:1px solid rgba(255,255,255,0.06);padding:20px 16px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;">
+      <div class="focus-fs-hide" style="border-left:1px solid rgba(255,255,255,0.06);padding:20px 16px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;">
 
         <!-- Notes header -->
         <div style="display:flex;align-items:center;gap:7px;padding:0 4px;">

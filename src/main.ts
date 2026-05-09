@@ -2688,6 +2688,38 @@ function initEvents() {
   el('explorationViewBtn')?.addEventListener('click', () => goTo('stats'));
 
   // ── Focus active: Notifications & Settings ─────────
+  // ── Fullscreen toggle ──────────────────────────────
+  const fsBtn  = el('focusFullscreenBtn');
+  const fsIcon = el('fsExpandIcon');
+  const fsTarget = el('focusActiveLayout') as HTMLElement;
+
+  const FS_EXPAND = `<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>`;
+  const FS_SHRINK = `<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="10" y1="20" x2="3" y2="13"/><line x1="21" y1="3" x2="14" y2="10"/>`;
+
+  function isFullscreen(): boolean {
+    return !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+  }
+
+  function updateFsIcon(): void {
+    if (fsIcon) fsIcon.innerHTML = isFullscreen() ? FS_SHRINK : FS_EXPAND;
+  }
+
+  fsBtn?.addEventListener('click', async () => {
+    try {
+      if (!isFullscreen()) {
+        if (fsTarget.requestFullscreen) await fsTarget.requestFullscreen();
+        else if ((fsTarget as any).webkitRequestFullscreen) (fsTarget as any).webkitRequestFullscreen();
+      } else {
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else if ((document as any).webkitExitFullscreen) (document as any).webkitExitFullscreen();
+      }
+    } catch(_) {}
+    updateFsIcon();
+  });
+
+  document.addEventListener('fullscreenchange', updateFsIcon);
+  document.addEventListener('webkitfullscreenchange', updateFsIcon);
+
   el('focusNotifBtn')?.addEventListener('click', () => {
     showToast('No new notifications', 'info');
   });
