@@ -2087,6 +2087,44 @@ function renderStats() {
   renderHeatmap();
   renderSessionLog();
   renderStatsInsight();
+  renderMilestoneCards();
+}
+
+function renderMilestoneCards(): void {
+  const totalSess = S.sessions.length;
+  const totalMins = Math.round(S.sessions.reduce((n, s) => n + s.duration, 0) / 60);
+  const bestStreak = S.bestStreak || 0;
+
+  // Streak record
+  const streakEl = el('statBestStreak');
+  if (streakEl) streakEl.textContent = bestStreak > 0 ? `${bestStreak} Day${bestStreak !== 1 ? 's' : ''}` : '0 Days';
+
+  // Total focus time
+  const focusEl = el('statTotalFocus');
+  if (focusEl) {
+    if (totalMins >= 60) {
+      const hrs = (totalMins / 60).toFixed(1).replace(/\.0$/, '');
+      focusEl.textContent = `${hrs} Hr${+hrs !== 1 ? 's' : ''}`;
+    } else {
+      focusEl.textContent = `${totalMins} Min${totalMins !== 1 ? 's' : ''}`;
+    }
+  }
+
+  // Total sessions
+  const sessEl = el('statTotalSessions');
+  if (sessEl) sessEl.textContent = String(totalSess);
+
+  // Focus level based on total sessions
+  const levelEl = el('statFocusLevel');
+  if (levelEl) {
+    const level = totalSess >= 100 ? 'Master'
+                : totalSess >= 50  ? 'Advanced'
+                : totalSess >= 20  ? 'Focused'
+                : totalSess >= 5   ? 'Learner'
+                : totalSess >= 1   ? 'Starter'
+                : '—';
+    levelEl.textContent = level;
+  }
 }
 
 function renderStatsInsight() {
