@@ -489,13 +489,15 @@
       border: 1px solid var(--border);
       border-radius: 20px; padding: 28px;
       position: relative; overflow: hidden;
-      opacity: 0; transform: translateY(34px);
+      opacity: 1; transform: translateY(0);
       transition:
         opacity   0.65s cubic-bezier(0.22,1,0.36,1),
         transform 0.65s cubic-bezier(0.22,1,0.36,1),
         border-color 0.2s ease,
         box-shadow   0.2s ease;
     }
+    /* JS adds .js-animations to <html> enabling scroll-reveal */
+    .js-animations .bento-card { opacity: 0; transform: translateY(34px); }
     .bento-card.revealed { opacity: 1; transform: translateY(0); }
     .bento-card:hover {
       border-color: rgba(124,58,237,0.32) !important;
@@ -508,29 +510,32 @@
       display: flex; gap: 18px; align-items: flex-start;
       padding: 20px; border-radius: 14px;
       border: 1px solid transparent;
-      opacity: 0; transform: translateX(-22px);
+      opacity: 1; transform: translateX(0);
       transition:
         opacity      0.55s ease,
         transform    0.55s ease,
         border-color 0.2s,
         background   0.2s;
     }
+    .js-animations .phil-item { opacity: 0; transform: translateX(-22px); }
     .phil-item.revealed { opacity: 1; transform: translateX(0); }
     .phil-item:hover { background: rgba(255,255,255,0.025); border-color: var(--border); }
 
     /* Phil right panel */
     .phil-right {
-      opacity: 0; transform: translateX(24px);
+      opacity: 1; transform: translateX(0);
       transition: opacity 0.65s cubic-bezier(0.22,1,0.36,1) 0.15s,
                   transform 0.65s cubic-bezier(0.22,1,0.36,1) 0.15s;
     }
+    .js-animations .phil-right { opacity: 0; transform: translateX(24px); }
     .phil-right.revealed { opacity: 1; transform: translateX(0); }
 
     /* Phil heading items */
     .phil-head {
-      opacity: 0; transform: translateY(18px);
+      opacity: 1; transform: translateY(0);
       transition: opacity 0.5s ease, transform 0.5s ease;
     }
+    .js-animations .phil-head { opacity: 0; transform: translateY(18px); }
     .phil-head.revealed { opacity: 1; transform: translateY(0); }
 
     /* ═══════════════════════════════════════════════

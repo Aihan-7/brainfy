@@ -3055,11 +3055,13 @@ document.addEventListener('DOMContentLoaded', () => {
 function initSplashObserver() {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduced) {
-    // Immediately reveal all animated elements
     document.querySelectorAll('.bento-card, .phil-item, .phil-head, .phil-right')
       .forEach(el => el.classList.add('revealed'));
     return;
   }
+
+  // Enable CSS scroll-reveal hiding now that JS is confirmed running
+  document.documentElement.classList.add('js-animations');
 
   const opts = { threshold: 0.12, rootMargin: '0px 0px -40px 0px' };
 
