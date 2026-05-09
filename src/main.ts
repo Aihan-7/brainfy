@@ -3269,19 +3269,18 @@ function renderTTGrid(): void {
   const grid    = el('ttGrid');
   if (!headers || !grid) return;
 
-  // Day header cells
+  // Day header cells — CAPS label + purple dot for today
   const today = (new Date().getDay() + 6) % 7; // 0=Mon
-  const dayFull = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
   headers.innerHTML = `<div></div>` +
     TT_DAYS.map((d, i) => `
-      <div style="padding:14px 6px 12px;text-align:center;border-left:1px solid rgba(255,255,255,0.04);">
-        <div style="display:inline-flex;flex-direction:column;align-items:center;gap:4px;">
-          <span style="font-size:10px;font-weight:600;letter-spacing:0.07em;font-family:'Space Grotesk';color:${i === today ? 'var(--plight)' : 'var(--muted)'};">${d.toUpperCase()}</span>
-          ${i === today ? `<span style="width:5px;height:5px;border-radius:50%;background:var(--plight);display:block;"></span>` : ''}
+      <div style="padding:13px 6px 11px;text-align:center;border-left:1px solid rgba(255,255,255,0.04);${i===today?'background:rgba(124,58,237,0.05);':''}">
+        <div style="display:inline-flex;flex-direction:column;align-items:center;gap:3px;">
+          <span style="font-size:10px;font-weight:700;letter-spacing:0.08em;font-family:'Space Grotesk';color:${i===today?'var(--plight)':'var(--muted)'};opacity:${i===today?'1':'0.7'};">${d.toUpperCase()}</span>
+          ${i===today?`<span style="width:4px;height:4px;border-radius:50%;background:var(--plight);display:block;box-shadow:0 0 6px rgba(167,139,250,0.6);"></span>`:''}
         </div>
       </div>`).join('');
 
-  // Build block lookup: day -> list of blocks sorted by start
+  // Build block lookup: day -> list sorted by start
   const byDay: TimetableBlock[][] = Array.from({length:7}, () => []);
   ((S as any).timetable as TimetableBlock[]).forEach((b: TimetableBlock) => byDay[b.day].push(b));
   byDay.forEach(arr => arr.sort((a,b) => a.start.localeCompare(b.start)));
@@ -3294,20 +3293,24 @@ function renderTTGrid(): void {
         const [bh] = b.start.split(':').map(Number);
         return bh === h;
       });
+      // Pill-shaped blocks: frosted color tint, no left stripe
       const cells = blocks.map(b => `
         <div onclick="openTTModal(${b.id})"
-          style="margin:3px;padding:5px 8px;border-radius:8px;background:${b.color}18;border:1px solid ${b.color}30;
-            cursor:pointer;transition:background 0.15s,border-color 0.15s;"
-          onmouseover="this.style.background='${b.color}28';this.style.borderColor='${b.color}50'"
-          onmouseout="this.style.background='${b.color}18';this.style.borderColor='${b.color}30'">
-          <div style="font-size:11px;font-weight:600;color:${b.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.01em;">${b.title}</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:2px;opacity:0.8;">${b.start}–${b.end}</div>
+          style="margin:2px 3px;padding:5px 7px;border-radius:8px;
+            background:${b.color}16;
+            border:1px solid ${b.color}25;
+            backdrop-filter:blur(8px);
+            cursor:pointer;transition:all 0.15s ease;"
+          onmouseover="this.style.background='${b.color}28';this.style.borderColor='${b.color}45';this.style.transform='scale(1.01)'"
+          onmouseout="this.style.background='${b.color}16';this.style.borderColor='${b.color}25';this.style.transform='scale(1)'">
+          <div style="font-size:11px;font-weight:700;color:${b.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.01em;line-height:1.2;">${b.title}</div>
+          <div style="font-size:9.5px;color:${b.color};margin-top:2px;opacity:0.55;font-family:'Space Grotesk';letter-spacing:0.01em;">${b.start}–${b.end}</div>
         </div>`).join('');
-      return `<div style="border-left:1px solid rgba(255,255,255,0.04);min-height:52px;padding:1px;position:relative;">${cells}</div>`;
+      return `<div style="border-left:1px solid rgba(255,255,255,0.04);min-height:52px;padding:2px 1px;${di===today?'background:rgba(124,58,237,0.03);':''}">${cells}</div>`;
     }).join('');
 
     return `
-      <div style="font-size:10px;color:var(--muted);padding:0 10px;line-height:52px;text-align:right;white-space:nowrap;border-top:1px solid rgba(255,255,255,0.04);font-family:'Space Grotesk';opacity:0.6;">${label}</div>
+      <div style="font-size:9.5px;color:var(--muted);padding:0 10px;line-height:52px;text-align:right;white-space:nowrap;border-top:1px solid rgba(255,255,255,0.04);font-family:'Space Grotesk';font-weight:600;letter-spacing:0.03em;opacity:0.45;">${label}</div>
       ${cols}
     `;
   }).join('');
@@ -3320,15 +3323,20 @@ function renderTTToday(): void {
   const blocks: TimetableBlock[] = (((S as any).timetable || []) as TimetableBlock[]).filter((b: TimetableBlock) => b.day === today)
     .sort((a: TimetableBlock, b: TimetableBlock) => a.start.localeCompare(b.start));
   if (!blocks.length) {
-    list.innerHTML = `<p style="font-size:13px;color:var(--muted);">Nothing scheduled for today.</p>`;
+    list.innerHTML = `<p style="font-size:13px;color:var(--muted);font-weight:400;opacity:0.6;">Nothing scheduled for today.</p>`;
     return;
   }
-  list.innerHTML = blocks.map(b => `
-    <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
-      <div style="width:3px;height:32px;border-radius:2px;background:${b.color};flex-shrink:0;opacity:0.85;"></div>
+  list.innerHTML = blocks.map((b, i) => `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;${i < blocks.length-1 ? 'border-bottom:1px solid rgba(255,255,255,0.04);' : ''}">
+      <div style="width:9px;height:9px;border-radius:50%;background:${b.color};flex-shrink:0;box-shadow:0 0 8px ${b.color}60;"></div>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:600;color:var(--text);letter-spacing:-0.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.title}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:1px;">${b.start} – ${b.end}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);letter-spacing:-0.015em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3;">${b.title}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;font-family:'Space Grotesk';letter-spacing:0.02em;opacity:0.7;">${b.start} – ${b.end}</div>
+      </div>
+      <div style="width:28px;height:28px;border-radius:8px;background:${b.color}14;border:1px solid ${b.color}22;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:all 0.15s;"
+        onclick="openTTModal(${b.id})"
+        onmouseover="this.style.background='${b.color}28'" onmouseout="this.style.background='${b.color}14'">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="${b.color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </div>
     </div>`).join('');
 }
@@ -3337,26 +3345,36 @@ function renderTTWeekSummary(): void {
   const box = el('ttWeekSummary');
   if (!box) return;
   const timetable: TimetableBlock[] = ((S as any).timetable || []) as TimetableBlock[];
-  if (!timetable.length) {
-    box.innerHTML = `<p style="font-size:13px;color:var(--muted);">No blocks this week yet.</p>`;
-    return;
-  }
-  // Total hours
+
   let totalMins = 0;
   timetable.forEach((b: TimetableBlock) => {
     const [sh,sm] = b.start.split(':').map(Number);
     const [eh,em] = b.end.split(':').map(Number);
     totalMins += (eh*60+em) - (sh*60+sm);
   });
-  const hrs = (totalMins/60).toFixed(1).replace(/\.0$/,'');
+  const hrs = totalMins ? (totalMins/60).toFixed(1).replace(/\.0$/,'') : '0';
+
+  // Two icon stat cards side by side
   box.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
-      <span style="font-size:13px;color:var(--muted);">Total blocks</span>
-      <span style="font-size:14px;font-weight:700;color:var(--text);">${timetable.length}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;">
-      <span style="font-size:13px;color:var(--muted);">Scheduled hours</span>
-      <span style="font-size:14px;font-weight:700;color:var(--plight);">${hrs}h</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="border-radius:12px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.15);padding:12px 14px;display:flex;flex-direction:column;gap:8px;">
+        <div style="width:28px;height:28px;border-radius:8px;background:rgba(124,58,237,0.18);display:flex;align-items:center;justify-content:center;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--plight)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <div>
+          <div style="font-size:22px;font-weight:800;color:var(--plight);letter-spacing:-0.04em;line-height:1;">${timetable.length}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:3px;font-family:'Space Grotesk';letter-spacing:0.06em;font-weight:600;opacity:0.7;">BLOCKS</div>
+        </div>
+      </div>
+      <div style="border-radius:12px;background:rgba(76,215,246,0.06);border:1px solid rgba(76,215,246,0.12);padding:12px 14px;display:flex;flex-direction:column;gap:8px;">
+        <div style="width:28px;height:28px;border-radius:8px;background:rgba(76,215,246,0.12);display:flex;align-items:center;justify-content:center;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div>
+          <div style="font-size:22px;font-weight:800;color:var(--cyan);letter-spacing:-0.04em;line-height:1;">${hrs}<span style="font-size:13px;font-weight:600;opacity:0.7;">h</span></div>
+          <div style="font-size:10px;color:var(--muted);margin-top:3px;font-family:'Space Grotesk';letter-spacing:0.06em;font-weight:600;opacity:0.7;">HOURS</div>
+        </div>
+      </div>
     </div>`;
 }
 
@@ -3397,9 +3415,11 @@ function closeTTModal(): void {
 
 function updateTTColorPicker(): void {
   document.querySelectorAll<HTMLElement>('.tt-color').forEach(dot => {
-    dot.style.boxShadow = dot.dataset['color'] === ttSelectedColor
-      ? '0 0 0 2.5px rgba(255,255,255,0.75)' : '0 0 0 2px transparent';
-    dot.style.transform = dot.dataset['color'] === ttSelectedColor ? 'scale(1.15)' : 'scale(1)';
+    const c = dot.dataset['color'] || '';
+    const selected = c === ttSelectedColor;
+    dot.style.boxShadow = selected ? `0 0 0 2.5px #fff, 0 0 0 4.5px ${c}` : 'none';
+    dot.style.transform = selected ? 'scale(1.12)' : 'scale(1)';
+    dot.style.opacity   = selected ? '1' : '0.75';
   });
 }
 

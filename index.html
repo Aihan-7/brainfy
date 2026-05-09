@@ -2423,141 +2423,135 @@
      TIMETABLE VIEW
 ══════════════════════════════════════════ -->
 <div id="timetableView" class="view app-view">
-  <div style="max-width:1060px;margin:0 auto;padding:40px 32px;">
+  <div style="max-width:1080px;margin:0 auto;padding:36px 28px 56px;">
 
-    <!-- Header -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;gap:16px;">
+    <!-- ── Header ── -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
       <div>
-        <h1 style="font-size:22px;font-weight:700;letter-spacing:-0.02em;color:var(--text);line-height:1.2;">Timetable</h1>
-        <p style="font-size:13px;color:var(--muted);margin-top:3px;font-weight:400;">Plan your week, block your study time.</p>
+        <h1 style="font-size:20px;font-weight:700;letter-spacing:-0.025em;color:var(--text);line-height:1;">Timetable</h1>
+        <p style="font-size:12px;color:var(--muted);margin-top:4px;font-weight:400;letter-spacing:0.01em;">Your weekly study schedule</p>
       </div>
-      <button id="addBlockBtn"
-        style="display:flex;align-items:center;gap:7px;padding:9px 18px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.28);border-radius:12px;color:var(--plight);font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:background 0.15s,border-color 0.15s;letter-spacing:-0.01em;flex-shrink:0;"
-        onmouseover="this.style.background='rgba(124,58,237,0.24)';this.style.borderColor='rgba(124,58,237,0.45)'"
-        onmouseout="this.style.background='rgba(124,58,237,0.15)';this.style.borderColor='rgba(124,58,237,0.28)'">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Add Block
+      <!-- Compact + button -->
+      <button id="addBlockBtn" aria-label="Add block"
+        style="width:36px;height:36px;border-radius:11px;background:rgba(124,58,237,0.18);border:1px solid rgba(124,58,237,0.3);color:var(--plight);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.15s,transform 0.1s;flex-shrink:0;"
+        onmouseover="this.style.background='rgba(124,58,237,0.28)'" onmouseout="this.style.background='rgba(124,58,237,0.18)'"
+        onmousedown="this.style.transform='scale(0.92)'" onmouseup="this.style.transform='scale(1)'">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
     </div>
 
-    <!-- Week grid -->
-    <div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-radius:18px;overflow:hidden;backdrop-filter:blur(10px);">
+    <!-- ── Week grid ── -->
+    <div style="border-radius:20px;overflow:hidden;border:1px solid rgba(255,255,255,0.06);background:rgba(7,15,31,0.7);backdrop-filter:blur(24px);">
 
       <!-- Day headers -->
-      <div id="ttDayHeaders" style="display:grid;grid-template-columns:56px repeat(7,1fr);border-bottom:1px solid rgba(255,255,255,0.05);">
-        <div></div>
+      <div id="ttDayHeaders" style="display:grid;grid-template-columns:52px repeat(7,1fr);border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(255,255,255,0.02);">
+        <div style="padding:14px 0;"></div>
       </div>
 
       <!-- Hour rows -->
-      <div id="ttGrid" style="display:grid;grid-template-columns:56px repeat(7,1fr);max-height:580px;overflow-y:auto;">
+      <div id="ttGrid" style="display:grid;grid-template-columns:52px repeat(7,1fr);max-height:540px;overflow-y:auto;">
       </div>
     </div>
 
-    <!-- Bottom panels -->
-    <div style="margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+    <!-- ── Bottom row: Today + Stats ── -->
+    <div style="margin-top:16px;display:grid;grid-template-columns:1.4fr 1fr;gap:12px;">
 
-      <!-- Today -->
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:20px;backdrop-filter:blur(10px);">
-        <p style="font-size:10px;font-weight:600;letter-spacing:0.09em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:14px;">TODAY</p>
-        <div id="ttTodayList" style="display:flex;flex-direction:column;gap:0;">
-          <p style="font-size:13px;color:var(--muted);">Nothing scheduled for today.</p>
+      <!-- Today's schedule -->
+      <div style="border-radius:18px;border:1px solid rgba(255,255,255,0.06);background:rgba(7,15,31,0.6);backdrop-filter:blur(20px);padding:20px 22px;">
+        <p style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:16px;">TODAY</p>
+        <div id="ttTodayList">
+          <p style="font-size:13px;color:var(--muted);font-weight:400;">Nothing scheduled for today.</p>
         </div>
       </div>
 
-      <!-- This week -->
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:20px;backdrop-filter:blur(10px);">
-        <p style="font-size:10px;font-weight:600;letter-spacing:0.09em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:14px;">THIS WEEK</p>
-        <div id="ttWeekSummary" style="display:flex;flex-direction:column;gap:0;">
-          <p style="font-size:13px;color:var(--muted);">No blocks this week yet.</p>
+      <!-- Stats -->
+      <div style="border-radius:18px;border:1px solid rgba(255,255,255,0.06);background:rgba(7,15,31,0.6);backdrop-filter:blur(20px);padding:20px 22px;">
+        <p style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:16px;">THIS WEEK</p>
+        <div id="ttWeekSummary">
+          <p style="font-size:13px;color:var(--muted);font-weight:400;">No blocks scheduled yet.</p>
         </div>
       </div>
     </div>
 
   </div>
 
-  <!-- Add/Edit block modal -->
-  <div id="ttModal" style="display:none;position:fixed;inset:0;z-index:200;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(16px);opacity:0;transition:opacity 0.2s ease;" onclick="if(event.target===this)closeTTModal()">
-    <div style="width:100%;max-width:400px;background:rgba(13,22,40,0.95);border:1px solid rgba(255,255,255,0.1);border-radius:22px;overflow:hidden;transform:translateY(20px) scale(0.97);transition:transform 0.24s cubic-bezier(0.34,1.2,0.64,1);">
+  <!-- ── Add / Edit modal — iOS sheet style ── -->
+  <div id="ttModal" style="display:none;position:fixed;inset:0;z-index:200;align-items:flex-end;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(20px);opacity:0;transition:opacity 0.22s ease;" onclick="if(event.target===this)closeTTModal()">
+    <div style="width:100%;max-width:480px;margin-bottom:24px;background:rgba(10,18,34,0.97);border:1px solid rgba(255,255,255,0.09);border-radius:26px;overflow:hidden;transform:translateY(40px);transition:transform 0.28s cubic-bezier(0.34,1.15,0.64,1);">
 
-      <!-- Modal header -->
-      <div style="padding:22px 22px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.06);">
-        <h3 id="ttModalTitle" style="font-size:15px;font-weight:700;letter-spacing:-0.01em;">Add Block</h3>
-        <button onclick="closeTTModal()" style="width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,0.07);border:none;cursor:pointer;color:var(--muted);font-size:16px;display:flex;align-items:center;justify-content:center;line-height:1;transition:background 0.15s;"
-          onmouseover="this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.07)'">×</button>
+      <!-- Sheet handle -->
+      <div style="display:flex;justify-content:center;padding:12px 0 0;">
+        <div style="width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,0.15);"></div>
       </div>
 
-      <!-- Title input -->
-      <div style="padding:16px 22px 0;">
-        <input id="ttBlockTitle" type="text" placeholder="Block title — Physics, Deep Work…"
-          style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;color:var(--text);font-family:'Manrope',sans-serif;font-size:14px;outline:none;transition:border-color 0.18s,background 0.18s;letter-spacing:-0.01em;"
-          onfocus="this.style.borderColor='rgba(124,58,237,0.5)';this.style.background='rgba(124,58,237,0.06)'"
-          onblur="this.style.borderColor='rgba(255,255,255,0.08)';this.style.background='rgba(255,255,255,0.05)'"/>
+      <!-- Title row -->
+      <div style="padding:14px 22px 16px;display:flex;align-items:center;justify-content:space-between;">
+        <h3 id="ttModalTitle" style="font-size:16px;font-weight:700;letter-spacing:-0.02em;color:var(--text);">New Block</h3>
+        <button onclick="closeTTModal()"
+          style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.08);border:none;cursor:pointer;color:var(--muted);font-size:17px;display:flex;align-items:center;justify-content:center;transition:background 0.15s;"
+          onmouseover="this.style.background='rgba(255,255,255,0.14)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">×</button>
       </div>
 
-      <!-- Divider -->
-      <div style="height:1px;background:rgba(255,255,255,0.06);margin:16px 0 0;"></div>
-
-      <!-- Day + Time -->
-      <div style="padding:16px 22px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-        <div style="grid-column:1/-1;">
-          <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:6px;font-weight:600;letter-spacing:0.07em;font-family:'Space Grotesk';">DAY</label>
+      <!-- Inset field group -->
+      <div style="margin:0 14px;border-radius:16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);overflow:hidden;margin-bottom:10px;">
+        <!-- Title -->
+        <input id="ttBlockTitle" type="text" placeholder="Block title"
+          style="width:100%;padding:13px 16px;background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.05);color:var(--text);font-family:'Manrope',sans-serif;font-size:15px;outline:none;letter-spacing:-0.01em;"/>
+        <!-- Day -->
+        <div style="position:relative;">
+          <select id="ttBlockDay"
+            style="width:100%;padding:13px 40px 13px 16px;background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.05);color:var(--text);font-family:'Manrope',sans-serif;font-size:14px;outline:none;appearance:none;cursor:pointer;">
+            <option value="0" style="background:#0d1628;">Monday</option>
+            <option value="1" style="background:#0d1628;">Tuesday</option>
+            <option value="2" style="background:#0d1628;">Wednesday</option>
+            <option value="3" style="background:#0d1628;">Thursday</option>
+            <option value="4" style="background:#0d1628;">Friday</option>
+            <option value="5" style="background:#0d1628;">Saturday</option>
+            <option value="6" style="background:#0d1628;">Sunday</option>
+          </select>
+          <svg style="position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:0.4;" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <!-- Time row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;">
+          <div style="position:relative;border-right:1px solid rgba(255,255,255,0.05);">
+            <span style="position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted);font-family:'Space Grotesk';letter-spacing:0.06em;font-weight:600;pointer-events:none;">START</span>
+            <input id="ttBlockStart" type="time" value="09:00"
+              style="width:100%;padding:13px 16px 13px 68px;background:transparent;border:none;color:var(--text);font-family:'Manrope',sans-serif;font-size:14px;outline:none;"/>
+          </div>
           <div style="position:relative;">
-            <select id="ttBlockDay"
-              style="width:100%;padding:10px 32px 10px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;color:var(--text);font-family:'Manrope',sans-serif;font-size:13px;outline:none;appearance:none;cursor:pointer;transition:border-color 0.18s;"
-              onfocus="this.style.borderColor='rgba(124,58,237,0.5)'" onblur="this.style.borderColor='rgba(255,255,255,0.08)'">
-              <option value="0">Monday</option><option value="1">Tuesday</option><option value="2">Wednesday</option>
-              <option value="3">Thursday</option><option value="4">Friday</option><option value="5">Saturday</option><option value="6">Sunday</option>
-            </select>
-            <svg style="position:absolute;right:11px;top:50%;transform:translateY(-50%);pointer-events:none;" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <span style="position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted);font-family:'Space Grotesk';letter-spacing:0.06em;font-weight:600;pointer-events:none;">END</span>
+            <input id="ttBlockEnd" type="time" value="10:00"
+              style="width:100%;padding:13px 16px 13px 56px;background:transparent;border:none;color:var(--text);font-family:'Manrope',sans-serif;font-size:14px;outline:none;"/>
           </div>
         </div>
-        <div>
-          <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:6px;font-weight:600;letter-spacing:0.07em;font-family:'Space Grotesk';">START</label>
-          <input id="ttBlockStart" type="time" value="09:00"
-            style="width:100%;padding:10px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;color:var(--text);font-family:'Manrope',sans-serif;font-size:13px;outline:none;transition:border-color 0.18s;"
-            onfocus="this.style.borderColor='rgba(124,58,237,0.5)'" onblur="this.style.borderColor='rgba(255,255,255,0.08)'"/>
-        </div>
-        <div>
-          <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:6px;font-weight:600;letter-spacing:0.07em;font-family:'Space Grotesk';">END</label>
-          <input id="ttBlockEnd" type="time" value="10:00"
-            style="width:100%;padding:10px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;color:var(--text);font-family:'Manrope',sans-serif;font-size:13px;outline:none;transition:border-color 0.18s;"
-            onfocus="this.style.borderColor='rgba(124,58,237,0.5)'" onblur="this.style.borderColor='rgba(255,255,255,0.08)'"/>
-        </div>
       </div>
 
-      <!-- Divider -->
-      <div style="height:1px;background:rgba(255,255,255,0.06);"></div>
-
-      <!-- Color picker -->
-      <div style="padding:14px 22px;">
-        <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:10px;font-weight:600;letter-spacing:0.07em;font-family:'Space Grotesk';">COLOUR</label>
-        <div id="ttColorPicker" style="display:flex;gap:8px;align-items:center;">
-          <div class="tt-color" data-color="#7c3aed" style="width:24px;height:24px;border-radius:50%;background:#7c3aed;cursor:pointer;box-shadow:0 0 0 2px rgba(255,255,255,0.7);transition:box-shadow 0.15s;"></div>
-          <div class="tt-color" data-color="#4cd7f6" style="width:24px;height:24px;border-radius:50%;background:#4cd7f6;cursor:pointer;box-shadow:0 0 0 2px transparent;transition:box-shadow 0.15s;"></div>
-          <div class="tt-color" data-color="#4edea3" style="width:24px;height:24px;border-radius:50%;background:#4edea3;cursor:pointer;box-shadow:0 0 0 2px transparent;transition:box-shadow 0.15s;"></div>
-          <div class="tt-color" data-color="#f59e0b" style="width:24px;height:24px;border-radius:50%;background:#f59e0b;cursor:pointer;box-shadow:0 0 0 2px transparent;transition:box-shadow 0.15s;"></div>
-          <div class="tt-color" data-color="#f87171" style="width:24px;height:24px;border-radius:50%;background:#f87171;cursor:pointer;box-shadow:0 0 0 2px transparent;transition:box-shadow 0.15s;"></div>
+      <!-- Colour swatches -->
+      <div style="margin:0 14px 10px;border-radius:16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);padding:14px 16px;display:flex;align-items:center;gap:12px;">
+        <span style="font-size:11px;color:var(--muted);font-family:'Space Grotesk';letter-spacing:0.07em;font-weight:600;flex-shrink:0;">COLOUR</span>
+        <div id="ttColorPicker" style="display:flex;gap:10px;align-items:center;">
+          <div class="tt-color" data-color="#7c3aed" style="width:26px;height:26px;border-radius:50%;background:#7c3aed;cursor:pointer;transition:transform 0.12s,box-shadow 0.12s;box-shadow:0 0 0 2.5px #fff,0 0 0 4px #7c3aed;"></div>
+          <div class="tt-color" data-color="#4cd7f6" style="width:26px;height:26px;border-radius:50%;background:#4cd7f6;cursor:pointer;transition:transform 0.12s,box-shadow 0.12s;box-shadow:none;"></div>
+          <div class="tt-color" data-color="#4edea3" style="width:26px;height:26px;border-radius:50%;background:#4edea3;cursor:pointer;transition:transform 0.12s,box-shadow 0.12s;box-shadow:none;"></div>
+          <div class="tt-color" data-color="#f59e0b" style="width:26px;height:26px;border-radius:50%;background:#f59e0b;cursor:pointer;transition:transform 0.12s,box-shadow 0.12s;box-shadow:none;"></div>
+          <div class="tt-color" data-color="#f87171" style="width:26px;height:26px;border-radius:50%;background:#f87171;cursor:pointer;transition:transform 0.12s,box-shadow 0.12s;box-shadow:none;"></div>
         </div>
       </div>
-
-      <!-- Divider -->
-      <div style="height:1px;background:rgba(255,255,255,0.06);"></div>
 
       <!-- Actions -->
-      <div style="padding:16px 22px;display:flex;gap:8px;">
+      <div style="padding:4px 14px 20px;display:flex;gap:8px;">
         <button id="ttDeleteBtn" onclick="deleteTTBlock()"
-          style="display:none;padding:11px 16px;background:transparent;border:1px solid rgba(239,68,68,0.2);border-radius:12px;color:rgba(248,113,113,0.75);font-size:13px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;transition:border-color 0.15s,color 0.15s,background 0.15s;"
-          onmouseover="this.style.borderColor='rgba(239,68,68,0.4)';this.style.color='#f87171';this.style.background='rgba(239,68,68,0.06)'"
-          onmouseout="this.style.borderColor='rgba(239,68,68,0.2)';this.style.color='rgba(248,113,113,0.75)';this.style.background='transparent'">Delete</button>
+          style="display:none;padding:13px 18px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.18);border-radius:14px;color:rgba(248,113,113,0.8);font-size:13px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;transition:all 0.15s;"
+          onmouseover="this.style.background='rgba(239,68,68,0.14)';this.style.color='#f87171'"
+          onmouseout="this.style.background='rgba(239,68,68,0.08)';this.style.color='rgba(248,113,113,0.8)'">Delete</button>
         <button onclick="closeTTModal()"
-          style="flex:1;padding:11px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;transition:background 0.15s;"
-          onmouseover="this.style.background='rgba(255,255,255,0.09)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'">Cancel</button>
+          style="flex:1;padding:13px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:14px;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;transition:background 0.15s;"
+          onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">Cancel</button>
         <button id="ttSaveBtn" onclick="saveTTBlock()"
-          style="flex:1;padding:11px;background:var(--primary);border:none;border-radius:12px;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;letter-spacing:-0.01em;transition:opacity 0.15s,transform 0.12s;"
+          style="flex:1.4;padding:13px;background:var(--primary);border:none;border-radius:14px;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;letter-spacing:-0.01em;transition:opacity 0.15s,transform 0.1s;"
           onmouseover="this.style.opacity='0.88'" onmouseout="this.style.opacity='1'"
-          onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform='scale(1)'">Save</button>
+          onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform='scale(1)'">Save Block</button>
       </div>
-
     </div>
   </div>
 </div><!-- /timetableView -->
