@@ -1379,6 +1379,14 @@ const FOOTER_CONTENT: Record<string, { title: string; html: string }> = {
 };
 
 function openFooterLink(page: string): void {
+  if (page === 'privacy') {
+    window.open('/privacy.html', '_blank', 'noopener');
+    return;
+  }
+  if (page === 'terms') {
+    window.open('/terms.html', '_blank', 'noopener');
+    return;
+  }
   if (page === 'community') {
     window.open('https://github.com/Aihan-7/brainfy', '_blank', 'noopener');
     return;
