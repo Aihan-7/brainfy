@@ -733,8 +733,13 @@
       transition: background 0.18s, color 0.18s, border-color 0.18s,
                   transform 0.2s cubic-bezier(0.34,1.56,0.64,1) !important;
     }
-    .preset-btn:hover  { transform: translateY(-1px); }
+    .preset-btn:hover:not(.active-preset) { color: var(--text) !important; }
     .preset-btn:active { transform: scale(0.96); }
+    .preset-btn.active-preset {
+      background: rgba(124,58,237,0.28) !important;
+      color: var(--plighter) !important;
+      box-shadow: inset 0 0 0 1px rgba(124,58,237,0.4), 0 2px 8px rgba(0,0,0,0.25) !important;
+    }
 
     /* override reduced motion (already covered above) */
     @media (prefers-reduced-motion: reduce) {
@@ -1928,38 +1933,83 @@
 
   <!-- Idle -->
   <div id="focusIdleContent">
-    <div style="text-align:center;">
-      <h1 style="font-size:28px;font-weight:800;color:white;margin-bottom:8px;">Focus Session</h1>
-      <p style="color:var(--muted);font-size:14px;">Build deep work habits, one session at a time.</p>
+
+    <!-- Icon + wordmark -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:36px;">
+      <div style="width:64px;height:64px;border-radius:20px;background:linear-gradient(145deg,rgba(124,58,237,0.18),rgba(124,58,237,0.06));border:1px solid rgba(124,58,237,0.22);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(167,139,250,0.9)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="rgba(167,139,250,0.9)" stroke="none"/>
+        </svg>
+      </div>
+      <div style="text-align:center;">
+        <h1 style="font-size:22px;font-weight:700;color:var(--text);letter-spacing:-0.02em;line-height:1.2;">Focus Room</h1>
+        <p style="font-size:13px;color:var(--muted);margin-top:4px;font-weight:400;">Set an intention, pick a duration, begin.</p>
+      </div>
     </div>
 
-    <div class="glass" style="padding:36px;max-width:460px;width:100%;text-align:center;">
-      <div style="width:56px;height:56px;margin:0 auto 14px;border-radius:16px;background:linear-gradient(135deg,rgba(124,58,237,0.25),rgba(76,215,246,0.15));display:flex;align-items:center;justify-content:center;border:1px solid rgba(124,58,237,0.3);">
-        <span class="ms" style="font-size:28px;color:var(--plight);">target</span>
-      </div>
-      <h2 style="font-size:20px;font-weight:700;margin-bottom:6px;">Focus Room</h2>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:24px;">Set an intention, pick a duration, begin.</p>
+    <!-- Card -->
+    <div style="max-width:420px;width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:20px;backdrop-filter:blur(20px);overflow:hidden;">
 
-      <input id="focusIntentInput" type="text" placeholder="What are you working on?"
-        style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:'Manrope',sans-serif;font-size:14px;outline:none;margin-bottom:12px;transition:border-color 0.2s;"
-        onfocus="this.style.borderColor='rgba(76,215,246,0.4)'"
-        onblur="this.style.borderColor='var(--border)'"/>
+      <!-- Inputs -->
+      <div style="padding:24px 24px 20px;">
+        <input id="focusIntentInput" type="text" placeholder="What are you working on?"
+          style="width:100%;padding:12px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;color:var(--text);font-family:'Manrope',sans-serif;font-size:14px;outline:none;margin-bottom:10px;transition:border-color 0.18s,background 0.18s;letter-spacing:-0.01em;"
+          onfocus="this.style.borderColor='rgba(124,58,237,0.5)';this.style.background='rgba(124,58,237,0.06)'"
+          onblur="this.style.borderColor='rgba(255,255,255,0.08)';this.style.background='rgba(255,255,255,0.05)'"/>
 
-      <select id="focusSubjectSelect"
-        style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:'Manrope',sans-serif;font-size:14px;outline:none;margin-bottom:12px;appearance:none;">
-        <option value="" style="background:#0d1628;">Select a subject...</option>
-      </select>
-
-      <div style="display:flex;gap:8px;margin-bottom:20px;">
-        <button class="preset-btn btn-ghost active-preset" data-focus="25" data-break="5" style="flex:1;padding:10px;font-size:13px;font-weight:600;">25/5</button>
-        <button class="preset-btn btn-ghost" data-focus="50" data-break="10" style="flex:1;padding:10px;font-size:13px;font-weight:600;">50/10</button>
-        <button class="preset-btn btn-ghost" data-focus="90" data-break="20" style="flex:1;padding:10px;font-size:13px;font-weight:600;">90/20</button>
+        <div style="position:relative;">
+          <select id="focusSubjectSelect"
+            style="width:100%;padding:12px 36px 12px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;color:var(--text);font-family:'Manrope',sans-serif;font-size:14px;outline:none;appearance:none;cursor:pointer;transition:border-color 0.18s,background 0.18s;letter-spacing:-0.01em;"
+            onfocus="this.style.borderColor='rgba(124,58,237,0.5)';this.style.background='rgba(124,58,237,0.06)'"
+            onblur="this.style.borderColor='rgba(255,255,255,0.08)';this.style.background='rgba(255,255,255,0.05)'">
+            <option value="" style="background:#0d1628;">Select a subject…</option>
+          </select>
+          <svg style="position:absolute;right:13px;top:50%;transform:translateY(-50%);pointer-events:none;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
       </div>
 
-      <button id="beginFocusBtn" class="btn-primary" style="width:100%;padding:14px;font-size:15px;">
-        Start Focus Room
-      </button>
+      <!-- Divider -->
+      <div style="height:1px;background:rgba(255,255,255,0.06);"></div>
+
+      <!-- Duration segmented control -->
+      <div style="padding:16px 24px;">
+        <p style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:var(--muted);margin-bottom:10px;font-family:'Space Grotesk';">DURATION</p>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px;background:rgba(0,0,0,0.25);border-radius:12px;border:1px solid rgba(255,255,255,0.05);">
+          <button class="preset-btn active-preset" data-focus="25" data-break="5"
+            style="padding:9px 0;border-radius:9px;border:none;font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:background 0.18s,color 0.18s,box-shadow 0.18s;letter-spacing:-0.01em;">
+            <span style="display:block;font-size:15px;font-weight:700;line-height:1.1;">25/5</span>
+            <span style="display:block;font-size:10px;font-weight:500;opacity:0.7;margin-top:2px;">Pomodoro</span>
+          </button>
+          <button class="preset-btn" data-focus="50" data-break="10"
+            style="padding:9px 0;border-radius:9px;border:none;background:transparent;color:var(--muted);font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:background 0.18s,color 0.18s,box-shadow 0.18s;letter-spacing:-0.01em;">
+            <span style="display:block;font-size:15px;font-weight:700;line-height:1.1;">50/10</span>
+            <span style="display:block;font-size:10px;font-weight:500;opacity:0.7;margin-top:2px;">Extended</span>
+          </button>
+          <button class="preset-btn" data-focus="90" data-break="20"
+            style="padding:9px 0;border-radius:9px;border:none;background:transparent;color:var(--muted);font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:background 0.18s,color 0.18s,box-shadow 0.18s;letter-spacing:-0.01em;">
+            <span style="display:block;font-size:15px;font-weight:700;line-height:1.1;">90/20</span>
+            <span style="display:block;font-size:10px;font-weight:500;opacity:0.7;margin-top:2px;">Deep Work</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Divider -->
+      <div style="height:1px;background:rgba(255,255,255,0.06);"></div>
+
+      <!-- Start button -->
+      <div style="padding:20px 24px;">
+        <button id="beginFocusBtn"
+          style="width:100%;padding:14px;border-radius:13px;border:none;background:var(--primary);color:white;font-family:'Manrope',sans-serif;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:-0.01em;transition:opacity 0.18s,transform 0.12s;display:flex;align-items:center;justify-content:center;gap:8px;"
+          onmouseover="this.style.opacity='0.88'"
+          onmouseout="this.style.opacity='1'"
+          onmousedown="this.style.transform='scale(0.98)'"
+          onmouseup="this.style.transform='scale(1)'">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Begin Session
+        </button>
+      </div>
     </div>
+
   </div>
 
   <!-- Active layout: top bar + 3 columns -->
