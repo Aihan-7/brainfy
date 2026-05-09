@@ -1098,7 +1098,14 @@ function updateTimerDisplay() {
 
 function setTimerBtn(running: boolean): void {
   const icon = el('playPauseIcon');
-  if (icon) icon.textContent = running ? 'pause' : 'play_arrow';
+  if (!icon) return;
+  if (running) {
+    icon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+    (icon as unknown as SVGElement).setAttribute('viewBox', '0 0 24 24');
+  } else {
+    icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
+    (icon as unknown as SVGElement).setAttribute('viewBox', '0 0 24 24');
+  }
 }
 
 function startTimer() {

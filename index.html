@@ -148,9 +148,9 @@
     .subj-card:hover { border-color: rgba(124,58,237,0.4); transform: translateY(-2px); }
 
     /* ── Timer ring ── */
-    .timer-ring-track { fill: transparent; stroke: rgba(255,255,255,0.05); stroke-width: 8; }
+    .timer-ring-track    { fill: transparent; stroke: rgba(255,255,255,0.06); stroke-width: 10; }
     .timer-ring-progress {
-      fill: transparent; stroke: var(--cyan); stroke-width: 8;
+      fill: transparent; stroke: var(--plight); stroke-width: 10;
       stroke-linecap: round;
       transform: rotate(-90deg); transform-origin: 140px 140px;
       transition: stroke-dashoffset 1s linear, stroke 0.3s;
@@ -2016,97 +2016,151 @@
   <div id="focusActiveLayout" style="min-height:100vh;flex-direction:column;">
 
     <!-- Top bar -->
-    <div style="padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
-      <div>
-        <h2 id="focusTitle" style="font-size:18px;font-weight:800;color:white;">Focus Session</h2>
-        <p id="focusSubtitle" style="font-size:13px;color:var(--muted);margin-top:2px;">Deep Work</p>
-      </div>
-      <div style="display:flex;align-items:center;gap:14px;">
-        <div style="display:flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;background:rgba(78,222,163,0.1);border:1px solid rgba(78,222,163,0.25);">
-          <span class="pulse pulse-green"></span>
-          <span style="font-size:12px;font-weight:700;color:var(--green);letter-spacing:0.06em;">SESSION ACTIVE</span>
+    <div style="padding:14px 24px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;backdrop-filter:blur(12px);background:rgba(11,19,38,0.7);">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);flex-shrink:0;"></div>
+        <div>
+          <h2 id="focusTitle" style="font-size:15px;font-weight:700;color:var(--text);letter-spacing:-0.01em;line-height:1.2;">Focus Session</h2>
+          <p id="focusSubtitle" style="font-size:11px;color:var(--muted);margin-top:1px;font-weight:500;">Deep Work</p>
         </div>
-        <button id="focusNotifBtn" class="btn-ghost" style="padding:8px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;" aria-label="Notifications">
-          <span class="ms" style="font-size:20px;">notifications</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button id="focusNotifBtn" style="width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.07);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.15s,color 0.15s;"
+          onmouseover="this.style.background='rgba(255,255,255,0.1)';this.style.color='var(--text)'"
+          onmouseout="this.style.background='rgba(255,255,255,0.05)';this.style.color='var(--muted)'"
+          aria-label="Notifications">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         </button>
-        <button id="focusSettingsBtn" class="btn-ghost" style="padding:8px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;" aria-label="Settings">
-          <span class="ms" style="font-size:20px;">settings</span>
+        <button id="focusSettingsBtn" style="width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.07);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.15s,color 0.15s;"
+          onmouseover="this.style.background='rgba(255,255,255,0.1)';this.style.color='var(--text)'"
+          onmouseout="this.style.background='rgba(255,255,255,0.05)';this.style.color='var(--muted)'"
+          aria-label="Settings">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
       </div>
     </div>
 
     <!-- 3 columns -->
-    <div style="display:grid;grid-template-columns:240px 1fr 280px;flex:1;min-height:calc(100vh - 65px);">
+    <div style="display:grid;grid-template-columns:220px 1fr 264px;flex:1;min-height:calc(100vh - 57px);">
 
-      <!-- Left: Ambient + Milestones -->
-      <div style="border-right:1px solid var(--border);padding:24px;display:flex;flex-direction:column;gap:28px;overflow-y:auto;">
-        <div>
-          <p style="font-size:11px;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:14px;">♪ AMBIENT SOUNDS</p>
-          <div id="ambientList" style="display:flex;flex-direction:column;gap:14px;"></div>
-          <button id="addCustomTrackBtn" class="btn-ghost" style="width:100%;margin-top:12px;padding:8px;font-size:12px;font-family:'Space Grotesk';letter-spacing:0.06em;">+ ADD CUSTOM TRACK</button>
+      <!-- ── Left: Ambient + Milestones ── -->
+      <div style="border-right:1px solid rgba(255,255,255,0.06);padding:20px 16px;display:flex;flex-direction:column;gap:0;overflow-y:auto;">
+
+        <!-- Ambient section -->
+        <div style="margin-bottom:24px;">
+          <p style="font-size:10px;font-weight:600;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:12px;padding:0 4px;">SOUNDS</p>
+          <div id="ambientList" style="display:flex;flex-direction:column;gap:2px;"></div>
+          <button id="addCustomTrackBtn"
+            style="width:100%;margin-top:8px;padding:8px 10px;background:transparent;border:1px dashed rgba(255,255,255,0.07);border-radius:10px;color:var(--muted);font-size:12px;cursor:pointer;font-family:'Manrope',sans-serif;font-weight:600;letter-spacing:0.01em;transition:border-color 0.15s,color 0.15s;"
+            onmouseover="this.style.borderColor='rgba(255,255,255,0.15)';this.style.color='var(--text)'"
+            onmouseout="this.style.borderColor='rgba(255,255,255,0.07)';this.style.color='var(--muted)'">
+            + Custom track
+          </button>
         </div>
+
+        <!-- Divider -->
+        <div style="height:1px;background:rgba(255,255,255,0.05);margin-bottom:20px;"></div>
+
+        <!-- Milestones section -->
         <div>
-          <p style="font-size:11px;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:14px;">MILESTONES</p>
-          <div id="milestonesList" style="display:flex;flex-direction:column;gap:8px;"></div>
-          <button id="addMilestoneBtn" style="width:100%;margin-top:10px;padding:7px;background:transparent;border:1px dashed rgba(255,255,255,0.1);border-radius:7px;color:var(--muted);font-size:12px;cursor:pointer;font-family:'Manrope',sans-serif;">+ Add milestone</button>
+          <p style="font-size:10px;font-weight:600;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:12px;padding:0 4px;">MILESTONES</p>
+          <div id="milestonesList" style="display:flex;flex-direction:column;gap:4px;"></div>
+          <button id="addMilestoneBtn"
+            style="width:100%;margin-top:8px;padding:8px 10px;background:transparent;border:1px dashed rgba(255,255,255,0.07);border-radius:10px;color:var(--muted);font-size:12px;cursor:pointer;font-family:'Manrope',sans-serif;font-weight:600;transition:border-color 0.15s,color 0.15s;"
+            onmouseover="this.style.borderColor='rgba(255,255,255,0.15)';this.style.color='var(--text)'"
+            onmouseout="this.style.borderColor='rgba(255,255,255,0.07)';this.style.color='var(--muted)'">
+            + Add milestone
+          </button>
         </div>
+
       </div>
 
-      <!-- Center: Timer -->
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:36px;padding:40px;">
+      <!-- ── Center: Timer ── -->
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:40px;padding:48px 40px;">
+
+        <!-- Ring -->
         <div style="position:relative;width:280px;height:280px;">
-          <svg width="280" height="280">
+          <svg width="280" height="280" style="overflow:visible;">
             <circle class="timer-ring-track" cx="140" cy="140" r="120"/>
             <circle class="timer-ring-progress" id="timerRing" cx="140" cy="140" r="120"
               stroke-dasharray="754" stroke-dashoffset="0"/>
           </svg>
-          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-            <div id="timerDisplay" style="font-size:54px;font-weight:800;color:white;letter-spacing:-0.02em;line-height:1;">25:00</div>
-            <div id="timerLabel" style="font-size:11px;letter-spacing:0.18em;color:var(--muted);font-family:'Space Grotesk';margin-top:6px;">REMAINING</div>
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;">
+            <div id="timerDisplay" style="font-size:58px;font-weight:700;color:var(--text);letter-spacing:-0.03em;line-height:1;font-variant-numeric:tabular-nums;">25:00</div>
+            <div id="timerLabel" style="font-size:10px;letter-spacing:0.14em;color:var(--muted);font-family:'Space Grotesk';font-weight:600;">REMAINING</div>
           </div>
         </div>
 
-        <div style="display:flex;align-items:center;gap:28px;">
-          <button id="timerResetBtn" style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;"
-            onmouseover="this.style.background='rgba(255,255,255,0.12)'"
-            onmouseout="this.style.background='rgba(255,255,255,0.06)'">
-            <span class="ms">replay</span>
+        <!-- Controls -->
+        <div style="display:flex;align-items:center;gap:20px;">
+          <button id="timerResetBtn"
+            style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.15s,color 0.15s;"
+            onmouseover="this.style.background='rgba(255,255,255,0.11)';this.style.color='var(--text)'"
+            onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='var(--muted)'">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.83"/></svg>
           </button>
-          <button id="timerPlayPauseBtn" style="width:68px;height:68px;border-radius:50%;background:var(--primary);border:none;color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 0 28px rgba(124,58,237,0.5);transition:opacity 0.15s;">
-            <span class="ms" id="playPauseIcon" style="font-size:30px;">play_arrow</span>
+
+          <button id="timerPlayPauseBtn"
+            style="width:64px;height:64px;border-radius:50%;background:var(--primary);border:none;color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:opacity 0.15s,transform 0.12s;"
+            onmouseover="this.style.opacity='0.88'"
+            onmouseout="this.style.opacity='1'"
+            onmousedown="this.style.transform='scale(0.93)'"
+            onmouseup="this.style.transform='scale(1)'">
+            <svg id="playPauseIcon" width="22" height="22" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           </button>
-          <button id="timerSkipBtn" style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;"
-            onmouseover="this.style.background='rgba(255,255,255,0.12)'"
-            onmouseout="this.style.background='rgba(255,255,255,0.06)'">
-            <span class="ms">skip_next</span>
+
+          <button id="timerSkipBtn"
+            style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.15s,color 0.15s;"
+            onmouseover="this.style.background='rgba(255,255,255,0.11)';this.style.color='var(--text)'"
+            onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='var(--muted)'">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
           </button>
         </div>
 
-        <button id="exitSessionBtn" style="padding:8px 24px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;color:#f87171;font-size:13px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;">✕ End Session</button>
+        <!-- End session -->
+        <button id="exitSessionBtn"
+          style="padding:7px 20px;background:transparent;border:1px solid rgba(239,68,68,0.18);border-radius:8px;color:rgba(248,113,113,0.7);font-size:12px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;letter-spacing:0.01em;transition:border-color 0.15s,color 0.15s,background 0.15s;"
+          onmouseover="this.style.borderColor='rgba(239,68,68,0.35)';this.style.color='#f87171';this.style.background='rgba(239,68,68,0.06)'"
+          onmouseout="this.style.borderColor='rgba(239,68,68,0.18)';this.style.color='rgba(248,113,113,0.7)';this.style.background='transparent'">
+          End Session
+        </button>
+
       </div>
 
-      <!-- Right: Quick Notes + Quote -->
-      <div style="border-left:1px solid var(--border);padding:24px;display:flex;flex-direction:column;gap:20px;overflow-y:auto;">
-        <div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-            <span class="ms" style="font-size:16px;color:var(--plight);">bolt</span>
-            <p style="font-size:11px;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';">QUICK NOTES</p>
-          </div>
-          <textarea id="quickNotesInput" placeholder="Type your flashes of insight here..."
-            style="width:100%;height:180px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'Manrope',sans-serif;font-size:13px;line-height:1.65;padding:12px;resize:none;outline:none;transition:border-color 0.2s;"
-            onfocus="this.style.borderColor='rgba(76,215,246,0.35)'"
-            onblur="this.style.borderColor='var(--border)'"></textarea>
-          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
-            <button class="note-tag" data-tag="#CONCEPT" style="padding:4px 10px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);border-radius:4px;color:var(--plight);font-size:11px;cursor:pointer;font-family:'Space Grotesk';">#CONCEPT</button>
-            <button class="note-tag" data-tag="#TO-DO" style="padding:4px 10px;background:rgba(76,215,246,0.1);border:1px solid rgba(76,215,246,0.2);border-radius:4px;color:var(--cyan);font-size:11px;cursor:pointer;font-family:'Space Grotesk';">#TO-DO</button>
-            <button class="note-tag" data-tag="#QUESTION" style="padding:4px 10px;background:rgba(78,222,163,0.1);border:1px solid rgba(78,222,163,0.2);border-radius:4px;color:var(--green);font-size:11px;cursor:pointer;font-family:'Space Grotesk';">#QUESTION</button>
-          </div>
+      <!-- ── Right: Quick Notes + Quote ── -->
+      <div style="border-left:1px solid rgba(255,255,255,0.06);padding:20px 16px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;">
+
+        <!-- Notes header -->
+        <div style="display:flex;align-items:center;gap:7px;padding:0 4px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--plight)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <p style="font-size:10px;font-weight:600;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';">QUICK NOTES</p>
         </div>
 
-        <div class="glass" style="padding:16px;margin-top:auto;">
-          <p id="quoteText" style="font-size:13px;color:var(--muted);line-height:1.6;font-style:italic;">"The important thing is not to stop questioning."</p>
-          <p id="quoteAuthor" style="font-size:11px;color:var(--muted2);margin-top:8px;letter-spacing:0.06em;">— ALBERT EINSTEIN</p>
+        <!-- Textarea -->
+        <textarea id="quickNotesInput" placeholder="Capture your flashes of insight…"
+          style="width:100%;flex:1;min-height:160px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:12px;color:var(--text);font-family:'Manrope',sans-serif;font-size:13px;line-height:1.7;padding:12px;resize:none;outline:none;transition:border-color 0.18s,background 0.18s;"
+          onfocus="this.style.borderColor='rgba(124,58,237,0.4)';this.style.background='rgba(124,58,237,0.04)'"
+          onblur="this.style.borderColor='rgba(255,255,255,0.07)';this.style.background='rgba(255,255,255,0.04)'"></textarea>
+
+        <!-- Tags -->
+        <div style="display:flex;gap:5px;flex-wrap:wrap;padding:0 2px;">
+          <button class="note-tag" data-tag="#CONCEPT"
+            style="padding:4px 10px;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.22);border-radius:999px;color:var(--plight);font-size:11px;cursor:pointer;font-family:'Manrope',sans-serif;font-weight:600;transition:background 0.15s;">#concept</button>
+          <button class="note-tag" data-tag="#TO-DO"
+            style="padding:4px 10px;background:rgba(76,215,246,0.08);border:1px solid rgba(76,215,246,0.18);border-radius:999px;color:var(--cyan);font-size:11px;cursor:pointer;font-family:'Manrope',sans-serif;font-weight:600;transition:background 0.15s;">#to-do</button>
+          <button class="note-tag" data-tag="#QUESTION"
+            style="padding:4px 10px;background:rgba(78,222,163,0.08);border:1px solid rgba(78,222,163,0.18);border-radius:999px;color:var(--green);font-size:11px;cursor:pointer;font-family:'Manrope',sans-serif;font-weight:600;transition:background 0.15s;">#question</button>
         </div>
+
+        <!-- Divider -->
+        <div style="height:1px;background:rgba(255,255,255,0.05);"></div>
+
+        <!-- Quote -->
+        <div style="padding:0 4px;margin-top:auto;">
+          <p id="quoteText" style="font-size:12px;color:var(--muted);line-height:1.65;font-style:italic;">"The important thing is not to stop questioning."</p>
+          <p id="quoteAuthor" style="font-size:10px;color:var(--muted2);margin-top:8px;letter-spacing:0.08em;font-family:'Space Grotesk';">— ALBERT EINSTEIN</p>
+        </div>
+
       </div>
 
     </div>
