@@ -622,35 +622,19 @@
       flex-direction: column;
     }
     #focusActiveLayout:fullscreen .focus-fs-hide,
-    #focusActiveLayout:-webkit-full-screen .focus-fs-hide { display: none !important; }
-    #focusActiveLayout:fullscreen .focus-fs-center,
-    #focusActiveLayout:-webkit-full-screen .focus-fs-center {
-      grid-column: 1 / -1 !important;
-      justify-content: center;
-      align-items: center;
+    #focusActiveLayout:-webkit-full-screen .focus-fs-hide {
+      display: none !important;
     }
     #focusActiveLayout:fullscreen #focusTimerGrid,
     #focusActiveLayout:-webkit-full-screen #focusTimerGrid {
       grid-template-columns: 1fr !important;
     }
-    #focusActiveLayout:fullscreen #focusTimerCenter svg,
-    #focusActiveLayout:-webkit-full-screen #focusTimerCenter svg {
-      width: 360px; height: 360px;
+    /* Scale the whole timer block as one unit — ring + controls stay proportional */
+    #focusActiveLayout:fullscreen #focusTimerCenter,
+    #focusActiveLayout:-webkit-full-screen #focusTimerCenter {
+      transform: scale(1.65);
+      transform-origin: center center;
     }
-    #focusActiveLayout:fullscreen #focusTimerCenter svg circle,
-    #focusActiveLayout:-webkit-full-screen #focusTimerCenter svg circle {
-      cx: 180; cy: 180; r: 156;
-    }
-    #focusActiveLayout:fullscreen #timerRing,
-    #focusActiveLayout:-webkit-full-screen #timerRing {
-      stroke-dasharray: 980;
-      transform-origin: 180px 180px;
-    }
-    #focusActiveLayout:fullscreen #timerDisplay,
-    #focusActiveLayout:-webkit-full-screen #timerDisplay { font-size: 88px !important; }
-    /* Fullscreen top bar: show exit hint */
-    #focusActiveLayout:fullscreen #focusFsBar,
-    #focusActiveLayout:-webkit-full-screen #focusFsBar { opacity: 1 !important; pointer-events: auto !important; }
 
     /* ── AI message bubbles: spring slide-in ── */
     @keyframes msgSpringIn {
