@@ -2466,11 +2466,12 @@
         <p style="font-size:12px;color:var(--muted);margin-top:4px;font-weight:400;letter-spacing:0.01em;">Your weekly study schedule</p>
       </div>
       <!-- Compact + button -->
-      <button id="addBlockBtn" aria-label="Add block"
+      <button id="addBlockBtn" type="button" aria-label="Add block"
+        onclick="openTTModal()"
         style="width:36px;height:36px;border-radius:11px;background:rgba(124,58,237,0.18);border:1px solid rgba(124,58,237,0.3);color:var(--plight);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.15s,transform 0.1s;flex-shrink:0;"
         onmouseover="this.style.background='rgba(124,58,237,0.28)'" onmouseout="this.style.background='rgba(124,58,237,0.18)'"
         onmousedown="this.style.transform='scale(0.92)'" onmouseup="this.style.transform='scale(1)'">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
     </div>
 
@@ -2508,6 +2509,7 @@
     </div>
 
   </div>
+</div><!-- /timetableView -->
 
   <!-- ── Add / Edit modal — iOS sheet style ── -->
   <div id="ttModal" style="display:none;position:fixed;inset:0;z-index:200;align-items:flex-end;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(20px);opacity:0;transition:opacity 0.22s ease;" onclick="if(event.target===this)closeTTModal()">
@@ -2587,8 +2589,7 @@
           onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform='scale(1)'">Save Block</button>
       </div>
     </div>
-  </div>
-</div><!-- /timetableView -->
+  </div><!-- /ttModal -->
 
 
 <!-- ══════════════════════════════════════════
@@ -2958,7 +2959,7 @@
   });
 </script>
 
-<script src="script.js?v=1778390000"></script>
+<script src="script.js?v=1778393500"></script>
 
 </body>
 </html>

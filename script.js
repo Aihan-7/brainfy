@@ -3477,10 +3477,12 @@ function initTimetable() {
             saveTTBlock();
         }
     });
-    // Expose globals needed by inline onclick handlers
-    window.openTTModal = openTTModal;
-    window.closeTTModal = closeTTModal;
-    window.saveTTBlock = saveTTBlock;
-    window.deleteTTBlock = deleteTTBlock;
 }
+// Expose globals needed by inline onclick handlers — at module level so
+// they're available even if initTimetable() never runs (e.g. earlier init
+// throws). The + button's inline onclick relies on this.
+window.openTTModal = openTTModal;
+window.closeTTModal = closeTTModal;
+window.saveTTBlock = saveTTBlock;
+window.deleteTTBlock = deleteTTBlock;
 //# sourceMappingURL=script.js.map
