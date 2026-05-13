@@ -3273,12 +3273,13 @@ document.addEventListener('DOMContentLoaded', init);
 // ── TIMETABLE ────────────────────────────────────────────────────────────────
 
 const TT_DAYS  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-const TT_HOURS = Array.from({length:16}, (_,i) => i + 7); // 07:00 – 22:00
+const TT_HOURS = Array.from({length:17}, (_,i) => i + 6); // 06:00 – 23:00
+const TT_ROW_H = 52; // px per hour
 let ttEditId: number | null = null;
 let ttSelectedColor = '#7c3aed';
 
 function renderTimetable(): void {
-  if (!(S as any).timetable) (S as any).timetable = [];
+  if (!S.timetable) S.timetable = [];
   renderTTGrid();
   renderTTToday();
   renderTTWeekSummary();
@@ -3286,11 +3287,15 @@ function renderTimetable(): void {
 
 function renderTTGrid(): void {
   const headers = el('ttDayHeaders');
-  const grid    = el('ttGrid');
+  const grid    = el('ttGrid') as HTMLElement | null;
   if (!headers || !grid) return;
 
-  // Day header cells — CAPS label + purple dot for today
   const today = (new Date().getDay() + 6) % 7; // 0=Mon
+  const baseHour    = TT_HOURS[0];                  // 6
+  const visibleMins = TT_HOURS.length * 60;          // 17 * 60
+  const totalH      = TT_HOURS.length * TT_ROW_H;    // total grid height
+
+  // ── Day headers ─────────────────────────────
   headers.innerHTML = `<div></div>` +
     TT_DAYS.map((d, i) => `
       <div style="padding:13px 6px 11px;text-align:center;border-left:1px solid rgba(255,255,255,0.04);${i===today?'background:rgba(124,58,237,0.05);':''}">
@@ -3300,48 +3305,115 @@ function renderTTGrid(): void {
         </div>
       </div>`).join('');
 
-  // Build block lookup: day -> list sorted by start
-  const byDay: TimetableBlock[][] = Array.from({length:7}, () => []);
-  ((S as any).timetable as TimetableBlock[]).forEach((b: TimetableBlock) => byDay[b.day].push(b));
-  byDay.forEach(arr => arr.sort((a,b) => a.start.localeCompare(b.start)));
+  // ── Switch grid container to absolute-positioning layout ──
+  grid.style.cssText =
+    `display:block;position:relative;height:${totalH}px;` +
+    `max-height:540px;overflow-y:auto;`;
 
-  // Hour rows
-  grid.innerHTML = TT_HOURS.map(h => {
-    const label = h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h-12} PM`;
-    const cols = TT_DAYS.map((_, di) => {
-      const blocks = byDay[di].filter(b => {
-        const [bh] = b.start.split(':').map(Number);
-        return bh === h;
-      });
-      // Pill-shaped blocks: frosted color tint, no left stripe
-      const cells = blocks.map(b => `
-        <div onclick="openTTModal(${b.id})"
-          style="margin:2px 3px;padding:5px 7px;border-radius:8px;
-            background:${b.color}16;
-            border:1px solid ${b.color}25;
-            backdrop-filter:blur(8px);
-            cursor:pointer;transition:all 0.15s ease;"
-          onmouseover="this.style.background='${b.color}28';this.style.borderColor='${b.color}45';this.style.transform='scale(1.01)'"
-          onmouseout="this.style.background='${b.color}16';this.style.borderColor='${b.color}25';this.style.transform='scale(1)'">
-          <div style="font-size:11px;font-weight:700;color:${b.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.01em;line-height:1.2;">${b.title}</div>
-          <div style="font-size:9.5px;color:${b.color};margin-top:2px;opacity:0.55;font-family:'Space Grotesk';letter-spacing:0.01em;">${b.start}–${b.end}</div>
-        </div>`).join('');
-      return `<div style="border-left:1px solid rgba(255,255,255,0.04);min-height:52px;padding:2px 1px;${di===today?'background:rgba(124,58,237,0.03);':''}">${cells}</div>`;
-    }).join('');
+  // ── Background: hour labels + 7 day columns ──
+  const bgParts: string[] = [];
+  TT_HOURS.forEach((h, hi) => {
+    const label = h === 0 ? '12 AM'
+                : h < 12  ? `${h} AM`
+                : h === 12 ? '12 PM'
+                : `${h-12} PM`;
+    bgParts.push(
+      `<div style="position:absolute;left:0;top:${hi*TT_ROW_H}px;width:52px;height:${TT_ROW_H}px;` +
+      `font-size:9.5px;color:var(--muted);padding:0 10px;line-height:${TT_ROW_H}px;text-align:right;` +
+      `font-family:'Space Grotesk';font-weight:600;letter-spacing:0.03em;opacity:0.45;` +
+      `border-top:1px solid rgba(255,255,255,0.04);box-sizing:border-box;">${label}</div>`
+    );
+    for (let di = 0; di < 7; di++) {
+      bgParts.push(
+        `<div style="position:absolute;` +
+        `left:calc(52px + (100% - 52px) / 7 * ${di});` +
+        `top:${hi*TT_ROW_H}px;` +
+        `width:calc((100% - 52px) / 7);` +
+        `height:${TT_ROW_H}px;` +
+        `border-left:1px solid rgba(255,255,255,0.04);` +
+        `border-top:1px solid rgba(255,255,255,0.04);` +
+        `${di===today?'background:rgba(124,58,237,0.03);':''}` +
+        `box-sizing:border-box;"></div>`
+      );
+    }
+  });
 
-    return `
-      <div style="font-size:9.5px;color:var(--muted);padding:0 10px;line-height:52px;text-align:right;white-space:nowrap;border-top:1px solid rgba(255,255,255,0.04);font-family:'Space Grotesk';font-weight:600;letter-spacing:0.03em;opacity:0.45;">${label}</div>
-      ${cols}
-    `;
+  // ── "Now" indicator line (today column only, current visible hour) ──
+  if (today >= 0) {
+    const now      = new Date();
+    const nowMins  = now.getHours() * 60 + now.getMinutes();
+    const baseMins = baseHour * 60;
+    const nowTop   = (nowMins - baseMins) / 60 * TT_ROW_H;
+    if (nowTop >= 0 && nowTop <= totalH) {
+      bgParts.push(
+        `<div style="position:absolute;` +
+        `left:calc(52px + (100% - 52px) / 7 * ${today});` +
+        `top:${nowTop}px;` +
+        `width:calc((100% - 52px) / 7);` +
+        `height:2px;` +
+        `background:linear-gradient(90deg,transparent,#f87171,transparent);` +
+        `pointer-events:none;z-index:3;">` +
+        `<span style="position:absolute;left:-6px;top:-4px;width:10px;height:10px;border-radius:50%;background:#f87171;box-shadow:0 0 10px #f87171;"></span>` +
+        `</div>`
+      );
+    }
+  }
+
+  // ── Event blocks (absolute, properly span multi-hour ranges) ──
+  const blocksHtml = S.timetable.map((b: TimetableBlock) => {
+    const [sh, sm] = b.start.split(':').map(Number);
+    const [eh, em] = b.end.split(':').map(Number);
+    const startMins = sh * 60 + sm;
+    const endMins   = eh * 60 + em;
+    const baseMins  = baseHour * 60;
+
+    // Clamp to visible window so out-of-range blocks still appear at the edge
+    const clampedStart = Math.max(0, startMins - baseMins);
+    const clampedEnd   = Math.min(visibleMins, endMins - baseMins);
+    if (clampedEnd <= 0 || clampedStart >= visibleMins) return ''; // entirely outside
+
+    const topPx    = (clampedStart / 60) * TT_ROW_H + 2;
+    const heightPx = Math.max(((clampedEnd - clampedStart) / 60) * TT_ROW_H - 4, 22);
+    const isShort  = heightPx < 38;
+
+    return (
+      `<div onclick="openTTModal(${b.id})" ` +
+      `style="position:absolute;` +
+        `top:${topPx}px;` +
+        `left:calc(52px + (100% - 52px) / 7 * ${b.day} + 3px);` +
+        `width:calc((100% - 52px) / 7 - 6px);` +
+        `height:${heightPx}px;` +
+        `padding:${isShort?'4px 9px':'7px 10px'};` +
+        `border-radius:9px;` +
+        `background:${b.color}22;` +
+        `border:1px solid ${b.color}3a;` +
+        `cursor:pointer;` +
+        `transition:transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;` +
+        `z-index:5;overflow:hidden;box-sizing:border-box;` +
+        `display:flex;flex-direction:column;justify-content:${isShort?'center':'flex-start'};gap:${isShort?'0':'2px'};" ` +
+      `onmouseover="this.style.background='${b.color}38';this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 18px ${b.color}44'" ` +
+      `onmouseout="this.style.background='${b.color}22';this.style.transform='';this.style.boxShadow=''">` +
+        `<div style="font-size:${isShort?'10.5px':'11.5px'};font-weight:700;color:${b.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.01em;line-height:1.2;">${b.title}</div>` +
+        (isShort ? '' :
+          `<div style="font-size:10px;color:${b.color};opacity:0.7;font-family:'Space Grotesk';letter-spacing:0.01em;">${b.start}–${b.end}</div>`
+        ) +
+      `</div>`
+    );
   }).join('');
+
+  grid.innerHTML = bgParts.join('') + blocksHtml;
+
+  // Auto-scroll to current hour on first paint (helps when working mid-day)
+  const targetScroll = Math.max(0, ((new Date().getHours() - baseHour - 1) * TT_ROW_H));
+  if (targetScroll > 0 && grid.scrollTop === 0) grid.scrollTop = targetScroll;
 }
 
 function renderTTToday(): void {
   const list = el('ttTodayList');
   if (!list) return;
   const today = (new Date().getDay() + 6) % 7;
-  const blocks: TimetableBlock[] = (((S as any).timetable || []) as TimetableBlock[]).filter((b: TimetableBlock) => b.day === today)
-    .sort((a: TimetableBlock, b: TimetableBlock) => a.start.localeCompare(b.start));
+  const blocks: TimetableBlock[] = (S.timetable || []).filter(b => b.day === today)
+    .sort((a, b) => a.start.localeCompare(b.start));
   if (!blocks.length) {
     list.innerHTML = `<p style="font-size:13px;color:var(--muted);font-weight:400;opacity:0.6;">Nothing scheduled for today.</p>`;
     return;
@@ -3364,10 +3436,10 @@ function renderTTToday(): void {
 function renderTTWeekSummary(): void {
   const box = el('ttWeekSummary');
   if (!box) return;
-  const timetable: TimetableBlock[] = ((S as any).timetable || []) as TimetableBlock[];
+  const timetable: TimetableBlock[] = S.timetable || [];
 
   let totalMins = 0;
-  timetable.forEach((b: TimetableBlock) => {
+  timetable.forEach(b => {
     const [sh,sm] = b.start.split(':').map(Number);
     const [eh,em] = b.end.split(':').map(Number);
     totalMins += (eh*60+em) - (sh*60+sm);
@@ -3400,31 +3472,47 @@ function renderTTWeekSummary(): void {
 
 function openTTModal(id?: number): void {
   ttEditId = id ?? null;
-  const modal    = el('ttModal') as HTMLElement;
-  const titleEl  = el('ttModalTitle') as HTMLElement;
+  const modal     = el('ttModal') as HTMLElement;
+  const titleEl   = el('ttModalTitle') as HTMLElement;
   const deleteBtn = el('ttDeleteBtn') as HTMLElement;
+  if (!modal || !titleEl || !deleteBtn) return;
+
+  const titleInp = el('ttBlockTitle') as HTMLInputElement;
+  const dayInp   = el('ttBlockDay')   as HTMLSelectElement;
+  const startInp = el('ttBlockStart') as HTMLInputElement;
+  const endInp   = el('ttBlockEnd')   as HTMLInputElement;
 
   if (id != null) {
-    const block: TimetableBlock | undefined = ((S as any).timetable as TimetableBlock[]).find((b: TimetableBlock) => b.id === id);
+    const block = (S.timetable || []).find(b => b.id === id);
     if (!block) return;
-    (el('ttBlockTitle') as HTMLInputElement).value = block.title;
-    (el('ttBlockDay')   as HTMLSelectElement).value = String(block.day);
-    (el('ttBlockStart') as HTMLInputElement).value = block.start;
-    (el('ttBlockEnd')   as HTMLInputElement).value = block.end;
+    titleInp.value  = block.title;
+    dayInp.value    = String(block.day);
+    startInp.value  = block.start;
+    endInp.value    = block.end;
     ttSelectedColor = block.color;
-    titleEl.textContent = 'Edit Block';
+    titleEl.textContent     = 'Edit Block';
     deleteBtn.style.display = 'block';
   } else {
-    (el('ttBlockTitle') as HTMLInputElement).value = '';
-    (el('ttBlockStart') as HTMLInputElement).value = '09:00';
-    (el('ttBlockEnd')   as HTMLInputElement).value = '10:00';
+    // Sensible defaults: today + current hour rounded down → +1h
+    const now     = new Date();
+    const todayIx = (now.getDay() + 6) % 7;        // 0=Mon
+    const sh      = Math.min(22, now.getHours()); // never start at 23 (so we always have a sane +1h end)
+    const eh      = sh + 1;
+    const pad     = (n: number) => String(n).padStart(2, '0');
+
+    titleInp.value  = '';
+    dayInp.value    = String(todayIx);
+    startInp.value  = `${pad(sh)}:00`;
+    endInp.value    = `${pad(eh)}:00`;
     ttSelectedColor = '#7c3aed';
-    titleEl.textContent = 'Add Block';
+    titleEl.textContent     = 'Add Block';
     deleteBtn.style.display = 'none';
   }
   updateTTColorPicker();
   modal.style.display = 'flex';
   requestAnimationFrame(() => modal.classList.add('open'));
+  // Focus title input so user can type immediately
+  setTimeout(() => titleInp.focus(), 60);
 }
 
 function closeTTModal(): void {
@@ -3448,17 +3536,17 @@ function saveTTBlock(): void {
   const day   = +(el('ttBlockDay')   as HTMLSelectElement).value;
   const start = (el('ttBlockStart') as HTMLInputElement).value;
   const end   = (el('ttBlockEnd')   as HTMLInputElement).value;
-  if (!title) { showToast('Please enter a title', 'error'); return; }
-  if (start >= end) { showToast('End time must be after start', 'error'); return; }
+  if (!title)       { showToast('Please enter a title', 'error');           return; }
+  if (!start||!end) { showToast('Please pick a start and end time', 'error'); return; }
+  if (start >= end) { showToast('End time must be after start',  'error');  return; }
 
-  if (!(S as any).timetable) (S as any).timetable = [];
-  const timetable: TimetableBlock[] = (S as any).timetable;
+  if (!S.timetable) S.timetable = [];
 
   if (ttEditId != null) {
-    const idx = timetable.findIndex((b: TimetableBlock) => b.id === ttEditId);
-    if (idx !== -1) timetable[idx] = { id: ttEditId, title, day, start, end, color: ttSelectedColor };
+    const idx = S.timetable.findIndex(b => b.id === ttEditId);
+    if (idx !== -1) S.timetable[idx] = { id: ttEditId, title, day, start, end, color: ttSelectedColor };
   } else {
-    timetable.push({ id: S.nextId++, title, day, start, end, color: ttSelectedColor });
+    S.timetable.push({ id: S.nextId++, title, day, start, end, color: ttSelectedColor });
   }
   save();
   closeTTModal();
@@ -3468,7 +3556,8 @@ function saveTTBlock(): void {
 
 function deleteTTBlock(): void {
   if (ttEditId == null) return;
-  (S as any).timetable = ((S as any).timetable as TimetableBlock[]).filter((b: TimetableBlock) => b.id !== ttEditId);
+  if (!confirm('Remove this block?')) return;
+  S.timetable = (S.timetable || []).filter(b => b.id !== ttEditId);
   save();
   closeTTModal();
   renderTimetable();
@@ -3484,6 +3573,28 @@ function initTimetable(): void {
       ttSelectedColor = dot.dataset['color'] || '#7c3aed';
       updateTTColorPicker();
     });
+  });
+
+  // Auto-bump end time if start moves past end
+  el('ttBlockStart')?.addEventListener('change', () => {
+    const startInp = el('ttBlockStart') as HTMLInputElement;
+    const endInp   = el('ttBlockEnd')   as HTMLInputElement;
+    if (startInp.value && endInp.value && startInp.value >= endInp.value) {
+      const [sh, sm] = startInp.value.split(':').map(Number);
+      const eh = Math.min(23, sh + 1);
+      endInp.value = `${String(eh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`;
+    }
+  });
+
+  // Keyboard shortcuts while modal is open
+  document.addEventListener('keydown', (e) => {
+    const modal = el('ttModal') as HTMLElement | null;
+    if (!modal || !modal.classList.contains('open')) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeTTModal(); }
+    else if (e.key === 'Enter' && !(e.target instanceof HTMLTextAreaElement)) {
+      e.preventDefault();
+      saveTTBlock();
+    }
   });
 
   // Expose globals needed by inline onclick handlers
