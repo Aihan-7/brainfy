@@ -500,6 +500,23 @@ function el(id) { return document.getElementById(id); }
 function elInput(id) { return document.getElementById(id); }
 function elSel(id) { return document.getElementById(id); }
 function elBtn(id) { return document.getElementById(id); }
+// ── XSS-safe HTML escaper ────────────────────────────────────────────────
+// Use this on EVERY piece of user-controlled text that gets interpolated
+// into an innerHTML template literal (subject names, task text, doc names,
+// flashcard Q/A, AI-generated content, etc.). Without it, a subject named
+// `<img src=x onerror=alert(1)>` executes in the page.
+function escapeHtml(s) {
+    if (s == null)
+        return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+// Short alias for inline use in templates
+const _e = escapeHtml;
 // ── HOME ────────────────────────────────────────────────────────────────────
 function renderHome() {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -819,8 +836,8 @@ function renderHomeSubjects() {
         </div>
         <span style="font-size:10px;letter-spacing:0.06em;color:var(--muted);font-family:'Space Grotesk';padding:3px 8px;background:rgba(255,255,255,0.04);border-radius:6px;border:1px solid rgba(255,255,255,0.07);">${metaLabel}</span>
       </div>
-      <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:var(--text);">${s.name}</div>
-      <div style="font-size:12px;color:var(--muted);line-height:1.4;margin-bottom:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${s.desc}</div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:var(--text);">${_e(s.name)}</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.4;margin-bottom:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${_e(s.desc)}</div>
       <div style="height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;">
         <div style="width:${progressPct}%;height:100%;background:${s.color};border-radius:2px;transition:width 0.6s ease;opacity:0.85;"></div>
       </div>
@@ -853,7 +870,7 @@ function renderHomeTasks() {
     list.innerHTML = visible.map(t => `
     <div class="task-row">
       <input type="checkbox" data-id="${t.id}" ${t.done ? 'checked' : ''}>
-      <span style="font-size:13px;flex:1;${t.done ? 'text-decoration:line-through;color:var(--muted)' : ''}">${t.text}</span>
+      <span style="font-size:13px;flex:1;${t.done ? 'text-decoration:line-through;color:var(--muted)' : ''}">${_e(t.text)}</span>
     </div>
   `).join('');
     list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
@@ -890,7 +907,7 @@ function renderLearningMap() {
     const circles = nodes.map(n => `
     <g>
       <circle cx="${n.x}" cy="${n.y}" r="9" fill="${n.color}" opacity="0.85"/>
-      <text x="${n.x}" y="${n.y + 22}" text-anchor="middle" fill="#64748b" font-size="10" font-family="Manrope,sans-serif">${n.name.split(' ')[0]}</text>
+      <text x="${n.x}" y="${n.y + 22}" text-anchor="middle" fill="#64748b" font-size="10" font-family="Manrope,sans-serif">${_e(n.name.split(' ')[0])}</text>
     </g>
   `).join('');
     const hub = `<circle cx="${cx}" cy="${cy}" r="11" fill="var(--primary)"/>
@@ -913,7 +930,7 @@ function renderFocus() {
         const sel = el('focusSubjectSelect');
         if (sel) {
             sel.innerHTML = '<option value="" style="background:#0d1628;">Select a subject...</option>'
-                + S.subjects.map(s => `<option value="${s.id}" style="background:#0d1628;" ${s.id === timer.subjectId ? 'selected' : ''}>${s.name}</option>`).join('');
+                + S.subjects.map(s => `<option value="${s.id}" style="background:#0d1628;" ${s.id === timer.subjectId ? 'selected' : ''}>${_e(s.name)}</option>`).join('');
         }
         // Reset preset buttons
         document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active-preset'));
@@ -1011,7 +1028,7 @@ function renderMilestones() {
     <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:9px;background:${m.done ? 'rgba(124,58,237,0.14)' : 'rgba(255,255,255,0.03)'};border-left:${m.done ? '2px solid var(--primary)' : '2px solid transparent'};">
       <input type="checkbox" data-id="${m.id}" ${m.done ? 'checked' : ''} style="accent-color:var(--primary);width:14px;height:14px;cursor:pointer;margin-top:2px;flex-shrink:0;">
       <div>
-        <div style="font-size:12px;font-weight:600;${m.done ? 'text-decoration:line-through;color:var(--muted)' : 'color:var(--text)'}">${m.text}</div>
+        <div style="font-size:12px;font-weight:600;${m.done ? 'text-decoration:line-through;color:var(--muted)' : 'color:var(--text)'}">${_e(m.text)}</div>
         <div style="font-size:10px;color:var(--muted);margin-top:2px;">${m.done ? 'Completed' : 'Next milestone'}</div>
       </div>
     </div>
@@ -1233,8 +1250,8 @@ function renderLibrary() {
           </button>
         </div>
         <!-- Title + desc -->
-        <div style="font-weight:700;font-size:15px;margin-bottom:5px;">${s.name}</div>
-        <div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px;flex:1;">${s.desc}</div>
+        <div style="font-weight:700;font-size:15px;margin-bottom:5px;">${_e(s.name)}</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px;flex:1;">${_e(s.desc)}</div>
 
         <!-- Documents section -->
         <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:12px;margin-bottom:10px;">
@@ -1255,7 +1272,7 @@ function renderLibrary() {
                   style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);cursor:pointer;transition:background 0.15s;group"
                   onmouseover="this.style.background='rgba(255,255,255,0.07)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
                   <span class="ms" style="font-size:15px;color:${s.color};flex-shrink:0;">${docIcon(d.type)}</span>
-                  <span style="font-size:12px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.name}</span>
+                  <span style="font-size:12px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_e(d.name)}</span>
                   <button onclick="event.stopPropagation();deleteDoc(${s.id},${d.id})"
                     style="background:transparent;border:none;color:rgba(255,255,255,0.2);cursor:pointer;padding:2px;display:flex;align-items:center;flex-shrink:0;"
                     onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(255,255,255,0.2)'">
@@ -1477,7 +1494,7 @@ function renderDocModal() {
                 onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
                 <span class="ms" style="font-size:17px;color:var(--plight);flex-shrink:0;">${docIcon(d.type)}</span>
                 <div style="flex:1;min-width:0;">
-                  <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.name}</div>
+                  <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_e(d.name)}</div>
                   <div style="font-size:10px;color:var(--muted);">${d.type.toUpperCase()}${d.size ? ' · ' + docSize(d.size) : ''} · ${timeAgo(d.date)}</div>
                 </div>
                 <button onclick="event.stopPropagation();deleteDoc(${docModalSubjId},${d.id});renderDocModal()"
@@ -1578,8 +1595,28 @@ function openDoc(subjId, docId) {
     else if (d.type === 'note') {
         const w = window.open('', '_blank');
         if (w) {
-            w.document.write(`<html><head><title>${d.name}</title><style>body{font-family:sans-serif;max-width:700px;margin:40px auto;padding:20px;line-height:1.7;color:#1e293b;}</style></head><body><h2>${d.name}</h2><pre style="white-space:pre-wrap;">${d.content}</pre></body></html>`);
-            w.document.close();
+            // Build the document via the DOM API instead of document.write(string).
+            // Any user content (note title + body) is set via textContent so HTML/JS
+            // inside the note cannot execute in the new window.
+            const doc = w.document;
+            doc.documentElement.lang = 'en';
+            const titleEl = doc.createElement('title');
+            titleEl.textContent = d.name;
+            doc.head.appendChild(titleEl);
+            const styleEl = doc.createElement('style');
+            styleEl.textContent =
+                'body{font-family:system-ui,sans-serif;max-width:700px;margin:40px auto;' +
+                    'padding:20px;line-height:1.7;color:#1e293b;background:#fafafa;}' +
+                    'h2{margin-bottom:18px;}' +
+                    'pre{white-space:pre-wrap;font-family:inherit;font-size:15px;}';
+            doc.head.appendChild(styleEl);
+            const h2 = doc.createElement('h2');
+            h2.textContent = d.name;
+            doc.body.appendChild(h2);
+            const pre = doc.createElement('pre');
+            pre.textContent = d.content;
+            doc.body.appendChild(pre);
+            doc.close();
         }
     }
     else {
@@ -1791,9 +1828,9 @@ function renderResult() {
       ${r.flashcards.map((fc, i) => `
         <div class="fc-result-item" style="animation-delay:${i * 0.04}s">
           <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:var(--plight);font-family:'Space Grotesk';margin-bottom:5px;">Q</div>
-          <div style="font-size:13px;font-weight:600;margin-bottom:8px;">${fc.q}</div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;">${_e(fc.q)}</div>
           <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:var(--green);font-family:'Space Grotesk';margin-bottom:5px;">A</div>
-          <div style="font-size:13px;color:var(--muted);line-height:1.5;">${fc.a}</div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.5;">${_e(fc.a)}</div>
         </div>
       `).join('')}
     </div>`;
@@ -2239,7 +2276,7 @@ function renderDonut() {
         legend.innerHTML = subjects.map(s => `
       <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
         <div style="width:8px;height:8px;border-radius:50%;background:${s.color};flex-shrink:0;"></div>
-        <span style="color:var(--muted);flex:1;">${s.name}</span>
+        <span style="color:var(--muted);flex:1;">${_e(s.name)}</span>
         <span style="font-weight:600;">${Math.round(s.docs / tot * 100)}%</span>
       </div>
     `).join('');
@@ -2297,7 +2334,7 @@ function renderTasks() {
     list.innerHTML = S.tasks.map(t => `
     <div class="task-row" data-id="${t.id}">
       <input type="checkbox" data-id="${t.id}" ${t.done ? 'checked' : ''}>
-      <span style="flex:1;font-size:14px;${t.done ? 'text-decoration:line-through;color:var(--muted)' : ''}">${t.text}</span>
+      <span style="flex:1;font-size:14px;${t.done ? 'text-decoration:line-through;color:var(--muted)' : ''}">${_e(t.text)}</span>
       <button onclick="deleteTask(${t.id})"
         style="background:transparent;border:none;color:rgba(255,255,255,0.2);cursor:pointer;padding:4px;display:flex;align-items:center;"
         onmouseover="this.style.color='#f87171'"
@@ -2356,7 +2393,9 @@ function showToast(msg, type = 'info') {
         'animation:toastSpringIn 0.28s cubic-bezier(0.34,1.2,0.64,1) both',
         'font-family:Manrope,sans-serif',
     ].join(';');
-    toast.innerHTML = `<span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1;">${icons[type]}</span>${msg}`;
+    // icons[type] is a static set of known values, but msg comes from caller
+    // (possibly with user-controlled fragments like subject names) → escape it.
+    toast.innerHTML = `<span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1;">${icons[type]}</span>${_e(msg)}`;
     document.body.appendChild(toast);
     setTimeout(() => {
         toast.style.transition = 'opacity 0.3s, transform 0.3s';
@@ -2930,9 +2969,14 @@ function appendAIMsg(role, text) {
     av.style.cssText = `width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;font-family:'Space Grotesk';${isUser ? 'background:var(--primary);color:white;' :
         isError ? 'background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.25);' :
             'background:linear-gradient(135deg,rgba(124,58,237,0.3),rgba(76,215,246,0.15));border:1px solid rgba(124,58,237,0.35);'}`;
-    av.innerHTML = isUser ? S.userName.charAt(0).toUpperCase() :
-        isError ? '<span class="ms" style="font-size:14px;color:#f87171;">error</span>' :
+    if (isUser) {
+        // Username could be anything; textContent prevents tag injection
+        av.textContent = (S.userName || '?').charAt(0).toUpperCase();
+    }
+    else {
+        av.innerHTML = isError ? '<span class="ms" style="font-size:14px;color:#f87171;">error</span>' :
             '<span class="ms" style="font-size:14px;color:var(--plight);">auto_awesome</span>';
+    }
     // Bubble
     const bub = document.createElement('div');
     bub.style.cssText = `max-width:290px;padding:10px 13px;font-size:13px;line-height:1.65;word-break:break-word;border-radius:${isUser ? '14px 3px 14px 14px' : '3px 14px 14px 14px'};${isUser ? 'background:linear-gradient(135deg,var(--primary),#6d28d9);color:white;' :
@@ -3272,7 +3316,7 @@ function renderTTGrid() {
             `display:flex;flex-direction:column;justify-content:${isShort ? 'center' : 'flex-start'};gap:${isShort ? '0' : '2px'};" ` +
             `onmouseover="this.style.background='${b.color}38';this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 18px ${b.color}44'" ` +
             `onmouseout="this.style.background='${b.color}22';this.style.transform='';this.style.boxShadow=''">` +
-            `<div style="font-size:${isShort ? '10.5px' : '11.5px'};font-weight:700;color:${b.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.01em;line-height:1.2;">${b.title}</div>` +
+            `<div style="font-size:${isShort ? '10.5px' : '11.5px'};font-weight:700;color:${b.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.01em;line-height:1.2;">${_e(b.title)}</div>` +
             (isShort ? '' :
                 `<div style="font-size:10px;color:${b.color};opacity:0.7;font-family:'Space Grotesk';letter-spacing:0.01em;">${b.start}–${b.end}</div>`) +
             `</div>`);
@@ -3298,7 +3342,7 @@ function renderTTToday() {
     <div style="display:flex;align-items:center;gap:12px;padding:10px 0;${i < blocks.length - 1 ? 'border-bottom:1px solid rgba(255,255,255,0.04);' : ''}">
       <div style="width:9px;height:9px;border-radius:50%;background:${b.color};flex-shrink:0;box-shadow:0 0 8px ${b.color}60;"></div>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:600;color:var(--text);letter-spacing:-0.015em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3;">${b.title}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);letter-spacing:-0.015em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3;">${_e(b.title)}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px;font-family:'Space Grotesk';letter-spacing:0.02em;opacity:0.7;">${b.start} – ${b.end}</div>
       </div>
       <div style="width:28px;height:28px;border-radius:8px;background:${b.color}14;border:1px solid ${b.color}22;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:all 0.15s;"
