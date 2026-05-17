@@ -102,7 +102,7 @@ interface AmbientNode {
 
 type AmbientKey = 'lofi' | 'rain' | 'white' | 'forest';
 type FcRating   = 'easy' | 'ok' | 'hard';
-type ViewName   = 'splash' | 'signin' | 'signup' | 'home' | 'focus' | 'library' | 'stats' | 'tasks' | 'timetable';
+type ViewName   = 'splash' | 'signin' | 'signup' | 'home' | 'focus' | 'library' | 'stats' | 'tasks' | 'timetable' | 'settings';
 
 const STORAGE_KEY = 'brainfy_v3';
 const TIMER_C = 754;   // 2π × 120  (timer ring circumference)
@@ -525,6 +525,7 @@ function _goToFinish(view: ViewName): void {
   if (view === 'stats')     renderStats();
   if (view === 'tasks')     renderTasks();
   if (view === 'timetable') renderTimetable();
+  if (view === 'settings')  renderSettings();
 
   // Re-trigger stagger animations on stat cards
   if (view === 'home') {
@@ -593,6 +594,160 @@ function escapeHtml(s: unknown): string {
 }
 // Short alias for inline use in templates
 const _e = escapeHtml;
+
+// ── Modal helpers (replace native window.confirm / window.prompt) ───────────
+// These return Promises so callers can `await` them. The shared modals live
+// in index.html with ids #cfmModal and #prmModal. Globally exposed via
+// (window as any).cfmDismiss / prmDismiss / prmSubmit at module level so the
+// inline button onclicks in the HTML always have something to call.
+
+let _cfmResolver: ((v: boolean) => void) | null = null;
+let _prmResolver: ((v: Record<string,string> | null) => void) | null = null;
+let _prmFields: { id: string; required?: boolean }[] = [];
+
+interface ConfirmOpts {
+  title?:        string;
+  message?:      string;
+  confirmLabel?: string;
+  cancelLabel?:  string;
+  dangerous?:    boolean;   // styles confirm button red
+}
+function showConfirm(opts: ConfirmOpts = {}): Promise<boolean> {
+  return new Promise<boolean>(resolve => {
+    _cfmResolver = resolve;
+    const modal      = el('cfmModal')      as HTMLElement | null;
+    const titleEl    = el('cfmTitle')      as HTMLElement | null;
+    const msgEl      = el('cfmMessage')    as HTMLElement | null;
+    const confirmBtn = el('cfmConfirmBtn') as HTMLElement | null;
+    const cancelBtn  = el('cfmCancelBtn')  as HTMLElement | null;
+    if (!modal || !titleEl || !msgEl || !confirmBtn || !cancelBtn) { resolve(false); return; }
+
+    titleEl.textContent  = opts.title   || 'Are you sure?';
+    msgEl.textContent    = opts.message || '';
+    msgEl.style.display  = opts.message ? 'block' : 'none';
+    confirmBtn.textContent = opts.confirmLabel || 'Confirm';
+    cancelBtn.textContent  = opts.cancelLabel  || 'Cancel';
+    confirmBtn.classList.toggle('danger', !!opts.dangerous);
+
+    modal.style.display = 'flex';
+    requestAnimationFrame(() => modal.classList.add('open'));
+    setTimeout(() => confirmBtn.focus(), 80);
+  });
+}
+function cfmDismiss(result: boolean): void {
+  const modal = el('cfmModal') as HTMLElement | null;
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
+  if (_cfmResolver) { _cfmResolver(result); _cfmResolver = null; }
+}
+
+interface PromptField {
+  id:           string;        // key in the returned object
+  label:        string;        // placeholder text
+  defaultValue?: string;
+  required?:    boolean;
+  type?:        'text' | 'number';
+}
+interface PromptOpts {
+  title?:   string;
+  message?: string;
+  okLabel?: string;
+  fields:   PromptField[];     // 1 or 2 fields
+}
+function showPrompt(opts: PromptOpts): Promise<Record<string,string> | null> {
+  return new Promise<Record<string,string> | null>(resolve => {
+    _prmResolver = resolve;
+    _prmFields   = opts.fields.map(f => ({ id: f.id, required: f.required }));
+
+    const modal   = el('prmModal')   as HTMLElement | null;
+    const titleEl = el('prmTitle')   as HTMLElement | null;
+    const msgEl   = el('prmMessage') as HTMLElement | null;
+    const f1      = el('prmField1')  as HTMLInputElement | null;
+    const f2      = el('prmField2')  as HTMLInputElement | null;
+    const okBtn   = el('prmOkBtn')   as HTMLElement | null;
+    if (!modal || !titleEl || !msgEl || !f1 || !f2 || !okBtn) { resolve(null); return; }
+
+    titleEl.textContent = opts.title || 'Enter value';
+    if (opts.message) {
+      msgEl.textContent   = opts.message;
+      msgEl.style.display = 'block';
+    } else {
+      msgEl.style.display = 'none';
+    }
+    okBtn.textContent = opts.okLabel || 'Save';
+
+    // Field 1 (always present)
+    const fOne = opts.fields[0];
+    f1.type        = fOne.type === 'number' ? 'number' : 'text';
+    f1.placeholder = fOne.label;
+    f1.value       = fOne.defaultValue ?? '';
+
+    // Field 2 (optional)
+    if (opts.fields[1]) {
+      const fTwo = opts.fields[1];
+      f2.style.display = 'block';
+      f2.type        = fTwo.type === 'number' ? 'number' : 'text';
+      f2.placeholder = fTwo.label;
+      f2.value       = fTwo.defaultValue ?? '';
+    } else {
+      f2.style.display = 'none';
+      f2.value = '';
+    }
+
+    modal.style.display = 'flex';
+    requestAnimationFrame(() => modal.classList.add('open'));
+    setTimeout(() => f1.focus(), 80);
+  });
+}
+function prmSubmit(): void {
+  const f1 = el('prmField1') as HTMLInputElement | null;
+  const f2 = el('prmField2') as HTMLInputElement | null;
+  if (!f1) return;
+  const out: Record<string,string> = {};
+  out[_prmFields[0].id] = f1.value.trim();
+  if (_prmFields[1] && f2 && f2.style.display !== 'none') {
+    out[_prmFields[1].id] = f2.value.trim();
+  }
+  // Required check
+  for (const f of _prmFields) {
+    if (f.required && !out[f.id]) {
+      const target = f === _prmFields[0] ? f1 : f2;
+      target?.focus();
+      target?.classList.add('shake');
+      setTimeout(() => target?.classList.remove('shake'), 320);
+      return;
+    }
+  }
+  prmDismiss(out);
+}
+function prmDismiss(result: Record<string,string> | null): void {
+  const modal = el('prmModal') as HTMLElement | null;
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
+  if (_prmResolver) { _prmResolver(result); _prmResolver = null; }
+}
+
+// Expose at module level so inline onclick handlers in HTML can call them
+(window as any).cfmDismiss = cfmDismiss;
+(window as any).prmDismiss = prmDismiss;
+(window as any).prmSubmit  = prmSubmit;
+
+// Esc closes both modals; Enter submits prompt / confirms confirm
+document.addEventListener('keydown', e => {
+  const cfm = el('cfmModal');
+  const prm = el('prmModal');
+  if (cfm && cfm.classList.contains('open')) {
+    if (e.key === 'Escape') { e.preventDefault(); cfmDismiss(false); }
+    if (e.key === 'Enter')  { e.preventDefault(); cfmDismiss(true);  }
+    return;
+  }
+  if (prm && prm.classList.contains('open')) {
+    if (e.key === 'Escape') { e.preventDefault(); prmDismiss(null); }
+    if (e.key === 'Enter')  { e.preventDefault(); prmSubmit(); }
+  }
+});
 
 // ── HOME ────────────────────────────────────────────────────────────────────
 function renderHome() {
@@ -767,12 +922,17 @@ function renderGoalProgress() {
   }
 }
 
-function promptGoal() {
+async function promptGoal() {
   const cur = S.dailyGoal || 120;
-  const input = prompt(`Daily focus goal (minutes):\nCurrent: ${cur} min`, String(cur));
-  const parsed = parseInt(input ?? '', 10);
+  const res = await showPrompt({
+    title:   'Daily focus goal',
+    message: 'Total focus minutes per day. Tip: also editable in Settings.',
+    okLabel: 'Save',
+    fields:  [{ id: 'goal', label: 'Minutes', type: 'number', defaultValue: String(cur), required: true }],
+  });
+  const parsed = parseInt(res?.['goal'] ?? '', 10);
   if (!isNaN(parsed) && parsed > 0) {
-    S.dailyGoal = Math.max(5, Math.min(480, parsed));
+    S.dailyGoal = Math.max(5, Math.min(1440, parsed));
     save();
     renderGoalProgress();
     showToast(`Daily goal set to ${S.dailyGoal} minutes`, 'success');
@@ -1249,8 +1409,13 @@ function beginFocusSession(): void {
   startTimer();
 }
 
-function exitFocusSession() {
-  if (!confirm('End this focus session?')) return;
+async function exitFocusSession() {
+  const ok = await showConfirm({
+    title:        'End this focus session?',
+    message:      'Your time so far will be logged.',
+    confirmLabel: 'End session',
+  });
+  if (!ok) return;
   logSession();
   pauseTimer();
   timer.timeLeft  = S.focusDuration;
@@ -1855,24 +2020,38 @@ function openDoc(subjId: number, docId: number): void {
   }
 }
 
-function showAddSubject() {
-  const name = prompt('Subject name:');
-  if (!name?.trim()) return;
-  const desc = prompt('Brief description:') || '';
+async function showAddSubject() {
+  const res = await showPrompt({
+    title:   'New subject',
+    okLabel: 'Create',
+    fields:  [
+      { id: 'name', label: 'Subject name (e.g. Physics)', required: true },
+      { id: 'desc', label: 'Brief description (optional)' },
+    ],
+  });
+  if (!res?.['name']) return;
   S.subjects.push({
     id:       S.nextId++,
-    name:     name.trim(),
-    desc:     desc.trim(),
+    name:     res['name'],
+    desc:     res['desc'] || '',
     docs:     0,
     color:    SUBJECT_COLORS[S.subjects.length % SUBJECT_COLORS.length],
     accessed: Date.now(),
   });
   save();
   renderLibrary();
+  showToast(`Created "${res['name']}"`, 'success');
 }
 
-function deleteSubject(id: number): void {
-  if (!confirm('Remove this subject?')) return;
+async function deleteSubject(id: number): Promise<void> {
+  const subj = S.subjects.find(s => s.id === id);
+  const ok = await showConfirm({
+    title:        'Remove subject?',
+    message:      subj ? `"${subj.name}" and all its notes will be removed from this device.` : 'This subject will be removed.',
+    confirmLabel: 'Remove',
+    dangerous:    true,
+  });
+  if (!ok) return;
   S.subjects = S.subjects.filter(s => s.id !== id);
   save();
   renderLibrary();
@@ -2660,8 +2839,15 @@ function showToast(msg: string, type: 'info' | 'success' | 'warning' | 'error' =
 }
 
 // ── LOGOUT ───────────────────────────────────────────────────────────────────
-function handleLogout() {
-  if (!confirm('Sign out of Brainfy?')) return;
+// Kept as a fallback; the primary sign-out is now in the Settings view.
+async function handleLogout() {
+  const ok = await showConfirm({
+    title:        'Sign out of Brainfy?',
+    message:      'Your local data stays on this device.',
+    confirmLabel: 'Sign out',
+    dangerous:    true,
+  });
+  if (!ok) return;
   pauseTimer();
   document.body.classList.remove('focus-active');
   handleSignOut();
@@ -2904,17 +3090,30 @@ function initEvents() {
     if (timer.running) pauseTimer();
     else startTimer();
   });
-  el('timerResetBtn')?.addEventListener('click', () => { if (confirm('Reset timer?')) resetTimer(); });
+  el('timerResetBtn')?.addEventListener('click', async () => {
+    const ok = await showConfirm({
+      title:        'Reset timer?',
+      message:      'The current countdown will jump back to the start.',
+      confirmLabel: 'Reset',
+    });
+    if (ok) resetTimer();
+  });
   el('timerSkipBtn')?.addEventListener('click', skipTimer);
 
   // Exit session
   el('exitSessionBtn')?.addEventListener('click', exitFocusSession);
 
   // Add milestone
-  el('addMilestoneBtn')?.addEventListener('click', () => {
-    const text = prompt('Milestone:');
-    if (text?.trim()) {
-      S.milestones.push({ id: S.nextId++, text: text.trim(), done: false });
+  el('addMilestoneBtn')?.addEventListener('click', async () => {
+    const res = await showPrompt({
+      title:   'New milestone',
+      message: 'Something you want to finish this session.',
+      okLabel: 'Add',
+      fields:  [{ id: 'text', label: 'Milestone', required: true }],
+    });
+    const text = res?.['text'];
+    if (text) {
+      S.milestones.push({ id: S.nextId++, text, done: false });
       save();
       renderMilestones();
     }
@@ -3041,14 +3240,8 @@ function initEvents() {
     showToast('No new notifications', 'info');
   });
   el('focusSettingsBtn')?.addEventListener('click', () => {
-    const dur = prompt(`Focus duration (minutes):`, String(Math.round(S.focusDuration / 60)));
-    if (!dur || isNaN(+dur) || +dur < 1) return;
-    const brk = prompt(`Break duration (minutes):`, String(Math.round(S.breakDuration / 60)));
-    if (!brk || isNaN(+brk) || +brk < 1) return;
-    S.focusDuration = +dur * 60;
-    S.breakDuration = +brk * 60;
-    save();
-    showToast(`Updated: ${dur}m focus / ${brk}m break`, 'success');
+    // Sends users to the Settings view where focus/break/goal all live now.
+    goTo('settings');
   });
 
   // ── Focus: Add custom ambient track ───────────────
@@ -3211,20 +3404,35 @@ const AI_QUICK = {
     const s = S.subjects[0]?.name || 'my current subject';
     return `Quiz me on **${s}** — give me 5 challenging questions one at a time. Start with the first question.`;
   },
-  explain: () => {
-    const topic = prompt('What concept should I explain?');
-    return topic ? `Explain **${topic.trim()}** clearly with an analogy and a real-world example.` : null;
+  explain: async () => {
+    const res = await showPrompt({
+      title:   'Explain a concept',
+      message: 'Brainfy AI will explain with an analogy and a real-world example.',
+      okLabel: 'Ask AI',
+      fields:  [{ id: 'topic', label: 'What concept?', required: true }],
+    });
+    return res?.['topic']
+      ? `Explain **${res['topic']}** clearly with an analogy and a real-world example.`
+      : null;
   },
-  flashcards: () => {
-    const notes = prompt('Paste your notes here and I\'ll generate flashcards:');
-    return notes ? `Generate 8 flashcards from these notes. Use exactly this format:\nQ: [question]\nA: [answer]\n\nNotes:\n${notes.trim()}` : null;
+  flashcards: async () => {
+    const res = await showPrompt({
+      title:   'Generate flashcards from notes',
+      message: 'Paste study notes, I\'ll turn them into Q/A flashcards.',
+      okLabel: 'Generate',
+      fields:  [{ id: 'notes', label: 'Paste notes here', required: true }],
+    });
+    return res?.['notes']
+      ? `Generate 8 flashcards from these notes. Use exactly this format:\nQ: [question]\nA: [answer]\n\nNotes:\n${res['notes']}`
+      : null;
   },
   plan: () => `Create a focused 7-day study plan for these subjects: **${S.subjects.map(s=>s.name).join(', ')}**. Be specific with daily time blocks and topics.`,
   tips: () => `Based on my ${Math.round(todayFocusSec()/60)} minutes of focus today and a score of ${calcScore()}/100 — give me 3 sharp, actionable tips to improve my study performance.`,
 };
 
-function aiQuickAction(type: keyof typeof AI_QUICK): void {
-  const msg = AI_QUICK[type]?.();
+async function aiQuickAction(type: keyof typeof AI_QUICK): Promise<void> {
+  const result = AI_QUICK[type]?.();
+  const msg = result instanceof Promise ? await result : result;
   if (msg) callClaude(msg);
 }
 
@@ -3469,6 +3677,7 @@ function init() {
   initEvents();
   initSplashObserver();
   initTimetable();
+  initSettings();
   checkAIStatus();
 
   // ── Firebase auth observer ────────────────────
@@ -3778,9 +3987,16 @@ function saveTTBlock(): void {
   showToast(ttEditId != null ? 'Block updated' : 'Block added', 'success');
 }
 
-function deleteTTBlock(): void {
+async function deleteTTBlock(): Promise<void> {
   if (ttEditId == null) return;
-  if (!confirm('Remove this block?')) return;
+  const block = (S.timetable || []).find(b => b.id === ttEditId);
+  const ok = await showConfirm({
+    title:        'Remove this block?',
+    message:      block ? `"${block.title}" will be removed from your timetable.` : '',
+    confirmLabel: 'Remove',
+    dangerous:    true,
+  });
+  if (!ok) return;
   S.timetable = (S.timetable || []).filter(b => b.id !== ttEditId);
   save();
   closeTTModal();
@@ -3830,3 +4046,133 @@ function initTimetable(): void {
 (window as any).closeTTModal  = closeTTModal;
 (window as any).saveTTBlock   = saveTTBlock;
 (window as any).deleteTTBlock = deleteTTBlock;
+
+
+// ── SETTINGS ─────────────────────────────────────────────────────────────────
+function renderSettings(): void {
+  // Profile
+  const name      = el('setName');
+  const email     = el('setEmail');
+  const avatar    = el('setAvatar');
+  const displayName = (S.userName || firebaseUser?.displayName || firebaseUser?.email?.split('@')[0] || 'Signed-out');
+  if (name)   name.textContent   = displayName;
+  if (email)  email.textContent  = firebaseUser?.email || '';
+  if (avatar) avatar.textContent = displayName.charAt(0).toUpperCase();
+
+  // Focus / break / goal
+  const fd = elInput('setFocusDuration');
+  const bd = elInput('setBreakDuration');
+  const dg = elInput('setDailyGoal');
+  if (fd) fd.value = String(Math.round(S.focusDuration / 60));
+  if (bd) bd.value = String(Math.round(S.breakDuration / 60));
+  if (dg) dg.value = String(S.dailyGoal);
+}
+
+let _settingsDirtyTimer: number | undefined;
+function settingsCommitDirty(): void {
+  // Debounce so we don't fire save() on every keystroke
+  window.clearTimeout(_settingsDirtyTimer);
+  _settingsDirtyTimer = window.setTimeout(() => {
+    save();
+    showToast('Settings saved', 'success');
+  }, 600);
+}
+
+function initSettings(): void {
+  // Focus duration
+  el('setFocusDuration')?.addEventListener('input', () => {
+    const v = +(elInput('setFocusDuration')?.value || 0);
+    if (v >= 1 && v <= 180) {
+      S.focusDuration = v * 60;
+      // If timer is idle and on focus view, reflect the new duration
+      if (!timer.running) {
+        timer.timeLeft  = S.focusDuration;
+        timer.totalTime = S.focusDuration;
+        if (currentView === 'focus') renderFocus();
+      }
+      settingsCommitDirty();
+    }
+  });
+
+  // Break duration
+  el('setBreakDuration')?.addEventListener('input', () => {
+    const v = +(elInput('setBreakDuration')?.value || 0);
+    if (v >= 1 && v <= 60) {
+      S.breakDuration = v * 60;
+      settingsCommitDirty();
+    }
+  });
+
+  // Daily goal
+  el('setDailyGoal')?.addEventListener('input', () => {
+    const v = +(elInput('setDailyGoal')?.value || 0);
+    if (v >= 15 && v <= 1440) {
+      S.dailyGoal = v;
+      settingsCommitDirty();
+      // Reflect on home if visible
+      if (currentView === 'home') renderHome();
+    }
+  });
+
+  // Edit name
+  el('setEditNameBtn')?.addEventListener('click', async () => {
+    const res = await showPrompt({
+      title:    'Update display name',
+      message:  'Shown across Brainfy and used by your AI tutor for greetings.',
+      okLabel:  'Save',
+      fields:   [{ id: 'name', label: 'Your name', defaultValue: S.userName, required: true }],
+    });
+    if (!res) return;
+    S.userName = res['name'];
+    save();
+    renderSettings();
+    if (currentView === 'home') renderHome();
+    showToast('Name updated', 'success');
+  });
+
+  // Sign out
+  el('setSignOutBtn')?.addEventListener('click', async () => {
+    const ok = await showConfirm({
+      title:        'Sign out of Brainfy?',
+      message:      'Your local data stays on this device. You can sign back in anytime.',
+      confirmLabel: 'Sign out',
+      dangerous:    true,
+    });
+    if (!ok) return;
+    try { await firebase.auth().signOut(); } catch (_) {}
+    firebaseUser = null;
+    idToken      = '';
+    goTo('splash');
+  });
+
+  // Export
+  el('setExportBtn')?.addEventListener('click', () => {
+    try {
+      const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
+      const a    = document.createElement('a');
+      a.href     = URL.createObjectURL(blob);
+      a.download = `brainfy-export-${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+      showToast('Exported your data', 'success');
+    } catch (e: any) {
+      showToast('Export failed: ' + (e?.message || e), 'error');
+    }
+  });
+
+  // Clear local cache
+  el('setClearLocalBtn')?.addEventListener('click', async () => {
+    const ok = await showConfirm({
+      title:        'Clear local cache?',
+      message:      'Removes data stored on this device only. Cloud-synced data is unaffected and will reload on next sign-in.',
+      confirmLabel: 'Clear cache',
+      dangerous:    true,
+    });
+    if (!ok) return;
+    try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+    showToast('Local cache cleared — reloading', 'info');
+    setTimeout(() => location.reload(), 600);
+  });
+}

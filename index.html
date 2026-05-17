@@ -1759,8 +1759,8 @@
     <button id="sidebarSupportBtn" class="nav-btn" style="font-size:13px;">
       <span class="ms" style="font-size:18px;">support</span> Support
     </button>
-    <button id="sidebarLogoutBtn" class="nav-btn" style="font-size:13px;">
-      <span class="ms" style="font-size:18px;">logout</span> Logout
+    <button class="nav-btn" data-go="settings" style="font-size:13px;">
+      <span class="ms" style="font-size:18px;">settings</span> Settings
     </button>
   </div>
 </aside>
@@ -2511,6 +2511,125 @@
   </div>
 </div><!-- /timetableView -->
 
+
+<!-- ══════════════════════════════════════════
+     SETTINGS VIEW
+══════════════════════════════════════════ -->
+<div id="settingsView" class="view app-view">
+  <div style="max-width:760px;margin:0 auto;padding:36px 28px 56px;">
+
+    <!-- Header -->
+    <div style="margin-bottom:28px;">
+      <h1 style="font-size:22px;font-weight:800;letter-spacing:-0.025em;color:var(--text);line-height:1;">Settings</h1>
+      <p style="font-size:13px;color:var(--muted);margin-top:6px;font-weight:400;letter-spacing:0.01em;">Tune Brainfy to how you study.</p>
+    </div>
+
+    <!-- ── Profile ── -->
+    <section style="margin-bottom:22px;">
+      <p style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:10px;">PROFILE</p>
+      <div style="border-radius:18px;border:1px solid rgba(255,255,255,0.06);background:rgba(7,15,31,0.6);backdrop-filter:blur(20px);overflow:hidden;">
+        <div style="padding:18px 22px;display:flex;align-items:center;gap:14px;border-bottom:1px solid rgba(255,255,255,0.04);">
+          <div id="setAvatar" style="width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#6d28d9);color:white;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;font-family:'Space Grotesk';flex-shrink:0;">?</div>
+          <div style="flex:1;min-width:0;">
+            <div id="setName" style="font-size:15px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-0.01em;">Signed-out</div>
+            <div id="setEmail" style="font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Space Grotesk';"></div>
+          </div>
+          <button id="setEditNameBtn" type="button" aria-label="Edit name"
+            style="width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;flex-shrink:0;"
+            onmouseover="this.style.background='rgba(255,255,255,0.1)';this.style.color='var(--text)'"
+            onmouseout="this.style.background='rgba(255,255,255,0.05)';this.style.color='var(--muted)'">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+        </div>
+        <button id="setSignOutBtn" type="button"
+          style="width:100%;padding:14px 22px;background:transparent;border:none;color:#f87171;font-size:14px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;display:flex;align-items:center;gap:10px;letter-spacing:-0.005em;transition:background 0.15s;text-align:left;"
+          onmouseover="this.style.background='rgba(239,68,68,0.06)'"
+          onmouseout="this.style.background='transparent'">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Sign out
+        </button>
+      </div>
+    </section>
+
+    <!-- ── Focus & Breaks ── -->
+    <section style="margin-bottom:22px;">
+      <p style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:10px;">FOCUS &amp; BREAKS</p>
+      <div style="border-radius:18px;border:1px solid rgba(255,255,255,0.06);background:rgba(7,15,31,0.6);backdrop-filter:blur(20px);overflow:hidden;">
+
+        <!-- Focus duration -->
+        <div style="padding:16px 22px;display:flex;align-items:center;gap:14px;border-bottom:1px solid rgba(255,255,255,0.04);">
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;color:var(--text);letter-spacing:-0.005em;">Focus duration</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;font-family:'Space Grotesk';opacity:0.7;">Minutes per focus block</div>
+          </div>
+          <input id="setFocusDuration" type="number" min="1" max="180"
+            style="width:74px;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:9px;color:var(--text);font-family:'Space Grotesk';font-size:14px;font-weight:700;text-align:center;outline:none;"/>
+          <span style="font-size:11px;color:var(--muted);font-family:'Space Grotesk';font-weight:600;letter-spacing:0.04em;width:18px;">min</span>
+        </div>
+
+        <!-- Break duration -->
+        <div style="padding:16px 22px;display:flex;align-items:center;gap:14px;border-bottom:1px solid rgba(255,255,255,0.04);">
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;color:var(--text);letter-spacing:-0.005em;">Break duration</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;font-family:'Space Grotesk';opacity:0.7;">Minutes between focus blocks</div>
+          </div>
+          <input id="setBreakDuration" type="number" min="1" max="60"
+            style="width:74px;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:9px;color:var(--text);font-family:'Space Grotesk';font-size:14px;font-weight:700;text-align:center;outline:none;"/>
+          <span style="font-size:11px;color:var(--muted);font-family:'Space Grotesk';font-weight:600;letter-spacing:0.04em;width:18px;">min</span>
+        </div>
+
+        <!-- Daily goal -->
+        <div style="padding:16px 22px;display:flex;align-items:center;gap:14px;">
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;color:var(--text);letter-spacing:-0.005em;">Daily focus goal</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;font-family:'Space Grotesk';opacity:0.7;">Total focus minutes per day</div>
+          </div>
+          <input id="setDailyGoal" type="number" min="15" max="1440" step="15"
+            style="width:74px;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:9px;color:var(--text);font-family:'Space Grotesk';font-size:14px;font-weight:700;text-align:center;outline:none;"/>
+          <span style="font-size:11px;color:var(--muted);font-family:'Space Grotesk';font-weight:600;letter-spacing:0.04em;width:18px;">min</span>
+        </div>
+
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:10px;padding:0 4px;font-family:'Space Grotesk';opacity:0.6;letter-spacing:0.02em;">Saved automatically as you type.</p>
+    </section>
+
+    <!-- ── Data ── -->
+    <section style="margin-bottom:22px;">
+      <p style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:10px;">DATA</p>
+      <div style="border-radius:18px;border:1px solid rgba(255,255,255,0.06);background:rgba(7,15,31,0.6);backdrop-filter:blur(20px);overflow:hidden;">
+        <button id="setExportBtn" type="button"
+          style="width:100%;padding:14px 22px;background:transparent;border:none;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;display:flex;align-items:center;gap:10px;letter-spacing:-0.005em;transition:background 0.15s;text-align:left;border-bottom:1px solid rgba(255,255,255,0.04);"
+          onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='transparent'">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--plight)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export my data (JSON)
+        </button>
+        <button id="setClearLocalBtn" type="button"
+          style="width:100%;padding:14px 22px;background:transparent;border:none;color:#f87171;font-size:14px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;display:flex;align-items:center;gap:10px;letter-spacing:-0.005em;transition:background 0.15s;text-align:left;"
+          onmouseover="this.style.background='rgba(239,68,68,0.06)'" onmouseout="this.style.background='transparent'">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+          Clear local cache
+        </button>
+      </div>
+    </section>
+
+    <!-- ── About ── -->
+    <section>
+      <p style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:10px;">ABOUT</p>
+      <div style="border-radius:18px;border:1px solid rgba(255,255,255,0.06);background:rgba(7,15,31,0.6);backdrop-filter:blur(20px);padding:18px 22px;">
+        <div style="font-size:14px;font-weight:700;color:var(--text);letter-spacing:-0.01em;">Brainfy</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.55;">A cognitive environment for deep work. Built solo, in the open.</div>
+        <div style="display:flex;gap:16px;margin-top:14px;font-size:12px;">
+          <a href="/privacy.html" target="_blank" rel="noopener" style="color:var(--plight);text-decoration:none;font-weight:600;">Privacy</a>
+          <a href="/terms.html"   target="_blank" rel="noopener" style="color:var(--plight);text-decoration:none;font-weight:600;">Terms</a>
+          <a href="https://github.com/Aihan-7/brainfy" target="_blank" rel="noopener" style="color:var(--plight);text-decoration:none;font-weight:600;">GitHub</a>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div><!-- /settingsView -->
+
+
   <!-- ── Add / Edit modal — iOS sheet style ── -->
   <div id="ttModal" style="display:none;position:fixed;inset:0;z-index:200;align-items:flex-end;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(20px);opacity:0;transition:opacity 0.22s ease;" onclick="if(event.target===this)closeTTModal()">
     <div style="width:100%;max-width:480px;margin-bottom:24px;background:rgba(10,18,34,0.97);border:1px solid rgba(255,255,255,0.09);border-radius:26px;overflow:hidden;transform:translateY(40px);transition:transform 0.28s cubic-bezier(0.34,1.15,0.64,1);">
@@ -2590,6 +2709,56 @@
       </div>
     </div>
   </div><!-- /ttModal -->
+
+
+<!-- ══════════════════════════════════════════
+     SHARED CONFIRM / PROMPT MODALS (iOS sheet)
+     Used by showConfirm() and showPrompt() — replaces native window.confirm / window.prompt
+══════════════════════════════════════════ -->
+
+<!-- Confirm modal -->
+<div id="cfmModal" style="display:none;position:fixed;inset:0;z-index:210;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(20px);opacity:0;transition:opacity 0.22s ease;" onclick="if(event.target===this)cfmDismiss(false)">
+  <div style="width:100%;max-width:380px;margin:24px;background:rgba(10,18,34,0.97);border:1px solid rgba(255,255,255,0.09);border-radius:22px;overflow:hidden;transform:translateY(20px) scale(0.96);transition:transform 0.28s cubic-bezier(0.34,1.15,0.64,1);">
+    <div style="padding:22px 22px 6px;">
+      <h3 id="cfmTitle" style="font-size:16px;font-weight:700;letter-spacing:-0.02em;color:var(--text);margin-bottom:6px;">Are you sure?</h3>
+      <p id="cfmMessage" style="font-size:13px;color:var(--muted);line-height:1.5;"></p>
+    </div>
+    <div style="padding:16px 18px 18px;display:flex;gap:8px;">
+      <button id="cfmCancelBtn" type="button" onclick="cfmDismiss(false)"
+        style="flex:1;padding:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:12px;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;transition:background 0.15s;"
+        onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">Cancel</button>
+      <button id="cfmConfirmBtn" type="button" onclick="cfmDismiss(true)"
+        style="flex:1.2;padding:12px;background:var(--primary);border:none;border-radius:12px;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;letter-spacing:-0.01em;transition:opacity 0.15s,transform 0.1s;"
+        onmouseover="this.style.opacity='0.88'" onmouseout="this.style.opacity='1'"
+        onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform='scale(1)'">Confirm</button>
+    </div>
+  </div>
+</div><!-- /cfmModal -->
+
+<!-- Prompt modal (1 or 2 fields) -->
+<div id="prmModal" style="display:none;position:fixed;inset:0;z-index:210;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(20px);opacity:0;transition:opacity 0.22s ease;" onclick="if(event.target===this)prmDismiss(null)">
+  <div style="width:100%;max-width:420px;margin:24px;background:rgba(10,18,34,0.97);border:1px solid rgba(255,255,255,0.09);border-radius:22px;overflow:hidden;transform:translateY(20px) scale(0.96);transition:transform 0.28s cubic-bezier(0.34,1.15,0.64,1);">
+    <div style="padding:22px 22px 12px;">
+      <h3 id="prmTitle" style="font-size:16px;font-weight:700;letter-spacing:-0.02em;color:var(--text);margin-bottom:6px;">Enter value</h3>
+      <p id="prmMessage" style="font-size:13px;color:var(--muted);line-height:1.5;display:none;"></p>
+    </div>
+    <div style="margin:0 16px 12px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);overflow:hidden;">
+      <input id="prmField1" type="text"
+        style="width:100%;padding:13px 16px;background:transparent;border:none;color:var(--text);font-family:'Manrope',sans-serif;font-size:15px;outline:none;letter-spacing:-0.01em;border-bottom:1px solid rgba(255,255,255,0.05);"/>
+      <input id="prmField2" type="text"
+        style="display:none;width:100%;padding:13px 16px;background:transparent;border:none;color:var(--text);font-family:'Manrope',sans-serif;font-size:14px;outline:none;letter-spacing:-0.01em;"/>
+    </div>
+    <div style="padding:6px 16px 18px;display:flex;gap:8px;">
+      <button type="button" onclick="prmDismiss(null)"
+        style="flex:1;padding:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:12px;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;transition:background 0.15s;"
+        onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">Cancel</button>
+      <button id="prmOkBtn" type="button" onclick="prmSubmit()"
+        style="flex:1.2;padding:12px;background:var(--primary);border:none;border-radius:12px;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;letter-spacing:-0.01em;transition:opacity 0.15s,transform 0.1s;"
+        onmouseover="this.style.opacity='0.88'" onmouseout="this.style.opacity='1'"
+        onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform='scale(1)'">Save</button>
+    </div>
+  </div>
+</div><!-- /prmModal -->
 
 
 <!-- ══════════════════════════════════════════
@@ -2939,6 +3108,11 @@
   #footerModal.open > div { transform: translateY(0) scale(1); }
   #ttModal.open { opacity: 1; }
   #ttModal.open > div { transform: translateY(0) scale(1); }
+  #cfmModal.open, #prmModal.open { opacity: 1; }
+  #cfmModal.open > div, #prmModal.open > div { transform: translateY(0) scale(1); }
+  #cfmModal input::placeholder, #prmModal input::placeholder { color: var(--muted); }
+  /* Danger style for destructive confirm */
+  #cfmConfirmBtn.danger { background: linear-gradient(135deg,#ef4444,#b91c1c) !important; }
   #footerModalBody h3 { color:var(--text);font-size:13px;font-weight:700;margin:18px 0 6px;letter-spacing:0.03em;text-transform:uppercase; }
   #footerModalBody p  { margin:0 0 10px; }
   #footerModalBody a  { color:var(--plight);text-decoration:none; }
@@ -2960,7 +3134,7 @@
   });
 </script>
 
-<script src="script.js?v=1778397500"></script>
+<script src="script.js?v=1778400200"></script>
 
 </body>
 </html>
