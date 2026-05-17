@@ -1,0 +1,36 @@
+rules_version = '2';
+
+// ────────────────────────────────────────────────────────────────────────────
+//  Firebase Storage rules for Brainfy
+//
+//  Goal: each signed-in user can read/write only files inside their own
+//  users/{uid}/... folder. Nobody else can list, read, or write them.
+//
+//  TO APPLY:
+//    1. Firebase Console → Storage → Rules
+//    2. Paste this file's contents in
+//    3. Click "Publish"
+//
+//  ALSO: if you've never enabled Storage on this project, open the Storage
+//  tab in the console first and click "Get started" → accept defaults.
+// ────────────────────────────────────────────────────────────────────────────
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // User-owned files: /users/{uid}/...
+    match /users/{uid}/{allPaths=**} {
+      allow read:   if request.auth != null && request.auth.uid == uid;
+      allow write:  if request.auth != null
+                       && request.auth.uid == uid
+                       && request.resource.size < 1024 * 1024 * 1024     // 1 GB hard cap
+                       && request.resource.contentType.matches('(image|application|text|video|audio)/.*');
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Everything else: deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

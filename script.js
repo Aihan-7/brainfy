@@ -1444,7 +1444,7 @@ function renderDocModal() {
         ondrop="event.preventDefault();this.style.borderColor='rgba(255,255,255,0.12)';this.style.background='';handleDocDrop(event)">
         <span class="ms" style="font-size:40px;color:var(--plight);display:block;margin-bottom:10px;">cloud_upload</span>
         <div style="font-weight:600;font-size:14px;margin-bottom:6px;">Drop files here or click to browse</div>
-        <div style="font-size:12px;color:var(--muted);">PDF, images, text files — up to 5 MB</div>
+        <div style="font-size:12px;color:var(--muted);">PDF, images, text, video — up to 1 GB</div>
       </div>
       <input type="file" id="docFileInput" style="display:none;" multiple accept="*/*" onchange="handleDocFileSelect(this)">
       <div id="docFilePreview" style="margin-top:12px;display:flex;flex-direction:column;gap:6px;"></div>
@@ -1519,27 +1519,144 @@ function handleDocDrop(e) {
     const files = Array.from(e.dataTransfer?.files || []);
     files.forEach(file => readAndAddDoc(file));
 }
+// Two-tier upload strategy:
+//   • Files < 200 KB stay inline as base64 (instant, no Storage round-trip, works offline)
+//   • Files ≥ 200 KB go to Firebase Storage with resumable upload + progress UI
+//   • Hard cap: 1 GB
+const DOC_INLINE_MAX = 200 * 1024; // 200 KB
+const DOC_HARD_MAX = 1024 * 1024 * 1024; // 1 GB
 function readAndAddDoc(file) {
     if (docModalSubjId === null)
         return;
-    const MAX = 5 * 1024 * 1024; // 5 MB
-    if (file.size > MAX) {
-        showToast(`${file.name} is too large (max 5 MB)`, 'warning');
+    if (file.size > DOC_HARD_MAX) {
+        showToast(`${file.name} is too large (max 1 GB)`, 'warning');
         return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-        addDocToSubject({
-            id: S.nextId++,
-            name: file.name,
-            type: 'file',
-            content: reader.result,
-            mime: file.type,
-            size: file.size,
-            date: Date.now(),
-        });
+    // Small file → keep inline as base64 (current behaviour)
+    if (file.size < DOC_INLINE_MAX) {
+        const reader = new FileReader();
+        reader.onload = () => {
+            addDocToSubject({
+                id: S.nextId++,
+                name: file.name,
+                type: 'file',
+                content: reader.result,
+                mime: file.type,
+                size: file.size,
+                date: Date.now(),
+            });
+        };
+        reader.readAsDataURL(file);
+        return;
+    }
+    // Large file → Firebase Storage. Requires sign-in.
+    if (!firebaseUser) {
+        showToast('Please sign in to upload files larger than 200 KB', 'warning');
+        return;
+    }
+    if (typeof firebase.storage !== 'function') {
+        showToast('Storage SDK not loaded — refresh the page', 'error');
+        return;
+    }
+    uploadFileToStorage(file, docModalSubjId);
+}
+function uploadFileToStorage(file, subjectId) {
+    const uid = firebaseUser.uid;
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+    const path = `users/${uid}/docs/${subjectId}/${Date.now()}-${safeName}`;
+    const storageRef = firebase.storage().ref(path);
+    const task = storageRef.put(file, {
+        contentType: file.type || 'application/octet-stream',
+        customMetadata: { originalName: file.name },
+    });
+    const prog = showUploadToast(file.name);
+    task.on('state_changed', (snap) => {
+        const pct = snap.totalBytes ? (snap.bytesTransferred / snap.totalBytes) * 100 : 0;
+        prog.update(pct);
+    }, (err) => {
+        prog.dismiss();
+        const msg = err?.code === 'storage/unauthorized'
+            ? 'Upload blocked: enable Storage rules for signed-in users'
+            : (err?.message || 'Upload failed');
+        showToast(msg, 'error');
+    }, async () => {
+        try {
+            const downloadURL = await task.snapshot.ref.getDownloadURL();
+            prog.dismiss();
+            addDocToSubject({
+                id: S.nextId++,
+                name: file.name,
+                type: 'file',
+                content: '', // empty for Storage-backed
+                mime: file.type,
+                size: file.size,
+                date: Date.now(),
+                storagePath: path,
+                downloadURL: downloadURL,
+            }, subjectId); // bind to the subject id captured at upload start
+        }
+        catch (e) {
+            prog.dismiss();
+            showToast(`Could not finalise upload: ${e?.message || e}`, 'error');
+        }
+    });
+}
+function showUploadToast(fileName) {
+    const toast = document.createElement('div');
+    toast.style.cssText = [
+        'position:relative', 'margin-bottom:8px', 'min-width:300px', 'max-width:380px',
+        'background:rgba(7,15,31,0.96)', 'border:1px solid rgba(124,58,237,0.4)',
+        'border-radius:12px', 'padding:13px 18px',
+        'color:var(--text)', 'font-size:13px',
+        'backdrop-filter:blur(16px)',
+        'box-shadow:0 8px 28px rgba(0,0,0,0.5)',
+        'display:flex', 'flex-direction:column', 'gap:8px',
+        'font-family:Manrope,sans-serif',
+        'animation:toastSpringIn 0.28s cubic-bezier(0.34,1.2,0.64,1) both',
+    ].join(';');
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;';
+    const nameEl = document.createElement('div');
+    nameEl.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13px;';
+    nameEl.textContent = `Uploading ${fileName}`;
+    const pctEl = document.createElement('div');
+    pctEl.style.cssText = 'font-family:Space Grotesk,monospace;font-size:11px;color:var(--plight);font-weight:700;letter-spacing:0.04em;flex-shrink:0;';
+    pctEl.textContent = '0%';
+    header.appendChild(nameEl);
+    header.appendChild(pctEl);
+    toast.appendChild(header);
+    const barWrap = document.createElement('div');
+    barWrap.style.cssText = 'height:4px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;';
+    const bar = document.createElement('div');
+    bar.style.cssText = 'height:100%;background:linear-gradient(90deg,var(--primary),var(--cyan));border-radius:2px;width:0%;transition:width 0.18s linear;';
+    barWrap.appendChild(bar);
+    toast.appendChild(barWrap);
+    // Lazily-created stack container so multiple uploads stack neatly bottom-right
+    let stack = document.getElementById('brainfy-upload-stack');
+    if (!stack) {
+        stack = document.createElement('div');
+        stack.id = 'brainfy-upload-stack';
+        stack.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;align-items:flex-end;';
+        document.body.appendChild(stack);
+    }
+    stack.appendChild(toast);
+    return {
+        update: (pct) => {
+            const clamped = Math.max(0, Math.min(100, pct));
+            bar.style.width = clamped + '%';
+            pctEl.textContent = clamped.toFixed(0) + '%';
+        },
+        dismiss: () => {
+            toast.style.transition = 'opacity 0.25s, transform 0.25s';
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(20px)';
+            setTimeout(() => {
+                toast.remove();
+                if (stack && stack.children.length === 0)
+                    stack.remove();
+            }, 280);
+        },
     };
-    reader.readAsDataURL(file);
 }
 function saveDocNote() {
     const title = (elInput('docNoteTitle')?.value ?? '').trim();
@@ -1560,10 +1677,15 @@ function saveDocLink() {
     const name = label || url;
     addDocToSubject({ id: S.nextId++, name, type: 'link', content: url, date: Date.now() });
 }
-function addDocToSubject(doc) {
-    if (docModalSubjId === null)
+// Add a Doc to a subject. If subjectIdOverride is omitted, uses the currently-
+// open doc modal's subject (legacy callers). Long-running uploads should pass
+// the explicit subject id they captured at upload start, since the modal may
+// have been closed or switched by the time the upload completes.
+function addDocToSubject(doc, subjectIdOverride) {
+    const targetId = subjectIdOverride ?? docModalSubjId;
+    if (targetId == null)
         return;
-    const s = S.subjects.find(x => x.id === docModalSubjId);
+    const s = S.subjects.find(x => x.id === targetId);
     if (!s)
         return;
     if (!s.documents)
@@ -1571,7 +1693,9 @@ function addDocToSubject(doc) {
     s.documents.unshift(doc);
     s.docs = s.documents.length;
     save();
-    renderDocModal();
+    // Only refresh the modal if it's still showing the same subject
+    if (docModalSubjId === targetId)
+        renderDocModal();
     renderLibrary();
     showToast(`"${doc.name}" added`, 'success');
 }
@@ -1579,6 +1703,12 @@ function deleteDoc(subjId, docId) {
     const s = S.subjects.find(x => x.id === subjId);
     if (!s)
         return;
+    const target = (s.documents || []).find(d => d.id === docId);
+    // If file lives in Firebase Storage, delete the object too (fire-and-forget).
+    // We don't block UI removal on this; even if it fails the local ref is gone.
+    if (target?.storagePath && firebaseUser && typeof firebase.storage === 'function') {
+        firebase.storage().ref(target.storagePath).delete().catch(() => { });
+    }
     s.documents = (s.documents || []).filter(d => d.id !== docId);
     s.docs = s.documents.length;
     save();
@@ -1620,11 +1750,29 @@ function openDoc(subjId, docId) {
         }
     }
     else {
-        // File — trigger download
-        const a = document.createElement('a');
-        a.href = d.content;
-        a.download = d.name;
-        a.click();
+        // File — open in a new tab. Two cases:
+        //   • Storage-backed (downloadURL set) → cross-origin URL, just navigate
+        //   • Legacy inline base64 (data URI in d.content)
+        const href = d.downloadURL || d.content;
+        if (!href) {
+            showToast('File missing — not available locally', 'warning');
+            return;
+        }
+        // For viewable types (images, PDFs) open in a tab; otherwise force download.
+        const viewable = /^image\//.test(d.mime || '') || (d.mime || '') === 'application/pdf';
+        if (viewable) {
+            window.open(href, '_blank', 'noopener');
+        }
+        else {
+            const a = document.createElement('a');
+            a.href = href;
+            a.download = d.name;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
     }
 }
 function showAddSubject() {
