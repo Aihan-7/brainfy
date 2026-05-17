@@ -22,7 +22,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet"/>
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -126,12 +125,20 @@
     }
     .btn-ghost:hover { background: rgba(255,255,255,0.06); color: var(--text); }
 
-    /* ── Material icons ── */
+    /* ── Icons (formerly Material Symbols, now inline SVG via hydrateIcons) ── */
+    /* Pre-hydration: hide the literal icon-name text. JS swaps innerHTML to
+       an <svg> shortly after DOMContentLoaded. We keep the line-height and
+       display rules so layout doesn't jump when the SVG appears. */
     .ms {
-      font-family: 'Material Symbols Outlined';
-      font-size: 22px; line-height: 1;
-      user-select: none; display: inline-block;
+      font-size: 0;
+      line-height: 1;
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      vertical-align: middle;
     }
+    .ms[data-ms-hydrated="1"] svg { display: block; }
 
     /* ── Pulse dot ── */
     .pulse { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
@@ -933,6 +940,100 @@
       #pricing-grid > div[style*="scale(1.03)"] { transform: none !important; }
       #pricing-grid > div[style*="scale(1.03)"]:hover { transform: translateY(-4px) !important; }
     }
+
+    /* ══════════════════════════════════════════════════════════════════
+       MOBILE LAYOUT  (≤ 768 px)
+       — Sidebar slides off-screen behind a hamburger top bar
+       — Main content takes full width with reduced padding
+       — Settings and Timetable get specific tweaks below
+       ══════════════════════════════════════════════════════════════════ */
+    @media (max-width: 768px) {
+      /* Top bar visible only on mobile + when an app view is active.
+         The !important beats the inline style="display:none" baseline. */
+      body.app-active #mobileTopBar { display: flex !important; }
+
+      /* Sidebar → slide-in drawer */
+      body.app-active #appSidebar {
+        transform: translateX(-100%);
+        transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+        width: min(82vw, 280px);
+        box-shadow: 6px 0 30px rgba(0,0,0,0.4);
+      }
+      body.app-active.sidebar-open #appSidebar { transform: translateX(0); }
+      body.app-active.sidebar-open #mobileScrim { display: block !important; opacity: 1 !important; }
+
+      /* Main views: no left margin, padding-top to clear the 54 px top bar */
+      .app-view.active { margin-left: 0 !important; padding-top: 54px !important; }
+
+      /* Tighter content padding everywhere */
+      #homeView      > div { padding: 18px 14px 40px !important; }
+      #focusView     > div,
+      #libraryView   > div,
+      #statsView     > div,
+      #tasksView     > div,
+      #timetableView > div,
+      #settingsView  > div { padding: 18px 14px 40px !important; max-width: 100% !important; }
+
+      /* Home: stack the side-by-side stat grid + main grid */
+      #homeView > div > div[style*="grid-template-columns:1fr 292px"],
+      #homeView > div > div[style*="grid-template-columns: 1fr 292px"] {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* Home: stat cards row → 2×2 grid (was 4 across, way too cramped) */
+      #homeView > div > div[style*="grid-template-columns:repeat(4,1fr)"],
+      #homeView > div > div[style*="grid-template-columns: repeat(4, 1fr)"],
+      #homeView > div > div[style*="grid-template-columns:repeat(4, 1fr)"] {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 10px !important;
+      }
+      #homeView .hd-stat { padding: 16px !important; }
+
+      /* Home: greeting row (streak pill + "Good morning" + Start Session)
+         needs to stack vertically so the button doesn't overflow. */
+      #homeView > div > div:first-child[style*="justify-content:space-between"] {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 14px !important;
+      }
+      #homeStartBtn { width: 100% !important; }
+
+      /* Stats: 4-card milestones grid → 2×2 */
+      #statsView div[style*="grid-template-columns:repeat(4,1fr)"] {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 12px !important;
+      }
+
+      /* Timetable: keep usable on small screens.
+         Narrow label column to 36 px and minimum 40 px per day so 7 days
+         + label fit on a 320 px viewport with padding. */
+      #ttGrid, #ttDayHeaders {
+        grid-template-columns: 36px repeat(7, minmax(40px, 1fr)) !important;
+      }
+      #ttGrid > div, #ttDayHeaders > div { font-size: 9px !important; }
+      #timetableView .glass { padding: 14px !important; }
+
+      /* Timetable bottom panels: stack */
+      #timetableView > div > div[style*="grid-template-columns:1.4fr 1fr"] {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* Settings: tighten the inset rows */
+      #settingsView input[type="number"] { width: 64px !important; padding: 8px 10px !important; }
+      #settingsView section > div > div { padding: 14px 16px !important; gap: 10px !important; }
+
+      /* Focus view: shrink large numbers and stack chips/blocks */
+      #focusView .focus-fs-hide { display: none !important; }
+
+      /* Modals: full-width on phones */
+      #ttModal > div, #cfmModal > div, #prmModal > div {
+        max-width: calc(100vw - 24px) !important;
+        margin: 12px !important;
+      }
+
+      /* AI panel: full screen on mobile */
+      #aiPanel { width: 100vw !important; }
+    }
   </style>
 </head>
 <body>
@@ -1707,6 +1808,24 @@
 <!-- ══════════════════════════════════════════
      SIDEBAR
 ══════════════════════════════════════════ -->
+<!-- Mobile top bar (≤768 px only) -->
+<header id="mobileTopBar" aria-hidden="true"
+  style="display:none;position:fixed;top:0;left:0;right:0;height:54px;align-items:center;justify-content:space-between;padding:0 14px;background:rgba(11,19,38,0.85);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);z-index:90;">
+  <button id="mobileMenuBtn" type="button" aria-label="Open menu" onclick="document.body.classList.toggle('sidebar-open')"
+    style="width:38px;height:38px;border-radius:9px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,var(--primary),#6d28d9);display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-family:'Space Grotesk',sans-serif;font-size:13px;letter-spacing:-0.02em;">B</div>
+    <span style="font-weight:800;font-size:15px;color:var(--plighter);letter-spacing:-0.01em;">Brainfy</span>
+  </div>
+  <div style="width:38px;height:38px;"></div><!-- right spacer to balance -->
+</header>
+
+<!-- Tap-out scrim while sidebar drawer is open on mobile -->
+<div id="mobileScrim" onclick="document.body.classList.remove('sidebar-open')"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);z-index:99;opacity:0;transition:opacity 0.2s;"></div>
+
 <aside id="appSidebar">
   <!-- Logo -->
   <div style="padding:22px 18px 20px;border-bottom:1px solid var(--border);">
@@ -3154,7 +3273,7 @@
   });
 </script>
 
-<script src="script.js?v=1778402800"></script>
+<script src="script.js?v=1778408500"></script>
 
 </body>
 </html>
