@@ -1022,8 +1022,28 @@
       #settingsView input[type="number"] { width: 64px !important; padding: 8px 10px !important; }
       #settingsView section > div > div { padding: 14px 16px !important; gap: 10px !important; }
 
-      /* Focus view: shrink large numbers and stack chips/blocks */
+      /* ── Focus session (active): single-column on phones ──
+         The 220 px + 1fr + 264 px grid sums to more than 375 px, which
+         squashed the center column to ~0 px and pushed the ring off
+         screen. Hide the side panels AND collapse the grid to one
+         column so the timer truly centres in the viewport. */
       #focusView .focus-fs-hide { display: none !important; }
+      #focusTimerGrid {
+        grid-template-columns: 1fr !important;
+        min-height: calc(100vh - 110px) !important;
+      }
+      #focusTimerCenter { padding: 28px 16px !important; gap: 28px !important; }
+      /* Top bar inside the active session: tighter padding so the minimize
+         button doesn't get cut off on the right. */
+      #focusTopBar { padding: 12px 16px !important; }
+      #focusTopBar h2 { font-size: 15px !important; }
+      /* Timer ring scales down on small screens */
+      #focusTimerCenter > div:first-child {
+        width: min(280px, 78vw) !important;
+        height: min(280px, 78vw) !important;
+      }
+      #focusTimerCenter > div:first-child svg { width: 100% !important; height: 100% !important; }
+      #timerDisplay { font-size: clamp(40px, 13vw, 58px) !important; }
 
       /* Modals: full-width on phones */
       #ttModal > div, #cfmModal > div, #prmModal > div {
@@ -3273,7 +3293,7 @@
   });
 </script>
 
-<script src="script.js?v=1778408500"></script>
+<script src="script.js?v=1778410000"></script>
 
 </body>
 </html>
