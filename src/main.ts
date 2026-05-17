@@ -442,18 +442,107 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape')     closeFlashcards();
 });
 
+// ── Sync state machine ──────────────────────────────────────────────────────
+// Drives the sidebar chip. Five visible states; the chip text + dot colour
+// reflect the current value. State transitions are also logged so the
+// "Synced 12s ago" relative timestamp can refresh on a ticker.
+type SyncState = 'idle' | 'syncing' | 'synced' | 'error' | 'offline';
+let syncState: SyncState = 'idle';
+let lastSyncedAt: number | null = null;
+let _pendingSaveTimer: number | undefined;
+
+function setSyncState(next: SyncState): void {
+  syncState = next;
+  if (next === 'synced') lastSyncedAt = Date.now();
+  renderSyncChip();
+}
+
+function timeSince(ms: number): string {
+  const s = Math.round((Date.now() - ms) / 1000);
+  if (s < 5)    return 'just now';
+  if (s < 60)   return `${s}s ago`;
+  const m = Math.round(s / 60);
+  if (m < 60)   return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24)   return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+}
+
+function renderSyncChip(): void {
+  const chip = el('syncStatus');
+  const txt  = el('syncStatusText');
+  if (!chip || !txt) return;
+
+  let label = '';
+  switch (syncState) {
+    case 'idle':    label = idToken ? 'Idle'      : 'Local only';            break;
+    case 'syncing': label = 'Syncing…';                                       break;
+    case 'synced':  label = lastSyncedAt ? `Synced ${timeSince(lastSyncedAt)}` : 'Synced'; break;
+    case 'error':   label = 'Sync failed — tap to retry';                     break;
+    case 'offline': label = 'Offline · saved locally';                        break;
+  }
+  chip.setAttribute('data-state', syncState);
+  txt.textContent = label;
+}
+
+// Refresh "Synced Xs ago" text every 15 s without re-firing a sync
+window.setInterval(() => {
+  if (syncState === 'synced') renderSyncChip();
+}, 15000);
+
+// Online / offline events
+window.addEventListener('online',  () => { if (syncState === 'offline') setSyncState(idToken ? 'idle' : 'idle'); });
+window.addEventListener('offline', () => setSyncState('offline'));
+
 // ── Persistence ─────────────────────────────────────────────────────────────
 function save() {
   // Always save locally for instant access
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch(_) {}
-  // Push to Firestore if signed in (fire-and-forget)
-  if (idToken) {
+
+  // Not signed in or offline → bail out of cloud sync, leave chip as-is
+  if (!idToken)                      { if (syncState !== 'offline') setSyncState('idle');    return; }
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    setSyncState('offline');
+    return;
+  }
+
+  // Debounce so rapid edits collapse into one cloud write. The bar still
+  // shows "Syncing…" the moment the user changes something for instant
+  // feedback, then settles into "Synced just now" when the request lands.
+  setSyncState('syncing');
+  window.clearTimeout(_pendingSaveTimer);
+  _pendingSaveTimer = window.setTimeout(() => {
     fetch('/api/data/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken, state: S }),
-    }).catch(() => {}); // silent — local copy is always the fallback
-  }
+    }).then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setSyncState('synced');
+    }).catch(() => {
+      // Local copy is intact so this is recoverable; user can retry from the chip.
+      setSyncState('error');
+    });
+  }, 400);
+}
+
+// Manual retry (called when user clicks the chip in error state)
+function retrySync(): void {
+  if (!idToken) return;
+  if (syncState !== 'error') return;
+  setSyncState('syncing');
+  fetch('/api/data/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken, state: S }),
+  }).then(res => {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    setSyncState('synced');
+    showToast('Synced to cloud', 'success');
+  }).catch(() => {
+    setSyncState('error');
+    showToast('Still offline. Will retry on next change.', 'warning');
+  });
 }
 
 function load() {
@@ -3162,10 +3251,13 @@ function initEvents() {
     }
   });
 
-  // ── Sidebar: Logout & Support ──────────────────────
+  // ── Sidebar: legacy Logout button (now in Settings; kept as a safety net) ──
   el('sidebarLogoutBtn')?.addEventListener('click', handleLogout);
-  el('sidebarSupportBtn')?.addEventListener('click', () => {
-    showToast('Support chat coming soon! Email us at hello@brainfy.app', 'info');
+
+  // ── Sidebar: sync status chip — click to retry when in error state ────────
+  el('syncStatus')?.addEventListener('click', () => {
+    if (syncState === 'error')   retrySync();
+    if (syncState === 'offline') showToast('You appear to be offline. Changes are saved locally.', 'info');
   });
 
   // ── Splash: View Pricing ───────────────────────────
@@ -3687,18 +3779,26 @@ function init() {
     if (user) {
       firebaseUser = user;
       idToken = await user.getIdToken();
+      setSyncState('syncing');
       await loadFromCloud();
+      setSyncState('synced');
       // Always use real Firebase identity — never let stale Firestore data override the name
       S.userName = user.displayName || user.email?.split('@')[0] || 'Student';
       // Only auto-navigate if we're still on splash/signin/signup
       const authViews: ViewName[] = ['splash', 'signin', 'signup'];
       if (authViews.includes(currentView)) goTo('home');
     } else {
+      firebaseUser = null;
+      idToken      = '';
+      setSyncState('idle');
       // Only redirect to splash from app views — don't bounce users off sign-in/sign-up
       const authViews: ViewName[] = ['splash', 'signin', 'signup'];
       if (!authViews.includes(currentView)) goTo('splash');
     }
   });
+
+  // Initial paint of the chip (before auth resolves)
+  renderSyncChip();
 }
 
 document.addEventListener('DOMContentLoaded', init);

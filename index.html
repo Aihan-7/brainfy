@@ -1753,11 +1753,15 @@
 
   <!-- Start session + bottom -->
   <div style="padding:14px 14px 20px;border-top:1px solid var(--border);">
+    <!-- Sync status chip -->
+    <button id="syncStatus" data-state="idle" type="button" aria-live="polite"
+      style="width:100%;display:flex;align-items:center;gap:8px;padding:8px 11px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:9px;color:var(--muted);font-size:11px;font-family:'Manrope',sans-serif;font-weight:500;cursor:default;margin-bottom:10px;transition:all 0.15s ease;letter-spacing:-0.005em;">
+      <span id="syncStatusDot" style="width:7px;height:7px;border-radius:50%;background:var(--muted);box-shadow:0 0 6px transparent;flex-shrink:0;transition:all 0.2s;"></span>
+      <span id="syncStatusText" style="flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Local only</span>
+    </button>
+
     <button id="sidebarStartBtn" class="btn-primary" style="width:100%;padding:12px;font-size:14px;margin-bottom:12px;">
       Start Session
-    </button>
-    <button id="sidebarSupportBtn" class="nav-btn" style="font-size:13px;">
-      <span class="ms" style="font-size:18px;">support</span> Support
     </button>
     <button class="nav-btn" data-go="settings" style="font-size:13px;">
       <span class="ms" style="font-size:18px;">settings</span> Settings
@@ -3113,6 +3117,22 @@
   #cfmModal input::placeholder, #prmModal input::placeholder { color: var(--muted); }
   /* Danger style for destructive confirm */
   #cfmConfirmBtn.danger { background: linear-gradient(135deg,#ef4444,#b91c1c) !important; }
+
+  /* ── Sync status chip ─────────────────────────── */
+  #syncStatus[data-state="idle"]    #syncStatusDot { background: #64748b; box-shadow: 0 0 6px rgba(100,116,139,0.4); }
+  #syncStatus[data-state="syncing"] #syncStatusDot { background: var(--cyan); box-shadow: 0 0 10px rgba(76,215,246,0.7); animation: syncPulse 1.1s ease-in-out infinite; }
+  #syncStatus[data-state="synced"]  #syncStatusDot { background: var(--green); box-shadow: 0 0 8px rgba(78,222,163,0.55); }
+  #syncStatus[data-state="error"]   #syncStatusDot { background: #f87171; box-shadow: 0 0 8px rgba(248,113,113,0.6); }
+  #syncStatus[data-state="offline"] #syncStatusDot { background: #f59e0b; box-shadow: 0 0 8px rgba(245,158,11,0.55); }
+  #syncStatus[data-state="syncing"] { border-color: rgba(76,215,246,0.3); }
+  #syncStatus[data-state="synced"]  { border-color: rgba(78,222,163,0.22); }
+  #syncStatus[data-state="error"]   { border-color: rgba(248,113,113,0.32); cursor: pointer; }
+  #syncStatus[data-state="error"]:hover { background: rgba(248,113,113,0.06); }
+  #syncStatus[data-state="offline"] { border-color: rgba(245,158,11,0.25); }
+  @keyframes syncPulse {
+    0%, 100% { transform: scale(1);    opacity: 0.9; }
+    50%      { transform: scale(1.35); opacity: 1;   }
+  }
   #footerModalBody h3 { color:var(--text);font-size:13px;font-weight:700;margin:18px 0 6px;letter-spacing:0.03em;text-transform:uppercase; }
   #footerModalBody p  { margin:0 0 10px; }
   #footerModalBody a  { color:var(--plight);text-decoration:none; }
@@ -3134,7 +3154,7 @@
   });
 </script>
 
-<script src="script.js?v=1778400200"></script>
+<script src="script.js?v=1778402800"></script>
 
 </body>
 </html>
