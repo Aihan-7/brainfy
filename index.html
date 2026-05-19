@@ -1051,8 +1051,61 @@
         margin: 12px !important;
       }
 
-      /* AI panel: full screen on mobile */
-      #aiPanel { width: 100vw !important; }
+      /* AI panel: full screen on mobile (starts below the 54 px top bar
+         so the panel's own header isn't hidden behind it).
+         100% reliably tracks the viewport even inside iframes/preview tools
+         where 100vw can over- or under-report. */
+      #aiPanel {
+        width: 100% !important;
+        left: 0 !important;
+        right: 0 !important;
+        top: 54px !important;
+      }
+
+      /* ── Stats view: stack the 1fr + 300px charts row ── */
+      #statsView div[style*="grid-template-columns:1fr 300px"],
+      #statsView div[style*="grid-template-columns: 1fr 300px"] {
+        grid-template-columns: 1fr !important;
+      }
+      /* Stats: bar-chart x-axis labels — give each one room to breathe */
+      #statsBarLabels span, #focusTimeLabels span { font-size: 9px !important; }
+
+      /* Stats: heatmap header (title + legend) → stack vertically */
+      #statsView .glass > div[style*="justify-content:space-between"][style*="margin-bottom:16px"] {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+      }
+      #heatmapGrid { height: auto !important; aspect-ratio: 24 / 14 !important; }
+
+      /* ── Footers (Library + Stats + Splash): wrap so links don't collide ── */
+      footer { flex-wrap: wrap !important; gap: 12px !important; }
+      footer > div { flex-wrap: wrap !important; gap: 14px !important; }
+
+      /* ── Splash hero: hide decorative brains so they don't overlap CTAs ── */
+      #splashView > section:first-of-type > div[style*="position:absolute"][style*="z-index:1"] {
+        display: none !important;
+      }
+      /* Hero CTAs stack vertically + full-width */
+      .sh-4 { flex-direction: column !important; align-items: stretch !important; }
+      .sh-4 > button { width: 100% !important; padding: 14px 24px !important; }
+
+      /* ── Splash bento: 12-col grid → single column on phones ── */
+      #splash-bento > div[style*="grid-template-columns:repeat(12,1fr)"],
+      #splash-bento > div[style*="grid-template-columns: repeat(12, 1fr)"] {
+        grid-template-columns: 1fr !important;
+        gap: 14px !important;
+      }
+      #splash-bento .bento-card { grid-column: 1 / -1 !important; }
+
+      /* ── Splash philosophy: 1fr 1fr → stack ── */
+      #splash-phil > div[style*="grid-template-columns:1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+        gap: 32px !important;
+      }
+
+      /* CTA section bottom: scale type a touch */
+      #splash-cta h2 { font-size: clamp(26px, 7vw, 36px) !important; }
     }
   </style>
 </head>
@@ -3293,7 +3346,7 @@
   });
 </script>
 
-<script src="script.js?v=1778410000"></script>
+<script src="script.js?v=1778414500"></script>
 
 </body>
 </html>
