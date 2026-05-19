@@ -3931,6 +3931,17 @@ function init() {
       firebaseUser = null;
       idToken      = '';
       setSyncState('idle');
+      // Guest mode escape hatch — if the URL contains #guest (or sessionStorage
+      // has guestMode set), don't bounce signed-out users back to splash.
+      // Lets us preview the dashboard without going through auth.
+      const isGuest = location.hash === '#guest' || sessionStorage.getItem('brainfyGuest') === '1';
+      if (isGuest) {
+        sessionStorage.setItem('brainfyGuest', '1');
+        if (!S.userName) S.userName = 'Guest';
+        const authViews: ViewName[] = ['splash', 'signin', 'signup'];
+        if (authViews.includes(currentView)) goTo('home');
+        return;
+      }
       // Only redirect to splash from app views — don't bounce users off sign-in/sign-up
       const authViews: ViewName[] = ['splash', 'signin', 'signup'];
       if (!authViews.includes(currentView)) goTo('splash');
@@ -3940,6 +3951,17 @@ function init() {
   // Initial paint of the chip (before auth resolves)
   renderSyncChip();
 }
+
+// Expose a quick guest-mode toggle so users can also enter from the console
+// or from a button on the splash. Once activated it persists for the session.
+function enterGuestMode(): void {
+  sessionStorage.setItem('brainfyGuest', '1');
+  if (!S.userName) S.userName = 'Guest';
+  setSyncState('idle');
+  goTo('home');
+  showToast('Demo mode — data stays on this device', 'info');
+}
+(window as any).enterGuestMode = enterGuestMode;
 
 document.addEventListener('DOMContentLoaded', init);
 
