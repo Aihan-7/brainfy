@@ -1900,7 +1900,10 @@
     <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,var(--primary),#6d28d9);display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-family:'Space Grotesk',sans-serif;font-size:13px;letter-spacing:-0.02em;">B</div>
     <span style="font-weight:800;font-size:15px;color:var(--plighter);letter-spacing:-0.01em;">Brainfy</span>
   </div>
-  <div style="width:38px;height:38px;"></div><!-- right spacer to balance -->
+  <button id="mobileSearchBtn" type="button" aria-label="Search" onclick="openSearch()"
+    style="width:38px;height:38px;border-radius:9px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  </button>
 </header>
 
 <!-- Tap-out scrim while sidebar drawer is open on mobile -->
@@ -1923,6 +1926,16 @@
 
   <!-- Nav -->
   <nav style="flex:1;padding:16px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto;">
+    <!-- Global search trigger -->
+    <button id="sidebarSearchBtn" type="button" onclick="openSearch()"
+      style="display:flex;align-items:center;gap:9px;padding:9px 12px;margin-bottom:8px;border-radius:9px;background:rgba(255,255,255,0.03);border:1px solid var(--border);color:var(--muted);font-family:'Manrope',sans-serif;font-size:13px;cursor:pointer;transition:all 0.15s;width:100%;text-align:left;"
+      onmouseover="this.style.background='rgba(255,255,255,0.06)';this.style.borderColor='rgba(124,58,237,0.3)'"
+      onmouseout="this.style.background='rgba(255,255,255,0.03)';this.style.borderColor='var(--border)'">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <span style="flex:1;">Search</span>
+      <kbd style="font-family:'Space Grotesk',monospace;font-size:10px;font-weight:600;padding:2px 6px;border-radius:5px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--muted);letter-spacing:0.02em;">⌘K</kbd>
+    </button>
+
     <button class="nav-btn" data-go="home">
       <span class="ms nav-icon">home</span> Home
     </button>
@@ -2966,6 +2979,27 @@
 
 
 <!-- ══════════════════════════════════════════
+     GLOBAL SEARCH — command palette (⌘K)
+══════════════════════════════════════════ -->
+<div id="searchModal" style="display:none;position:fixed;inset:0;z-index:220;align-items:flex-start;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(20px);opacity:0;transition:opacity 0.18s ease;" onclick="if(event.target===this)closeSearch()">
+  <div style="width:100%;max-width:560px;margin:84px 16px 16px;background:rgba(10,18,34,0.98);border:1px solid rgba(255,255,255,0.1);border-radius:18px;overflow:hidden;transform:translateY(-12px) scale(0.98);transition:transform 0.22s cubic-bezier(0.34,1.15,0.64,1);box-shadow:0 24px 70px rgba(0,0,0,0.6);">
+
+    <!-- Input row -->
+    <div style="display:flex;align-items:center;gap:11px;padding:15px 18px;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="searchInput" type="text" autocomplete="off" spellcheck="false"
+        placeholder="Search subjects, notes, tasks, blocks…"
+        style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:'Manrope',sans-serif;font-size:15px;letter-spacing:-0.01em;"/>
+      <kbd style="font-family:'Space Grotesk',monospace;font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--muted);flex-shrink:0;">ESC</kbd>
+    </div>
+
+    <!-- Results -->
+    <div id="searchResults" style="max-height:min(420px,60vh);overflow-y:auto;padding:8px;"></div>
+  </div>
+</div><!-- /searchModal -->
+
+
+<!-- ══════════════════════════════════════════
      AI STUDY COMPANION PANEL
 ══════════════════════════════════════════ -->
 <div id="aiPanel">
@@ -3303,20 +3337,46 @@
 </div>
 
 <style>
-  #docModal.open { opacity: 1; }
-  #docModal.open > div { transform: translateY(0) scale(1); }
+  /* Modal open-state rules.
+     IMPORTANT: every modal carries an inline style="opacity:0" as its
+     closed baseline. Inline styles outrank plain selectors, so the
+     .open rules MUST use !important or the modal opens invisibly. */
+  #docModal.open { opacity: 1 !important; }
+  #docModal.open > div { transform: translateY(0) scale(1) !important; }
   #docModal textarea.auth-input { font-family: 'Manrope', sans-serif; }
 
   /* Footer modal */
-  #footerModal.open { opacity: 1; }
-  #footerModal.open > div { transform: translateY(0) scale(1); }
-  #ttModal.open { opacity: 1; }
-  #ttModal.open > div { transform: translateY(0) scale(1); }
-  #cfmModal.open, #prmModal.open { opacity: 1; }
-  #cfmModal.open > div, #prmModal.open > div { transform: translateY(0) scale(1); }
+  #footerModal.open { opacity: 1 !important; }
+  #footerModal.open > div { transform: translateY(0) scale(1) !important; }
+  #ttModal.open { opacity: 1 !important; }
+  #ttModal.open > div { transform: translateY(0) scale(1) !important; }
+  #cfmModal.open, #prmModal.open { opacity: 1 !important; }
+  #cfmModal.open > div, #prmModal.open > div { transform: translateY(0) scale(1) !important; }
   #cfmModal input::placeholder, #prmModal input::placeholder { color: var(--muted); }
   /* Danger style for destructive confirm */
   #cfmConfirmBtn.danger { background: linear-gradient(135deg,#ef4444,#b91c1c) !important; }
+
+  /* ── Global search palette ───────────────────── */
+  #searchModal.open { opacity: 1 !important; }
+  #searchModal.open > div { transform: translateY(0) scale(1) !important; }
+  #searchInput::placeholder { color: var(--muted); }
+  .search-result {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: 10px; cursor: pointer;
+    transition: background 0.12s;
+  }
+  .search-result:hover { background: rgba(255,255,255,0.04); }
+  .search-result.selected { background: rgba(124,58,237,0.16); box-shadow: inset 0 0 0 1px rgba(124,58,237,0.32); }
+  .search-result .sr-icon {
+    width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  }
+  .search-group-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+    color: var(--muted); font-family: 'Space Grotesk', sans-serif;
+    padding: 12px 12px 6px; text-transform: uppercase;
+  }
 
   /* ── Sync status chip ─────────────────────────── */
   #syncStatus[data-state="idle"]    #syncStatusDot { background: #64748b; box-shadow: 0 0 6px rgba(100,116,139,0.4); }
@@ -3354,7 +3414,7 @@
   });
 </script>
 
-<script src="script.js?v=1778416000"></script>
+<script src="script.js?v=1778420000"></script>
 
 </body>
 </html>

@@ -3910,6 +3910,7 @@ function init() {
   initSplashObserver();
   initTimetable();
   initSettings();
+  initSearch();
   checkAIStatus();
 
   // ── Firebase auth observer ────────────────────
@@ -4438,3 +4439,188 @@ function initSettings(): void {
     setTimeout(() => location.reload(), 600);
   });
 }
+
+
+// ── GLOBAL SEARCH (⌘K command palette) ───────────────────────────────────────
+interface SearchResult {
+  group:     string;        // section heading
+  iconName:  string;        // icon() name
+  iconColor: string;
+  title:     string;
+  subtitle:  string;
+  action:    () => void;    // run on select
+}
+
+let searchFlat:   SearchResult[] = [];   // currently-rendered (filtered) list
+let searchSelIdx = 0;
+
+// Collect everything searchable into one flat list. Rebuilt each open() so it
+// always reflects current state — the data set is small enough that this is free.
+function buildSearchIndex(): SearchResult[] {
+  const out: SearchResult[] = [];
+
+  S.subjects.forEach(s => {
+    out.push({
+      group: 'Subjects', iconName: 'book', iconColor: s.color || 'var(--plight)',
+      title: s.name, subtitle: s.desc || 'Subject',
+      action: () => { goTo('library'); window.setTimeout(() => openDocModal(s.id), 220); },
+    });
+    (s.documents || []).forEach(d => {
+      out.push({
+        group: 'Documents', iconName: docIcon(d.type), iconColor: 'var(--cyan)',
+        title: d.name, subtitle: `in ${s.name}`,
+        action: () => { goTo('library'); window.setTimeout(() => openDocModal(s.id), 220); },
+      });
+    });
+  });
+
+  S.tasks.forEach(t => {
+    out.push({
+      group: 'Tasks',
+      iconName:  t.done ? 'check_circle' : 'checklist',
+      iconColor: t.done ? 'var(--green)'  : 'var(--plight)',
+      title: t.text, subtitle: t.done ? 'Task · completed' : 'Task',
+      action: () => goTo('tasks'),
+    });
+  });
+
+  S.milestones.forEach(m => {
+    out.push({
+      group: 'Milestones', iconName: 'flag', iconColor: 'var(--plight)',
+      title: m.text, subtitle: 'Session milestone',
+      action: () => goTo('focus'),
+    });
+  });
+
+  (S.timetable || []).forEach(b => {
+    out.push({
+      group: 'Timetable', iconName: 'calendar_today', iconColor: b.color || 'var(--cyan)',
+      title: b.title, subtitle: `${TT_DAYS[b.day]} · ${b.start}–${b.end}`,
+      action: () => { goTo('timetable'); window.setTimeout(() => openTTModal(b.id), 220); },
+    });
+  });
+
+  return out;
+}
+
+function renderSearchResults(query: string): void {
+  const box = el('searchResults');
+  if (!box) return;
+  const all = buildSearchIndex();
+  const q   = query.trim().toLowerCase();
+
+  const matches = q
+    ? all.filter(r => (r.title + ' ' + r.subtitle).toLowerCase().includes(q))
+    : all;
+
+  searchFlat   = matches;
+  searchSelIdx = 0;
+
+  if (all.length === 0) {
+    box.innerHTML = `<div style="padding:36px 20px;text-align:center;color:var(--muted);font-size:13px;">Nothing to search yet — add subjects, tasks or blocks first.</div>`;
+    return;
+  }
+  if (matches.length === 0) {
+    box.innerHTML = `<div style="padding:36px 20px;text-align:center;color:var(--muted);font-size:13px;">No results for “${_e(query)}”</div>`;
+    return;
+  }
+
+  let html = '';
+  let lastGroup = '';
+  matches.forEach((r, i) => {
+    if (r.group !== lastGroup) {
+      html += `<div class="search-group-label">${r.group}</div>`;
+      lastGroup = r.group;
+    }
+    html += `
+      <div class="search-result${i === 0 ? ' selected' : ''}" data-idx="${i}">
+        <div class="sr-icon">${icon(r.iconName, { size: 15, color: r.iconColor })}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.01em;">${_e(r.title)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_e(r.subtitle)}</div>
+        </div>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.4;"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>`;
+  });
+  box.innerHTML = html;
+
+  box.querySelectorAll<HTMLElement>('.search-result').forEach(row => {
+    row.addEventListener('click', () => fireSearchResult(+(row.dataset['idx'] || '0')));
+    row.addEventListener('mousemove', () => {
+      const idx = +(row.dataset['idx'] || '0');
+      if (idx !== searchSelIdx) { searchSelIdx = idx; paintSearchSelection(); }
+    });
+  });
+}
+
+function paintSearchSelection(): void {
+  const box = el('searchResults');
+  if (!box) return;
+  box.querySelectorAll<HTMLElement>('.search-result').forEach(row => {
+    const idx = +(row.dataset['idx'] || '0');
+    const on  = idx === searchSelIdx;
+    row.classList.toggle('selected', on);
+    if (on) row.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+function fireSearchResult(idx: number): void {
+  const r = searchFlat[idx];
+  if (!r) return;
+  closeSearch();
+  r.action();
+}
+
+function openSearch(): void {
+  const modal = el('searchModal') as HTMLElement | null;
+  const input = el('searchInput') as HTMLInputElement | null;
+  if (!modal || !input) return;
+  input.value = '';
+  renderSearchResults('');
+  modal.style.display = 'flex';
+  requestAnimationFrame(() => modal.classList.add('open'));
+  setTimeout(() => input.focus(), 60);
+}
+
+function closeSearch(): void {
+  const modal = el('searchModal') as HTMLElement | null;
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => { modal.style.display = 'none'; }, 200);
+}
+
+function initSearch(): void {
+  const input = el('searchInput') as HTMLInputElement | null;
+  input?.addEventListener('input', () => renderSearchResults(input.value));
+
+  document.addEventListener('keydown', e => {
+    // ⌘K / Ctrl+K toggles the palette — only inside the app
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if (!document.body.classList.contains('app-active')) return;
+      e.preventDefault();
+      const m = el('searchModal');
+      if (m && m.classList.contains('open')) closeSearch();
+      else openSearch();
+      return;
+    }
+    // Navigation while the palette is open
+    const m = el('searchModal');
+    if (!m || !m.classList.contains('open')) return;
+    if (e.key === 'Escape') {
+      e.preventDefault(); closeSearch();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (searchSelIdx < searchFlat.length - 1) { searchSelIdx++; paintSearchSelection(); }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (searchSelIdx > 0) { searchSelIdx--; paintSearchSelection(); }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      fireSearchResult(searchSelIdx);
+    }
+  });
+}
+
+// Exposed so the sidebar / mobile-top-bar inline onclicks can reach them
+(window as any).openSearch  = openSearch;
+(window as any).closeSearch = closeSearch;
