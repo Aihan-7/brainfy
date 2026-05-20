@@ -1,0 +1,28 @@
+{
+  "name": "Brainfy — AI Study App",
+  "short_name": "Brainfy",
+  "description": "A free AI-powered study app: Pomodoro focus timer, auto-generated flashcards, smart library and honest analytics.",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1326",
+  "theme_color": "#0b1326",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
