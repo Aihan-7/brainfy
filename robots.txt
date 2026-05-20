@@ -1,0 +1,11 @@
+# robots.txt for Brainfy — https://brainfy.online
+# Allow all search engines to crawl everything public.
+
+User-agent: *
+Allow: /
+
+# Keep crawlers out of the JSON API (no useful indexable content there)
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://brainfy.online/sitemap.xml

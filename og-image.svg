@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1326"/>
+      <stop offset="1" stop-color="#0d1a36"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#4cd7f6"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7c3aed" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <ellipse cx="950" cy="120" rx="420" ry="360" fill="url(#glow)"/>
+  <ellipse cx="180" cy="560" rx="360" ry="300" fill="url(#glow)" opacity="0.6"/>
+
+  <!-- Logo tile -->
+  <rect x="90" y="86" width="74" height="74" rx="18" fill="#7c3aed"/>
+  <text x="127" y="138" font-family="Space Grotesk, Arial, sans-serif" font-size="42" font-weight="800" fill="#ffffff" text-anchor="middle">B</text>
+  <text x="186" y="135" font-family="Manrope, Arial, sans-serif" font-size="34" font-weight="800" fill="#dae2fd">Brainfy</text>
+
+  <!-- Headline -->
+  <text x="90" y="320" font-family="Manrope, Arial, sans-serif" font-size="86" font-weight="800" fill="#ffffff">Focus deeply.</text>
+  <text x="90" y="420" font-family="Manrope, Arial, sans-serif" font-size="86" font-weight="800" fill="url(#accent)">Study calmly.</text>
+
+  <!-- Subhead -->
+  <text x="92" y="486" font-family="Manrope, Arial, sans-serif" font-size="30" font-weight="500" fill="#94a3b8">AI study app · Focus timer · Flashcards · Honest analytics</text>
+
+  <!-- Feature pills -->
+  <g font-family="Manrope, Arial, sans-serif" font-size="22" font-weight="600">
+    <rect x="90"  y="528" width="200" height="54" rx="27" fill="rgba(124,58,237,0.16)" stroke="#7c3aed" stroke-opacity="0.4"/>
+    <text x="190" y="562" fill="#d0bcff" text-anchor="middle">Privacy-first</text>
+    <rect x="308" y="528" width="232" height="54" rx="27" fill="rgba(76,215,246,0.12)" stroke="#4cd7f6" stroke-opacity="0.4"/>
+    <text x="424" y="562" fill="#4cd7f6" text-anchor="middle">AI study tutor</text>
+    <rect x="558" y="528" width="248" height="54" rx="27" fill="rgba(78,222,163,0.12)" stroke="#4edea3" stroke-opacity="0.4"/>
+    <text x="682" y="562" fill="#4edea3" text-anchor="middle">Free forever core</text>
+  </g>
+</svg>
