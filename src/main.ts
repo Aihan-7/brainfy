@@ -798,10 +798,19 @@ if (typeof MutationObserver !== 'undefined') {
       });
     }
   });
-  document.addEventListener('DOMContentLoaded', () => {
+  // Works whether the script is parse-time loaded OR lazy-injected after
+  // DOMContentLoaded has already fired. Without this readyState check the
+  // hydration never runs on lazy-load and every static .ms span renders
+  // its literal icon name as plain text (psychology, schedule, …).
+  const _startHydration = () => {
     hydrateIcons();
     _iconObs.observe(document.body, { childList: true, subtree: true });
-  });
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _startHydration);
+  } else {
+    _startHydration();
+  }
 }
 
 // ── Modal helpers (replace native window.confirm / window.prompt) ───────────
@@ -3847,20 +3856,25 @@ function importAIFlashcards(text: string): void {
 }
 
 // ── Auto-resize textarea ─────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  // Wire up AI input events after DOM ready
+// Re-entrant: if the script is lazy-loaded after DOMContentLoaded, run now.
+function _wireAIInput(): void {
   setTimeout(() => {
     const inp = document.getElementById('aiInput');
     if (!inp) return;
     inp.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAISend(); }
+      if (e.key === 'Enter' && !(e as KeyboardEvent).shiftKey) { e.preventDefault(); handleAISend(); }
     });
     inp.addEventListener('input', () => {
-      inp.style.height = 'auto';
-      inp.style.height = Math.min(inp.scrollHeight, 120) + 'px';
+      (inp as HTMLTextAreaElement).style.height = 'auto';
+      (inp as HTMLTextAreaElement).style.height = Math.min((inp as HTMLTextAreaElement).scrollHeight, 120) + 'px';
     });
   }, 500);
-});
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _wireAIInput);
+} else {
+  _wireAIInput();
+}
 
 /* ── Splash page scroll-reveal (IntersectionObserver) ── */
 function initSplashObserver() {
