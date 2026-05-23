@@ -88,6 +88,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com"   crossorigin />
   <link rel="preconnect" href="https://www.gstatic.com"     crossorigin />
 
+  <!-- Icon hydration — separate small bundle, NOT lazy.
+       Splash page needs icons rendered before the user signs in. Without
+       this, every <span class="ms">name</span> shows its literal Material
+       Symbols name as text until the app bundle finally loads. -->
+  <script src="/icons.js?v=1778429000" defer></script>
+
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet"/>
 
   <style>
