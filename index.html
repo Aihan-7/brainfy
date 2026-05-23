@@ -83,9 +83,10 @@
   <link rel="apple-touch-icon" href="/icon.svg" />
   <link rel="manifest" href="/site.webmanifest" />
 
-  <!-- Font preconnect — non-blocking, makes Manrope/Space Grotesk paint faster -->
+  <!-- Preconnects — start DNS/TLS in parallel for the three CDNs we hit -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://fonts.gstatic.com"   crossorigin />
+  <link rel="preconnect" href="https://www.gstatic.com"     crossorigin />
 
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet"/>
 
@@ -1813,7 +1814,7 @@
       <div style="width:52px;height:52px;border-radius:14px;background:var(--primary);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:0 0 32px rgba(124,58,237,0.4);">
         <span class="ms" style="font-size:28px;color:white;">psychology</span>
       </div>
-      <h1 style="font-size:22px;font-weight:900;color:white;margin-bottom:6px;">Welcome back</h1>
+      <h2 style="font-size:22px;font-weight:900;color:white;margin-bottom:6px;">Welcome back</h2>
       <p style="font-size:14px;color:var(--muted);">Sign in to your Brainfy account</p>
     </div>
 
@@ -1888,7 +1889,7 @@
       <div style="width:52px;height:52px;border-radius:14px;background:var(--primary);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:0 0 32px rgba(124,58,237,0.4);">
         <span class="ms" style="font-size:28px;color:white;">psychology</span>
       </div>
-      <h1 style="font-size:22px;font-weight:900;color:white;margin-bottom:6px;">Create your account</h1>
+      <h2 style="font-size:22px;font-weight:900;color:white;margin-bottom:6px;">Create your account</h2>
       <p style="font-size:14px;color:var(--muted);">Start focusing deeply. Free forever.</p>
     </div>
 
@@ -2071,7 +2072,7 @@
             <span class="pulse pulse-green"></span> FOCUS ACTIVE
           </div>
         </div>
-        <h1 id="homeGreeting" style="font-size:30px;font-weight:900;color:white;letter-spacing:-0.025em;margin-bottom:6px;line-height:1.1;">Good morning</h1>
+        <h2 id="homeGreeting" style="font-size:30px;font-weight:900;color:white;letter-spacing:-0.025em;margin-bottom:6px;line-height:1.1;">Good morning</h2>
         <p id="homeSubtitle" style="font-size:14px;color:var(--muted);line-height:1.5;"></p>
       </div>
       <button id="homeStartBtn" onclick="goTo('focus')" class="btn-primary" style="padding:11px 22px;font-size:14px;display:flex;align-items:center;gap:8px;flex-shrink:0;margin-top:6px;border-radius:12px;">
@@ -2310,7 +2311,7 @@
         </svg>
       </div>
       <div style="text-align:center;">
-        <h1 style="font-size:22px;font-weight:700;color:var(--text);letter-spacing:-0.02em;line-height:1.2;">Focus Room</h1>
+        <h2 style="font-size:22px;font-weight:700;color:var(--text);letter-spacing:-0.02em;line-height:1.2;">Focus Room</h2>
         <p style="font-size:13px;color:var(--muted);margin-top:4px;font-weight:400;">Set an intention, pick a duration, begin.</p>
       </div>
     </div>
@@ -2550,7 +2551,7 @@
 
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:16px;">
       <div>
-        <h1 style="font-size:26px;font-weight:800;color:white;margin-bottom:6px;">Resource Library</h1>
+        <h2 style="font-size:26px;font-weight:800;color:white;margin-bottom:6px;">Resource Library</h2>
         <p style="font-size:14px;color:var(--muted);">Manage your intellectual assets and study modules.</p>
       </div>
       <div style="display:flex;gap:10px;align-items:center;">
@@ -2598,7 +2599,7 @@
 
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:16px;">
       <div>
-        <h1 style="font-size:26px;font-weight:800;color:white;margin-bottom:6px;">Focus Analytics</h1>
+        <h2 style="font-size:26px;font-weight:800;color:white;margin-bottom:6px;">Focus Analytics</h2>
         <p style="font-size:14px;color:var(--muted);">Your cognitive performance trends for the last 30 days.</p>
       </div>
       <div class="glass" style="padding:8px 16px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);border-radius:10px;">
@@ -2720,7 +2721,7 @@
 <div id="tasksView" class="view app-view">
   <div style="padding:36px 40px;max-width:760px;">
     <div style="margin-bottom:28px;">
-      <h1 style="font-size:26px;font-weight:800;color:white;margin-bottom:6px;">Tasks</h1>
+      <h2 style="font-size:26px;font-weight:800;color:white;margin-bottom:6px;">Tasks</h2>
       <p style="font-size:14px;color:var(--muted);">Manage your study to-dos and daily goals.</p>
     </div>
 
@@ -2745,7 +2746,7 @@
     <!-- ── Header ── -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
       <div>
-        <h1 style="font-size:20px;font-weight:700;letter-spacing:-0.025em;color:var(--text);line-height:1;">Timetable</h1>
+        <h2 style="font-size:20px;font-weight:700;letter-spacing:-0.025em;color:var(--text);line-height:1;">Timetable</h2>
         <p style="font-size:12px;color:var(--muted);margin-top:4px;font-weight:400;letter-spacing:0.01em;">Your weekly study schedule</p>
       </div>
       <!-- Compact + button -->
@@ -2803,7 +2804,7 @@
 
     <!-- Header -->
     <div style="margin-bottom:28px;">
-      <h1 style="font-size:22px;font-weight:800;letter-spacing:-0.025em;color:var(--text);line-height:1;">Settings</h1>
+      <h2 style="font-size:22px;font-weight:800;letter-spacing:-0.025em;color:var(--text);line-height:1;">Settings</h2>
       <p style="font-size:13px;color:var(--muted);margin-top:6px;font-weight:400;letter-spacing:0.01em;">Tune Brainfy to how you study.</p>
     </div>
 
@@ -3466,21 +3467,26 @@
 </style>
 
 <!-- Firebase SDK (compat — loads firebase global) -->
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
+<!-- Firebase compat scripts — deferred so they don't block HTML parsing.
+     Order is preserved by defer, so app → auth → storage load in sequence.
+     The init below waits for DOMContentLoaded so firebase is defined first. -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"     defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"    defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js" defer></script>
 <script>
-  firebase.initializeApp({
-    apiKey:            "AIzaSyAZ34uI2ELFomc2k7hXdVn6Yjy64iOezRE",
-    authDomain:        "brainfy-65b7a.firebaseapp.com",
-    projectId:         "brainfy-65b7a",
-    storageBucket:     "brainfy-65b7a.firebasestorage.app",
-    messagingSenderId: "1013679118890",
-    appId:             "1:1013679118890:web:6af7369a75561adc1cc153",
+  document.addEventListener('DOMContentLoaded', () => {
+    firebase.initializeApp({
+      apiKey:            "AIzaSyAZ34uI2ELFomc2k7hXdVn6Yjy64iOezRE",
+      authDomain:        "brainfy-65b7a.firebaseapp.com",
+      projectId:         "brainfy-65b7a",
+      storageBucket:     "brainfy-65b7a.firebasestorage.app",
+      messagingSenderId: "1013679118890",
+      appId:             "1:1013679118890:web:6af7369a75561adc1cc153",
+    });
   });
 </script>
 
-<script src="script.js?v=1778420000"></script>
+<script src="script.js?v=1778423000" defer></script>
 
 </body>
 </html>
