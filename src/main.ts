@@ -1783,7 +1783,7 @@ const FOOTER_CONTENT: Record<string, { title: string; html: string }> = {
       <h3>AI processing</h3>
       <p>When you use AI import features, document content is sent to the configured LLM provider (Groq or Anthropic) for processing. Please review their respective privacy policies for how they handle inference data.</p>
       <h3>Contact</h3>
-      <p>Questions? Email us at <a href="mailto:aihan@mifthas.com">aihan@mifthas.com</a></p>
+      <p>Questions? Email us at <a href="mailto:help@brainfy.online">help@brainfy.online</a></p>
     `,
   },
   terms: {
@@ -1801,7 +1801,7 @@ const FOOTER_CONTENT: Record<string, { title: string; html: string }> = {
       <h3>Limitation of liability</h3>
       <p>Brainfy is provided "as is". To the maximum extent permitted by law we are not liable for any indirect, incidental, or consequential damages arising from use of the service.</p>
       <h3>Contact</h3>
-      <p>Questions? Email <a href="mailto:aihan@mifthas.com">aihan@mifthas.com</a></p>
+      <p>Questions? Email <a href="mailto:help@brainfy.online">help@brainfy.online</a></p>
     `,
   },
 };
@@ -1820,7 +1820,7 @@ function openFooterLink(page: string): void {
     return;
   }
   if (page === 'contact') {
-    window.location.href = 'mailto:aihan@mifthas.com';
+    window.location.href = 'mailto:help@brainfy.online';
     return;
   }
   const data = FOOTER_CONTENT[page];
