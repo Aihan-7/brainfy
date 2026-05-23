@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "AI-powered deep focus study app",
   "scripts": {
-    "build": "tsc",
+    "tsc": "tsc",
+    "minify": "terser script.js -o script.js -c passes=2 -m --source-map \"content='script.js.map',url='script.js.map'\"",
+    "build": "npm run tsc && npm run minify",
     "watch": "tsc --watch",
     "start": "node server.js",
     "dev": "tsc --watch & node server.js"
@@ -12,6 +14,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "terser": "^5.48.0",
     "typescript": "^6.0.3"
   },
   "dependencies": {
