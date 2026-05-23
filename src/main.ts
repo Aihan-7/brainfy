@@ -3964,7 +3964,14 @@ function enterGuestMode(): void {
 }
 (window as any).enterGuestMode = enterGuestMode;
 
-document.addEventListener('DOMContentLoaded', init);
+// Boot — works whether the script is loaded at parse time (deferred) OR
+// injected later by the inline lazy-loader (after DOMContentLoaded has
+// already fired). The readyState check covers both cases.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 
 // ── TIMETABLE ────────────────────────────────────────────────────────────────
 

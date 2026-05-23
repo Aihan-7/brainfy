@@ -3466,27 +3466,97 @@
   #footerModalBody a:hover { text-decoration:underline; }
 </style>
 
-<!-- Firebase SDK (compat — loads firebase global) -->
-<!-- Firebase compat scripts — deferred so they don't block HTML parsing.
-     Order is preserved by defer, so app → auth → storage load in sequence.
-     The init below waits for DOMContentLoaded so firebase is defined first. -->
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"     defer></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"    defer></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js" defer></script>
+<!-- ──────────────────────────────────────────────────────────────────────
+     LAZY APP LOADER (code split)
+     The splash page downloads ZERO JS beyond this tiny bootstrap.
+     Firebase (~250 KB) and the app bundle (~137 KB) are fetched only
+     when the user clicks a CTA that actually needs them. We also
+     prefetch on hover/touchstart so the click feels instant.
+     ────────────────────────────────────────────────────────────────────── -->
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    firebase.initializeApp({
-      apiKey:            "AIzaSyAZ34uI2ELFomc2k7hXdVn6Yjy64iOezRE",
-      authDomain:        "brainfy-65b7a.firebaseapp.com",
-      projectId:         "brainfy-65b7a",
-      storageBucket:     "brainfy-65b7a.firebasestorage.app",
-      messagingSenderId: "1013679118890",
-      appId:             "1:1013679118890:web:6af7369a75561adc1cc153",
+(function () {
+  var APP_VERSION = '1778425000';
+  var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
+  var FB_CONFIG   = {
+    apiKey:            "AIzaSyAZ34uI2ELFomc2k7hXdVn6Yjy64iOezRE",
+    authDomain:        "brainfy-65b7a.firebaseapp.com",
+    projectId:         "brainfy-65b7a",
+    storageBucket:     "brainfy-65b7a.firebasestorage.app",
+    messagingSenderId: "1013679118890",
+    appId:             "1:1013679118890:web:6af7369a75561adc1cc153"
+  };
+
+  var appPromise = null;
+
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src; s.async = false; // preserve order
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  // The actual lazy load: Firebase → init → app bundle.
+  // Cached as a single promise so multiple callers share one download.
+  window.loadApp = function loadApp() {
+    if (appPromise) return appPromise;
+    appPromise = loadScript(FB_BASE + 'firebase-app-compat.js')
+      .then(function () { return loadScript(FB_BASE + 'firebase-auth-compat.js'); })
+      .then(function () { return loadScript(FB_BASE + 'firebase-storage-compat.js'); })
+      .then(function () { firebase.initializeApp(FB_CONFIG); })
+      .then(function () { return loadScript('/script.js?v=' + APP_VERSION); });
+    return appPromise;
+  };
+
+  // Stub functions so existing inline onclick="enterGuestMode()" etc.
+  // don't crash before app.js loads. Each stub starts the lazy load
+  // and re-dispatches once the real implementation replaces the stub.
+  function stub(name) {
+    var fn = function () {
+      var args = arguments;
+      window.loadApp().then(function () {
+        if (window[name] !== fn) window[name].apply(null, args);
+      });
+    };
+    window[name] = fn;
+  }
+  stub('goTo');
+  stub('enterGuestMode');
+  stub('openFooterLink');
+  stub('openSearch');
+  stub('openTTModal');
+
+  // Splash CTAs that previously waited for app.js to attach listeners.
+  // We attach minimal handlers here so first-click immediately starts
+  // the lazy load AND queues the action.
+  document.addEventListener('DOMContentLoaded', function () {
+    function wire(id, action) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('click', function () {
+        window.loadApp().then(action);
+      });
+    }
+    wire('enterBrainBtn',  function () { window.goTo('signin'); });
+    wire('getStartedBtn',  function () { window.goTo('signup'); });
+
+    // Prefetch the heavy bundle the moment the user shows intent
+    // (hovers a CTA / starts touching it) so the click feels instant.
+    var intentSelectors = '#enterBrainBtn,#getStartedBtn,[onclick*="enterGuestMode"],[onclick*="openFooterLink"]';
+    var triggered = false;
+    function intent() {
+      if (triggered) return;
+      triggered = true;
+      window.loadApp(); // fire and forget
+    }
+    document.querySelectorAll(intentSelectors).forEach(function (el) {
+      el.addEventListener('mouseenter',  intent, { once: true, passive: true });
+      el.addEventListener('touchstart',  intent, { once: true, passive: true });
+      el.addEventListener('focusin',     intent, { once: true });
     });
   });
+})();
 </script>
-
-<script src="script.js?v=1778425000" defer></script>
 
 </body>
 </html>
