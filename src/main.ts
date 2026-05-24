@@ -4758,10 +4758,49 @@ function startTour(): void {
   window.addEventListener('resize', _tourResizeHandler, { passive: true });
   window.addEventListener('scroll',  _tourResizeHandler, { passive: true });
 
-  // Show overlay + first step
-  const overlay = document.getElementById('tourOverlay');
-  if (overlay) overlay.classList.add('active');
+  // Show strips + first step
+  document.body.classList.add('tour-active');
   paintTourStep();
+}
+
+// Position the 4 dark strips so they frame the target's bounding rect,
+// leaving a transparent "hole" of brightness over the target itself.
+function paintTourStrips(rect: DOMRect): void {
+  const pad = 10;
+  const top    = Math.max(0, rect.top    - pad);
+  const left   = Math.max(0, rect.left   - pad);
+  const right  = Math.min(window.innerWidth,  rect.right  + pad);
+  const bottom = Math.min(window.innerHeight, rect.bottom + pad);
+
+  const sTop    = document.getElementById('tourStripTop')    as HTMLElement | null;
+  const sBottom = document.getElementById('tourStripBottom') as HTMLElement | null;
+  const sLeft   = document.getElementById('tourStripLeft')   as HTMLElement | null;
+  const sRight  = document.getElementById('tourStripRight')  as HTMLElement | null;
+  if (!sTop || !sBottom || !sLeft || !sRight) return;
+
+  // Top strip — full width, from page top down to target's top
+  sTop.style.top    = '0px';
+  sTop.style.left   = '0px';
+  sTop.style.width  = '100vw';
+  sTop.style.height = `${top}px`;
+
+  // Bottom strip — full width, from target's bottom to page bottom
+  sBottom.style.top    = `${bottom}px`;
+  sBottom.style.left   = '0px';
+  sBottom.style.width  = '100vw';
+  sBottom.style.height = `${Math.max(0, window.innerHeight - bottom)}px`;
+
+  // Left strip — between top and bottom strips, from page left to target's left
+  sLeft.style.top    = `${top}px`;
+  sLeft.style.left   = '0px';
+  sLeft.style.width  = `${left}px`;
+  sLeft.style.height = `${bottom - top}px`;
+
+  // Right strip — between top and bottom strips, from target's right to page right
+  sRight.style.top    = `${top}px`;
+  sRight.style.left   = `${right}px`;
+  sRight.style.width  = `${Math.max(0, window.innerWidth - right)}px`;
+  sRight.style.height = `${bottom - top}px`;
 }
 
 function nextTourStep(): void {
@@ -4776,8 +4815,11 @@ function paintTourStep(): void {
   const step = TOUR_STEPS[tourIdx];
   if (!step) return;
 
-  // Clear old target
-  if (tourTarget) { tourTarget.classList.remove('tour-target'); tourTarget = null; }
+  // Clear ALL stray targets — defensive against rapid Next clicks where
+  // multiple paintTourStep calls overlap and their deferred classList.add
+  // would otherwise leave previous targets still tagged.
+  document.querySelectorAll<HTMLElement>('.tour-target').forEach(el => el.classList.remove('tour-target'));
+  tourTarget = null;
 
   const target = document.querySelector<HTMLElement>(step.target);
   if (!target) {
@@ -4793,8 +4835,9 @@ function paintTourStep(): void {
     if (!tourActive) return;
     target.classList.add('tour-target');
     tourTarget = target;
+    paintTourStrips(target.getBoundingClientRect());
     positionTourTooltip(target, step);
-  }, 240);
+  }, 280);
 }
 
 function positionTourTooltip(target: HTMLElement, step: TourStep): void {
@@ -4872,10 +4915,11 @@ function endTour(completed: boolean): void {
   if (!tourActive) return;
   tourActive = false;
 
-  if (tourTarget) { tourTarget.classList.remove('tour-target'); tourTarget = null; }
-  const overlay = document.getElementById('tourOverlay');
+  // Belt-and-braces cleanup of any tagged targets
+  document.querySelectorAll<HTMLElement>('.tour-target').forEach(el => el.classList.remove('tour-target'));
+  tourTarget = null;
+  document.body.classList.remove('tour-active');
   const tooltip = document.getElementById('tourTooltip');
-  if (overlay) overlay.classList.remove('active');
   if (tooltip) tooltip.classList.remove('visible');
 
   if (_tourKeyHandler)    document.removeEventListener('keydown', _tourKeyHandler);
