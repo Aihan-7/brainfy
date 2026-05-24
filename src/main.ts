@@ -3533,14 +3533,6 @@ async function checkAIStatus() {
     const res  = await fetch('/api/ai-status');
     const data = await res.json();
     aiAvailable = !!data.configured;
-
-    // Update model badge in panel header
-    const badge = document.getElementById('aiModelBadge');
-    if (badge && data.model) {
-      const providerIcon = data.provider === 'groq' ? '⚡' : '🤖';
-      badge.textContent  = `${providerIcon} ${data.model}`;
-      badge.title        = `Provider: ${data.provider}`;
-    }
   } catch(_) {
     aiAvailable = false;
   }
@@ -3631,12 +3623,6 @@ async function callClaude(userText: string): Promise<void> {
 
     hideAITyping();
     appendAIMsg('assistant', reply);
-
-    // Token count
-    if (data.usage) {
-      const tc = el('aiTokenCount');
-      if (tc) tc.textContent = `${(data.usage.input_tokens + data.usage.output_tokens).toLocaleString()} tokens`;
-    }
 
     // Offer to import if flashcard format detected
     if (/^Q:/m.test(reply)) {
