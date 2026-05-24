@@ -3809,10 +3809,17 @@ function showAIOffline() {
       </div>
       <h3 style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:8px;">AI not configured</h3>
       <p style="font-size:12px;color:var(--muted);line-height:1.7;">
-        Add your Anthropic API key to <code style="background:rgba(255,255,255,0.07);padding:1px 6px;border-radius:4px;font-size:11px;">.env</code> on the server:<br/><br/>
-        <code style="background:rgba(124,58,237,0.12);padding:6px 10px;border-radius:6px;font-size:11px;display:inline-block;color:var(--plight);">ANTHROPIC_API_KEY=sk-ant-...</code>
+        Set <strong>one</strong> of these env vars on the server, then restart:
       </p>
-      <p style="font-size:11px;color:var(--muted2);margin-top:16px;">Then restart the server — students won't see this screen.</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin:14px auto 0;max-width:260px;">
+        <code style="background:rgba(124,58,237,0.12);padding:8px 12px;border-radius:8px;font-size:11px;color:var(--plight);text-align:left;font-family:'Space Grotesk',monospace;">GROQ_API_KEY=gsk_...</code>
+        <div style="font-size:10px;color:var(--muted2);letter-spacing:0.1em;font-family:'Space Grotesk';">— OR —</div>
+        <code style="background:rgba(76,215,246,0.10);padding:8px 12px;border-radius:8px;font-size:11px;color:var(--cyan);text-align:left;font-family:'Space Grotesk',monospace;">ANTHROPIC_API_KEY=sk-ant-...</code>
+      </div>
+      <p style="font-size:11px;color:var(--muted2);margin-top:18px;line-height:1.55;">
+        On Railway: project → service → <strong>Variables</strong> tab → add key → it auto-redeploys.<br/>
+        Locally: add to <code style="background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:4px;">.env</code> and restart <code style="background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:4px;">node server.js</code>.
+      </p>
     </div>`;
 }
 
