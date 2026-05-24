@@ -3611,7 +3611,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = '1778455000';
+  var APP_VERSION = '1778457000';
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {
     apiKey:            "AIzaSyAZ34uI2ELFomc2k7hXdVn6Yjy64iOezRE",
@@ -3640,6 +3640,7 @@
     appPromise = loadScript(FB_BASE + 'firebase-app-compat.js')
       .then(function () { return loadScript(FB_BASE + 'firebase-auth-compat.js'); })
       .then(function () { return loadScript(FB_BASE + 'firebase-storage-compat.js'); })
+      .then(function () { return loadScript(FB_BASE + 'firebase-firestore-compat.js'); })
       .then(function () { firebase.initializeApp(FB_CONFIG); })
       .then(function () { return loadScript('/script.js?v=' + APP_VERSION); });
     return appPromise;

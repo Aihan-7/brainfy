@@ -497,54 +497,50 @@ window.addEventListener('online',  () => { if (syncState === 'offline') setSyncS
 window.addEventListener('offline', () => setSyncState('offline'));
 
 // ── Persistence ─────────────────────────────────────────────────────────────
+// Talks to Firestore DIRECTLY via the Web SDK — no server middleman. The
+// browser authenticates as the signed-in user, and Firestore rules enforce
+// that users can only read/write their own users/{uid} document.
+
+// Tiny helper — returns the user's Firestore doc reference or null if the
+// SDK isn't ready / not signed in.
+function userDoc(): any | null {
+  if (!firebaseUser || typeof firebase === 'undefined' || typeof firebase.firestore !== 'function') return null;
+  return firebase.firestore().collection('users').doc(firebaseUser.uid);
+}
+
 function save() {
   // Always save locally for instant access
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch(_) {}
 
-  // Not signed in or offline → bail out of cloud sync, leave chip as-is
-  if (!idToken)                      { if (syncState !== 'offline') setSyncState('idle');    return; }
+  // Not signed in → no cloud sync to attempt
+  if (!firebaseUser) { if (syncState !== 'offline') setSyncState('idle'); return; }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     setSyncState('offline');
     return;
   }
+  const ref = userDoc();
+  if (!ref) { setSyncState('idle'); return; }
 
-  // Debounce so rapid edits collapse into one cloud write. The bar still
-  // shows "Syncing…" the moment the user changes something for instant
-  // feedback, then settles into "Synced just now" when the request lands.
+  // Debounce so rapid edits collapse into one cloud write
   setSyncState('syncing');
   window.clearTimeout(_pendingSaveTimer);
   _pendingSaveTimer = window.setTimeout(() => {
-    fetch('/api/data/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken, state: S }),
-    }).then(res => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSyncState('synced');
-    }).catch(() => {
-      // Local copy is intact so this is recoverable; user can retry from the chip.
-      setSyncState('error');
-    });
+    ref.set({ state: S, updatedAt: new Date().toISOString() })
+      .then(() => setSyncState('synced'))
+      .catch(() => setSyncState('error'));
   }, 400);
 }
 
 // Manual retry (called when user clicks the chip in error state)
 function retrySync(): void {
-  if (!idToken) return;
+  if (!firebaseUser) return;
   if (syncState !== 'error') return;
+  const ref = userDoc();
+  if (!ref) return;
   setSyncState('syncing');
-  fetch('/api/data/save', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idToken, state: S }),
-  }).then(res => {
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    setSyncState('synced');
-    showToast('Synced to cloud', 'success');
-  }).catch(() => {
-    setSyncState('error');
-    showToast('Still offline. Will retry on next change.', 'warning');
-  });
+  ref.set({ state: S, updatedAt: new Date().toISOString() })
+    .then(() => { setSyncState('synced'); showToast('Synced to cloud', 'success'); })
+    .catch(() => { setSyncState('error');  showToast('Still offline. Will retry on next change.', 'warning'); });
 }
 
 function load() {
@@ -557,23 +553,22 @@ function load() {
   }
 }
 
-// Load state from Firestore (called after sign-in)
+// Load state from Firestore (called once after sign-in / on auth restoration)
 async function loadFromCloud(): Promise<void> {
-  if (!idToken) return;
+  const ref = userDoc();
+  if (!ref) return;
   try {
-    const res  = await fetch('/api/data/load', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken }),
-    });
-    const data = await res.json();
-    if (data.state) {
-      S = { ...DEFAULT_STATE, ...data.state };
-      // Keep local copy in sync
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch(_) {}
+    const snap = await ref.get();
+    if (snap.exists) {
+      const data  = snap.data();
+      const state = data && data.state;
+      if (state) {
+        S = { ...DEFAULT_STATE, ...state };
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch(_) {}
+      }
     }
   } catch(_) {
-    // Network issue — keep local state as-is
+    // Network or rules-denied — keep local state, sync chip will surface error on next save
   }
 }
 
