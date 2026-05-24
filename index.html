@@ -2908,7 +2908,12 @@
       <div style="border-radius:18px;border:1px solid rgba(255,255,255,0.06);background:rgba(7,15,31,0.6);backdrop-filter:blur(20px);padding:18px 22px;">
         <div style="font-size:14px;font-weight:700;color:var(--text);letter-spacing:-0.01em;">Brainfy</div>
         <div style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.55;">A cognitive environment for deep work. Built solo, in the open.</div>
-        <div style="display:flex;gap:16px;margin-top:14px;font-size:12px;">
+        <div style="display:flex;gap:16px;margin-top:14px;font-size:12px;flex-wrap:wrap;align-items:center;">
+          <button type="button" onclick="(function(){ goTo('home'); setTimeout(function(){ startTour(); }, 300); })()"
+            style="background:rgba(124,58,237,0.16);border:1px solid rgba(124,58,237,0.3);border-radius:8px;padding:7px 12px;color:var(--plight);font-family:'Manrope',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:background 0.15s;letter-spacing:-0.005em;"
+            onmouseover="this.style.background='rgba(124,58,237,0.26)'" onmouseout="this.style.background='rgba(124,58,237,0.16)'">
+            Take the tour
+          </button>
           <a href="/privacy.html" target="_blank" rel="noopener" style="color:var(--plight);text-decoration:none;font-weight:600;">Privacy</a>
           <a href="/terms.html"   target="_blank" rel="noopener" style="color:var(--plight);text-decoration:none;font-weight:600;">Terms</a>
           <a href="https://github.com/Aihan-7/brainfy" target="_blank" rel="noopener" style="color:var(--plight);text-decoration:none;font-weight:600;">GitHub</a>
@@ -3070,6 +3075,22 @@
     <div id="searchResults" style="max-height:min(420px,60vh);overflow-y:auto;padding:8px;"></div>
   </div>
 </div><!-- /searchModal -->
+
+
+<!-- ══════════════════════════════════════════
+     GUIDED TOUR (first-run, re-runnable from Settings)
+══════════════════════════════════════════ -->
+<div id="tourOverlay" aria-hidden="true"></div>
+<div id="tourTooltip" role="dialog" aria-live="polite">
+  <div class="tt-step" id="tourStepLabel">STEP 1 / 8</div>
+  <h3 id="tourTitle">Welcome to Brainfy</h3>
+  <p id="tourBody">A few quick pointers so you know where everything lives.</p>
+  <div class="tt-actions">
+    <button type="button" class="tt-skip" onclick="endTour(false)">Skip</button>
+    <div class="tt-dots" id="tourDots"></div>
+    <button type="button" class="tt-next" id="tourNextBtn" onclick="nextTourStep()">Next</button>
+  </div>
+</div><!-- /tour -->
 
 
 <!-- ══════════════════════════════════════════
@@ -3433,6 +3454,86 @@
   #searchModal.open { opacity: 1 !important; }
   #searchModal.open > div { transform: translateY(0) scale(1) !important; }
   #searchInput::placeholder { color: var(--muted); }
+
+  /* ── Guided tour (first-run) ───────────────────
+     Dark backdrop dims the page, the current target gets a purple
+     glow + slight scale-up, and a tooltip card sits next to it.
+     Layered with z-index so the target shows through the overlay. */
+  #tourOverlay {
+    position: fixed; inset: 0; z-index: 400;
+    background: rgba(7, 13, 28, 0.7);
+    backdrop-filter: blur(4px);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.32s ease;
+  }
+  #tourOverlay.active { opacity: 1; pointer-events: auto; }
+
+  /* The element being explained — JS adds this class to the target. */
+  .tour-target {
+    position: relative; z-index: 410 !important;
+    box-shadow:
+      0 0 0 3px rgba(167, 139, 250, 0.7),
+      0 0 0 7px rgba(124, 58, 237, 0.35),
+      0 14px 48px rgba(124, 58, 237, 0.42) !important;
+    border-radius: 14px;
+    transform: scale(1.04);
+    transition: box-shadow 0.32s ease, transform 0.32s cubic-bezier(0.34, 1.2, 0.64, 1);
+    pointer-events: auto;
+  }
+
+  /* Tooltip popover — positioned by JS */
+  #tourTooltip {
+    position: fixed; z-index: 420;
+    width: min(340px, calc(100vw - 32px));
+    background: rgba(10, 18, 34, 0.97);
+    border: 1px solid rgba(167, 139, 250, 0.35);
+    border-radius: 16px;
+    padding: 18px 20px 16px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+    color: var(--text);
+    font-family: 'Manrope', sans-serif;
+    opacity: 0; transform: translateY(8px);
+    transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.34, 1.2, 0.64, 1);
+  }
+  #tourTooltip.visible { opacity: 1; transform: translateY(0); }
+  #tourTooltip .tt-step {
+    font-family: 'Space Grotesk', monospace;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+    color: var(--plight); margin-bottom: 7px;
+  }
+  #tourTooltip h3 {
+    font-size: 16px; font-weight: 800; letter-spacing: -0.015em;
+    color: var(--text); margin-bottom: 6px;
+  }
+  #tourTooltip p {
+    font-size: 13px; line-height: 1.55; color: var(--muted);
+    margin-bottom: 14px;
+  }
+  #tourTooltip .tt-actions {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  #tourTooltip .tt-skip {
+    background: transparent; border: none; color: var(--muted);
+    font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600;
+    cursor: pointer; padding: 4px 0; transition: color 0.15s;
+  }
+  #tourTooltip .tt-skip:hover { color: var(--text); }
+  #tourTooltip .tt-next {
+    background: var(--primary); border: none; color: white;
+    font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 700;
+    padding: 9px 18px; border-radius: 10px; cursor: pointer;
+    letter-spacing: -0.01em; transition: opacity 0.15s, transform 0.1s;
+  }
+  #tourTooltip .tt-next:hover  { opacity: 0.9; }
+  #tourTooltip .tt-next:active { transform: scale(0.96); }
+  #tourTooltip .tt-dots {
+    display: flex; gap: 5px;
+  }
+  #tourTooltip .tt-dots > span {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: rgba(255,255,255,0.18); transition: background 0.15s, transform 0.15s;
+  }
+  #tourTooltip .tt-dots > span.on { background: var(--plight); transform: scale(1.4); }
   .search-result {
     display: flex; align-items: center; gap: 12px;
     padding: 10px 12px; border-radius: 10px; cursor: pointer;
@@ -3481,7 +3582,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = '1778432000';
+  var APP_VERSION = '1778440000';
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {
     apiKey:            "AIzaSyAZ34uI2ELFomc2k7hXdVn6Yjy64iOezRE",
@@ -3532,6 +3633,9 @@
   stub('openFooterLink');
   stub('openSearch');
   stub('openTTModal');
+  stub('startTour');
+  stub('nextTourStep');
+  stub('endTour');
 
   // Splash CTAs that previously waited for app.js to attach listeners.
   // We attach minimal handlers here so first-click immediately starts

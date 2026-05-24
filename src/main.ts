@@ -88,6 +88,7 @@ interface AppState {
   bestStreak:    number;
   nextId:        number;
   timetable:     TimetableBlock[];
+  tourSeen?:     boolean;        // first-run guided tour completion flag
 }
 
 interface Quote {
@@ -151,6 +152,7 @@ const DEFAULT_STATE = {
   bestStreak: 0,
   nextId: 1,
   timetable: [] as TimetableBlock[],
+  tourSeen: false,
 };
 
 // ── Runtime state ───────────────────────────────────────────────────────────
@@ -970,6 +972,15 @@ document.addEventListener('keydown', e => {
 // ── HOME ────────────────────────────────────────────────────────────────────
 function renderHome() {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // First-run guided tour — only auto-show once, for users who haven't
+  // completed (or skipped) it. Wait for the enter animation + icon hydration
+  // to settle so target rects are accurate.
+  if (!S.tourSeen && !tourActive && S.sessions.length === 0) {
+    window.setTimeout(() => {
+      if (!S.tourSeen && currentView === 'home') startTour();
+    }, 700);
+  }
 
   // Greeting
   const hr = new Date().getHours();
@@ -4645,3 +4656,245 @@ function initSearch(): void {
 // Exposed so the sidebar / mobile-top-bar inline onclicks can reach them
 (window as any).openSearch  = openSearch;
 (window as any).closeSearch = closeSearch;
+
+
+// ── GUIDED TOUR (first-run) ──────────────────────────────────────────────────
+// Walks new users through the Home dashboard. Each step highlights a real
+// element with a glowing spotlight + scale and pops a tooltip next to it.
+
+interface TourStep {
+  target: string;        // CSS selector — first match wins
+  title:  string;
+  body:   string;
+  side?:  'auto' | 'top' | 'bottom' | 'left' | 'right';
+}
+
+const TOUR_STEPS: TourStep[] = [
+  {
+    target: '#appSidebar > div:first-child',
+    title:  'Welcome to Brainfy',
+    body:   'Your private, AI-powered study companion. A 90-second tour so you know where everything lives.',
+    side:   'right',
+  },
+  {
+    target: '#sidebarSearchBtn',
+    title:  'Search anything · ⌘K',
+    body:   'Find any subject, document, task, milestone or timetable block — from anywhere in the app. Press ⌘K (or Ctrl+K).',
+    side:   'right',
+  },
+  {
+    target: '#homeView .hd-stat:first-child',
+    title:  'Today\'s focus, at a glance',
+    body:   'Four cards show today\'s focused minutes, your cognitive score, your current streak, and sessions completed.',
+    side:   'bottom',
+  },
+  {
+    target: '#goalProgressBar',
+    title:  'Daily focus goal',
+    body:   'Set a daily target you can actually hit. Edit it any time from Settings → Focus & Breaks.',
+    side:   'bottom',
+  },
+  {
+    target: '#focusTimeChart',
+    title:  'Your week, visualised',
+    body:   'Focus minutes per day across the last week. Today\'s bar lights up cyan.',
+    side:   'top',
+  },
+  {
+    target: '#focusScoreNum',
+    title:  'Cognitive state',
+    body:   'Your composite focus score — builds with consistency, not single big sessions.',
+    side:   'left',
+  },
+  {
+    target: '#aiNavBtn',
+    title:  'Stuck? Ask Brainfy AI',
+    body:   'Explain any concept, generate flashcards from your notes, quiz yourself, or plan your week. It knows your subjects.',
+    side:   'right',
+  },
+  {
+    target: '#sidebarStartBtn',
+    title:  'Ready? Start a session',
+    body:   'Pick a subject, set an intention, and begin deep work. That\'s where the data above starts to come alive.',
+    side:   'right',
+  },
+];
+
+let tourIdx     = 0;
+let tourActive  = false;
+let tourTarget: HTMLElement | null = null;
+let _tourKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+let _tourResizeHandler: (() => void) | null = null;
+
+function startTour(): void {
+  if (tourActive) return;
+  tourActive = true;
+  tourIdx    = 0;
+
+  // If we're not on Home, switch — every step assumes home/sidebar are visible.
+  if (currentView !== 'home') goTo('home');
+
+  // Build the step dots
+  const dots = document.getElementById('tourDots');
+  if (dots) {
+    dots.innerHTML = '';
+    for (let i = 0; i < TOUR_STEPS.length; i++) {
+      const d = document.createElement('span');
+      dots.appendChild(d);
+    }
+  }
+
+  // Keyboard: Esc skip, Enter / → advance, ← back
+  _tourKeyHandler = (e: KeyboardEvent) => {
+    if (!tourActive) return;
+    if (e.key === 'Escape') { e.preventDefault(); endTour(false); }
+    else if (e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); nextTourStep(); }
+    else if (e.key === 'ArrowLeft' && tourIdx > 0) { e.preventDefault(); tourIdx -= 2; nextTourStep(); }
+  };
+  document.addEventListener('keydown', _tourKeyHandler);
+
+  // Reposition on resize/scroll so the spotlight tracks the target
+  _tourResizeHandler = () => paintTourStep();
+  window.addEventListener('resize', _tourResizeHandler, { passive: true });
+  window.addEventListener('scroll',  _tourResizeHandler, { passive: true });
+
+  // Show overlay + first step
+  const overlay = document.getElementById('tourOverlay');
+  if (overlay) overlay.classList.add('active');
+  paintTourStep();
+}
+
+function nextTourStep(): void {
+  if (!tourActive) return;
+  tourIdx++;
+  if (tourIdx >= TOUR_STEPS.length) { endTour(true); return; }
+  paintTourStep();
+}
+
+function paintTourStep(): void {
+  if (!tourActive) return;
+  const step = TOUR_STEPS[tourIdx];
+  if (!step) return;
+
+  // Clear old target
+  if (tourTarget) { tourTarget.classList.remove('tour-target'); tourTarget = null; }
+
+  const target = document.querySelector<HTMLElement>(step.target);
+  if (!target) {
+    // Couldn't find this step's target — skip it
+    nextTourStep();
+    return;
+  }
+
+  // Bring the target into view, then highlight + position the tooltip
+  target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+  // Give the scroll a moment so getBoundingClientRect is accurate
+  setTimeout(() => {
+    if (!tourActive) return;
+    target.classList.add('tour-target');
+    tourTarget = target;
+    positionTourTooltip(target, step);
+  }, 240);
+}
+
+function positionTourTooltip(target: HTMLElement, step: TourStep): void {
+  const tooltip = document.getElementById('tourTooltip') as HTMLElement | null;
+  const titleEl = document.getElementById('tourTitle');
+  const bodyEl  = document.getElementById('tourBody');
+  const stepEl  = document.getElementById('tourStepLabel');
+  const nextBtn = document.getElementById('tourNextBtn');
+  const dots    = document.getElementById('tourDots');
+  if (!tooltip || !titleEl || !bodyEl || !stepEl || !nextBtn) return;
+
+  // Populate content
+  titleEl.textContent = step.title;
+  bodyEl.textContent  = step.body;
+  stepEl.textContent  = `STEP ${tourIdx + 1} / ${TOUR_STEPS.length}`;
+  nextBtn.textContent = tourIdx === TOUR_STEPS.length - 1 ? 'Finish' : 'Next';
+  if (dots) {
+    Array.from(dots.children).forEach((d, i) => {
+      d.classList.toggle('on', i === tourIdx);
+    });
+  }
+
+  // Compute placement. Need actual tooltip size before deciding.
+  tooltip.style.left = '-9999px'; tooltip.style.top = '0px';
+  tooltip.classList.add('visible');
+  const tt = tooltip.getBoundingClientRect();
+  const r  = target.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const gap = 14;
+
+  // Auto-pick the side with the most room — preferring the step's hint
+  const space = {
+    top:    r.top,
+    bottom: vh - r.bottom,
+    left:   r.left,
+    right:  vw - r.right,
+  };
+  const sideOrder: ('bottom'|'top'|'right'|'left')[] = step.side && step.side !== 'auto'
+    ? [step.side as any, 'bottom', 'right', 'top', 'left']
+    : ['bottom', 'right', 'top', 'left'];
+  let chosen: 'top'|'bottom'|'left'|'right' = 'bottom';
+  for (const s of sideOrder) {
+    if (s === 'top'    && space.top    >= tt.height + gap) { chosen = 'top';    break; }
+    if (s === 'bottom' && space.bottom >= tt.height + gap) { chosen = 'bottom'; break; }
+    if (s === 'left'   && space.left   >= tt.width  + gap) { chosen = 'left';   break; }
+    if (s === 'right'  && space.right  >= tt.width  + gap) { chosen = 'right';  break; }
+  }
+
+  // Compute position based on chosen side
+  let x = 0, y = 0;
+  if (chosen === 'bottom') {
+    y = r.bottom + gap;
+    x = r.left + r.width / 2 - tt.width / 2;
+  } else if (chosen === 'top') {
+    y = r.top - gap - tt.height;
+    x = r.left + r.width / 2 - tt.width / 2;
+  } else if (chosen === 'right') {
+    x = r.right + gap;
+    y = r.top + r.height / 2 - tt.height / 2;
+  } else { // left
+    x = r.left - gap - tt.width;
+    y = r.top + r.height / 2 - tt.height / 2;
+  }
+
+  // Clamp to viewport
+  x = Math.max(12, Math.min(x, vw - tt.width  - 12));
+  y = Math.max(12, Math.min(y, vh - tt.height - 12));
+
+  tooltip.style.left = `${x}px`;
+  tooltip.style.top  = `${y}px`;
+}
+
+function endTour(completed: boolean): void {
+  if (!tourActive) return;
+  tourActive = false;
+
+  if (tourTarget) { tourTarget.classList.remove('tour-target'); tourTarget = null; }
+  const overlay = document.getElementById('tourOverlay');
+  const tooltip = document.getElementById('tourTooltip');
+  if (overlay) overlay.classList.remove('active');
+  if (tooltip) tooltip.classList.remove('visible');
+
+  if (_tourKeyHandler)    document.removeEventListener('keydown', _tourKeyHandler);
+  if (_tourResizeHandler) {
+    window.removeEventListener('resize', _tourResizeHandler);
+    window.removeEventListener('scroll', _tourResizeHandler);
+  }
+  _tourKeyHandler = null;
+  _tourResizeHandler = null;
+
+  // Mark seen so we never auto-show again (skip counts as "seen" too — they
+  // can always replay it from Settings).
+  S.tourSeen = true;
+  save();
+
+  if (completed) showToast('Tour complete — happy studying.', 'success');
+}
+
+// Expose for inline onclicks (Settings re-run + tooltip buttons)
+(window as any).startTour    = startTour;
+(window as any).nextTourStep = nextTourStep;
+(window as any).endTour      = endTour;
