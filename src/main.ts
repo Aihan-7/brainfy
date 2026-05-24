@@ -103,7 +103,7 @@ interface AmbientNode {
 
 type AmbientKey = 'lofi' | 'rain' | 'white' | 'forest';
 type FcRating   = 'easy' | 'ok' | 'hard';
-type ViewName   = 'splash' | 'signin' | 'signup' | 'home' | 'focus' | 'library' | 'stats' | 'tasks' | 'timetable' | 'settings';
+type ViewName   = 'splash' | 'signin' | 'signup' | 'home' | 'focus' | 'library' | 'flashcards' | 'stats' | 'tasks' | 'timetable' | 'settings';
 
 const STORAGE_KEY = 'brainfy_v3';
 const TIMER_C = 754;   // 2π × 120  (timer ring circumference)
@@ -610,13 +610,14 @@ function _goToFinish(view: ViewName): void {
     btn.classList.toggle('active', btn.dataset['go'] === view);
   });
 
-  if (view === 'home')      renderHome();
-  if (view === 'focus')     renderFocus();
-  if (view === 'library')   renderLibrary();
-  if (view === 'stats')     renderStats();
-  if (view === 'tasks')     renderTasks();
-  if (view === 'timetable') renderTimetable();
-  if (view === 'settings')  renderSettings();
+  if (view === 'home')       renderHome();
+  if (view === 'focus')      renderFocus();
+  if (view === 'library')    renderLibrary();
+  if (view === 'flashcards') renderFlashcards();
+  if (view === 'stats')      renderStats();
+  if (view === 'tasks')      renderTasks();
+  if (view === 'timetable')  renderTimetable();
+  if (view === 'settings')   renderSettings();
 
   // Re-trigger stagger animations on stat cards
   if (view === 'home') {
@@ -1669,6 +1670,107 @@ function docSize(bytes: number): string {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// ── FLASHCARDS VIEW ─────────────────────────────────────────────────────────
+// Top-level view that lists every subject as a deck card. Click "Review" on
+// a deck → opens the existing flashcard modal (openFlashcards(subjectId)).
+function renderFlashcards(): void {
+  const strip = el('fcStatStrip');
+  const list  = el('fcDeckList');
+  if (!strip || !list) return;
+
+  // Build decks list: prefer subject.cards, fall back to the built-in default
+  // deck so a brand-new user has at least one set to try.
+  const decks = S.subjects
+    .map(s => ({
+      id:    s.id,
+      name:  s.name,
+      desc:  s.desc || '',
+      color: s.color,
+      count: (s.cards && s.cards.length) ? s.cards.length : 0,
+    }))
+    .filter(d => d.count > 0);
+
+  // Always offer the bundled starter deck (8 study-science cards) so the
+  // view never feels empty — labelled clearly so it's not mistaken for user data
+  const starterCount = (FLASHCARD_SETS.default || []).length;
+
+  // Stat strip — total decks, total cards, starter cards
+  const totalCards = decks.reduce((n, d) => n + d.count, 0);
+  strip.innerHTML = `
+    <div style="border-radius:14px;padding:14px 16px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.18);">
+      <div style="font-size:22px;font-weight:800;color:var(--plight);letter-spacing:-0.03em;line-height:1;">${decks.length}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:'Space Grotesk';letter-spacing:0.08em;font-weight:600;">YOUR DECKS</div>
+    </div>
+    <div style="border-radius:14px;padding:14px 16px;background:rgba(76,215,246,0.06);border:1px solid rgba(76,215,246,0.16);">
+      <div style="font-size:22px;font-weight:800;color:var(--cyan);letter-spacing:-0.03em;line-height:1;">${totalCards}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:'Space Grotesk';letter-spacing:0.08em;font-weight:600;">TOTAL CARDS</div>
+    </div>
+    <div style="border-radius:14px;padding:14px 16px;background:rgba(78,222,163,0.06);border:1px solid rgba(78,222,163,0.16);">
+      <div style="font-size:22px;font-weight:800;color:var(--green);letter-spacing:-0.03em;line-height:1;">${starterCount}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:'Space Grotesk';letter-spacing:0.08em;font-weight:600;">STARTER DECK</div>
+    </div>`;
+
+  // Deck cards
+  const deckCards = decks.map(d => `
+    <div class="fc-deck" style="border-radius:16px;padding:18px 18px 14px;background:rgba(7,15,31,0.55);border:1px solid ${d.color}33;backdrop-filter:blur(20px);cursor:pointer;transition:transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;"
+      onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 28px ${d.color}33';this.style.borderColor='${d.color}66';"
+      onmouseout="this.style.transform='';this.style.boxShadow='';this.style.borderColor='${d.color}33';"
+      onclick="openFlashcards(${d.id})">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
+        <div style="width:38px;height:38px;border-radius:11px;background:${d.color}1f;border:1px solid ${d.color}40;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          ${icon('style', { size: 18, color: d.color })}
+        </div>
+        <span style="font-family:'Space Grotesk';font-size:10px;color:${d.color};font-weight:700;letter-spacing:0.06em;">${d.count} CARD${d.count !== 1 ? 'S' : ''}</span>
+      </div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);letter-spacing:-0.01em;line-height:1.25;margin-bottom:4px;">${_e(d.name)}</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.45;min-height:34px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${_e(d.desc || 'Study deck')}</div>
+      <button type="button" onclick="event.stopPropagation();openFlashcards(${d.id})"
+        style="margin-top:14px;width:100%;padding:9px;background:${d.color}22;border:1px solid ${d.color}45;border-radius:10px;color:${d.color};font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:-0.005em;transition:background 0.15s;"
+        onmouseover="this.style.background='${d.color}36';" onmouseout="this.style.background='${d.color}22';">
+        Review deck →
+      </button>
+    </div>
+  `).join('');
+
+  // Bundled starter deck — always present
+  const starterCard = `
+    <div class="fc-deck" style="border-radius:16px;padding:18px 18px 14px;background:rgba(7,15,31,0.55);border:1px solid rgba(78,222,163,0.25);backdrop-filter:blur(20px);cursor:pointer;transition:transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;"
+      onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 28px rgba(78,222,163,0.22)';this.style.borderColor='rgba(78,222,163,0.5)';"
+      onmouseout="this.style.transform='';this.style.boxShadow='';this.style.borderColor='rgba(78,222,163,0.25)';"
+      onclick="openFlashcards(-1)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
+        <div style="width:38px;height:38px;border-radius:11px;background:rgba(78,222,163,0.12);border:1px solid rgba(78,222,163,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          ${icon('lightbulb', { size: 18, color: 'var(--green)' })}
+        </div>
+        <span style="font-family:'Space Grotesk';font-size:10px;color:var(--green);font-weight:700;letter-spacing:0.06em;">${starterCount} CARDS</span>
+      </div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);letter-spacing:-0.01em;line-height:1.25;margin-bottom:4px;">Study Science Starter</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.45;min-height:34px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">Spaced repetition, active recall, the Feynman technique — the core study-science vocabulary every learner should know.</div>
+      <button type="button" onclick="event.stopPropagation();openFlashcards(-1)"
+        style="margin-top:14px;width:100%;padding:9px;background:rgba(78,222,163,0.14);border:1px solid rgba(78,222,163,0.32);border-radius:10px;color:var(--green);font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:-0.005em;transition:background 0.15s;"
+        onmouseover="this.style.background='rgba(78,222,163,0.24)';" onmouseout="this.style.background='rgba(78,222,163,0.14)';">
+        Review deck →
+      </button>
+    </div>
+  `;
+
+  if (decks.length === 0) {
+    // Empty state for user decks
+    list.innerHTML = `
+      ${starterCard}
+      <div style="grid-column:1/-1;text-align:center;padding:48px 24px;background:rgba(7,15,31,0.4);border:1px dashed var(--border);border-radius:16px;">
+        <div style="font-size:14px;color:var(--text);font-weight:600;margin-bottom:6px;">No personal decks yet</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.55;max-width:360px;margin:0 auto;">Add a subject in the Library and write notes — Brainfy AI auto-generates flashcards from them. Or paste notes into the AI tutor and pick "Import as flashcards".</div>
+        <button type="button" onclick="goTo('library')"
+          style="margin-top:14px;padding:9px 18px;background:var(--primary);border:none;border-radius:10px;color:white;font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:-0.005em;">
+          Open Library
+        </button>
+      </div>`;
+  } else {
+    list.innerHTML = starterCard + deckCards;
+  }
 }
 
 function renderLibrary() {

@@ -2018,6 +2018,9 @@
     <button class="nav-btn" data-go="library">
       <span class="ms nav-icon">auto_stories</span> Library
     </button>
+    <button class="nav-btn" data-go="flashcards">
+      <span class="ms nav-icon">style</span> Flashcards
+    </button>
     <button class="nav-btn" data-go="stats">
       <span class="ms nav-icon">bar_chart</span> Stats
     </button>
@@ -2595,6 +2598,28 @@
     </footer>
   </div>
 </div><!-- /libraryView -->
+
+
+<!-- ══════════════════════════════════════════
+     FLASHCARDS VIEW — all decks across all subjects
+══════════════════════════════════════════ -->
+<div id="flashcardsView" class="view app-view">
+  <div style="max-width:1080px;margin:0 auto;padding:36px 28px 56px;">
+
+    <!-- Header -->
+    <div style="margin-bottom:28px;">
+      <h2 style="font-size:22px;font-weight:800;letter-spacing:-0.025em;color:var(--text);line-height:1;">Flashcards</h2>
+      <p style="font-size:13px;color:var(--muted);margin-top:6px;font-weight:400;letter-spacing:0.01em;">Review every deck across your subjects.</p>
+    </div>
+
+    <!-- Stat strip -->
+    <div id="fcStatStrip" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;"></div>
+
+    <!-- Deck list -->
+    <div id="fcDeckList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;"></div>
+
+  </div>
+</div><!-- /flashcardsView -->
 
 
 <!-- ══════════════════════════════════════════
@@ -3586,7 +3611,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = '1778450000';
+  var APP_VERSION = '1778455000';
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {
     apiKey:            "AIzaSyAZ34uI2ELFomc2k7hXdVn6Yjy64iOezRE",
