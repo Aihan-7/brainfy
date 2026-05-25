@@ -1629,13 +1629,28 @@
        PRICING SECTION
   ════════════════════════════ -->
   <section id="splash-pricing" style="padding:0 40px 110px;max-width:1240px;margin:0 auto;width:100%;">
-    <div style="text-align:center;margin-bottom:56px;">
+    <div style="text-align:center;margin-bottom:40px;">
       <p style="font-size:10px;letter-spacing:0.18em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;margin-bottom:12px;">PRICING</p>
-      <h2 style="font-size:clamp(26px,3.5vw,42px);font-weight:900;letter-spacing:-0.025em;color:white;margin-bottom:14px;">Simple, honest pricing</h2>
-      <p style="font-size:16px;color:var(--muted);max-width:420px;margin:0 auto;line-height:1.65;">Start free. Upgrade when you're ready to go deeper.</p>
+      <h2 style="font-size:clamp(26px,3.5vw,42px);font-weight:900;letter-spacing:-0.025em;color:white;margin-bottom:14px;">Free while we're in beta</h2>
+      <p style="font-size:16px;color:var(--muted);max-width:480px;margin:0 auto;line-height:1.65;">Every feature is unlocked. Paid plans land later — pricing below is a preview, not yet active.</p>
     </div>
 
-    <div id="pricing-grid">
+    <!-- Blurred pricing preview — paid tiers are disabled until launch -->
+    <div style="position:relative;">
+
+      <!-- "Free for now" overlay -->
+      <div style="position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+        <div style="background:rgba(10,18,34,0.92);border:1px solid rgba(124,58,237,0.45);border-radius:22px;padding:24px 36px;text-align:center;backdrop-filter:blur(20px);box-shadow:0 20px 60px rgba(0,0,0,0.5);max-width:380px;">
+          <div style="display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;background:rgba(78,222,163,0.12);border:1px solid rgba(78,222,163,0.3);font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--green);margin-bottom:14px;">
+            <span style="width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);"></span>
+            FREE FOR NOW
+          </div>
+          <div style="font-size:18px;font-weight:800;color:white;letter-spacing:-0.015em;margin-bottom:6px;">No payment required</div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.6;">Use everything while Brainfy is in beta. Paid tiers will roll out once the product is fully stable.</div>
+        </div>
+      </div>
+
+    <div id="pricing-grid" style="filter:blur(5px) saturate(0.7);opacity:0.55;pointer-events:none;user-select:none;transition:filter 0.3s ease;">
 
       <!-- ── Student (Free) ── -->
       <div style="background:var(--card);border:1px solid var(--border);border-radius:22px;padding:32px;position:relative;transition:border-color 0.2s,transform 0.2s,box-shadow 0.2s;"
@@ -1754,7 +1769,9 @@
         </div>
       </div>
 
-    </div>
+    </div><!-- /#pricing-grid -->
+
+    </div><!-- /pricing wrapper (blur + overlay) -->
   </section>
 
   <!-- ════════════════════════════
@@ -3603,7 +3620,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = '1778458500';
+  var APP_VERSION = '1778460000';
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {
     apiKey:            "AIzaSyAZ34uI2ELFomc2k7hXdVn6Yjy64iOezRE",
