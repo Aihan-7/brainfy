@@ -153,6 +153,20 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify(obj));
   };
 
+  // ── POST /api/log ─────────────────────────────
+  //  Local-dev mirror of functions/api/log.js — just prints the payload
+  //  to terminal so you can see telemetry events while developing.
+  //  Prod logs go to Cloudflare Pages → Real-time logs.
+  if (req.method === 'POST' && pathname === '/api/log') {
+    try {
+      const body = await readBody(req);
+      console.log('[brainfy-log]', JSON.stringify({ t: new Date().toISOString(), ...body }));
+    } catch(_) { /* swallow — telemetry must never break the caller */ }
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
   // ── GET /api/ai-status ────────────────────────
   if (req.method === 'GET' && pathname === '/api/ai-status') {
     json(200, {

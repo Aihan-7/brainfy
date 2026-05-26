@@ -496,6 +496,68 @@ window.setInterval(() => {
 window.addEventListener('online',  () => { if (syncState === 'offline') setSyncState(idToken ? 'idle' : 'idle'); });
 window.addEventListener('offline', () => setSyncState('offline'));
 
+// ── Telemetry ───────────────────────────────────────────────────────────────
+// Fire-and-forget POST to /api/log. Used at every silent failure site (sync
+// rejected, AI fetch failed, etc.) so the first user to hit a problem
+// generates a Cloudflare log entry — we don't have to wait for a bug report.
+//
+// Invariants:
+//   • Never throws. Telemetry breaking the caller would be the worst
+//     possible failure mode — it runs inside catch handlers.
+//   • Never blocks. Uses sendBeacon when available (survives page unload),
+//     falls back to keepalive fetch.
+//   • Local-only client throttle: collapses identical events fired within
+//     5 s into one, so a runaway retry loop can't flood the endpoint.
+const _trackSeen: Record<string, number> = {};
+function track(event: string, data?: Record<string, unknown>): void {
+  try {
+    const key = event + '|' + (data?.['code'] ?? '');
+    const now = Date.now();
+    if (_trackSeen[key] && now - _trackSeen[key]! < 5000) return;
+    _trackSeen[key] = now;
+
+    const payload = JSON.stringify({
+      event,
+      ...data,
+      url: location?.pathname || null,
+      ua:  navigator?.userAgent || null,
+      v:   (window as any).APP_VERSION || null,
+    });
+
+    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      // sendBeacon survives page unload and won't be blocked by CSP fetch
+      // restrictions in the same way. Returns false if the browser refused;
+      // we don't care either way — fire and forget.
+      navigator.sendBeacon('/api/log', new Blob([payload], { type: 'application/json' }));
+    } else {
+      // keepalive lets the request outlive the page; ignore the promise
+      fetch('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true,
+      }).catch(() => { /* swallow — telemetry must never break the caller */ });
+    }
+  } catch (_) {
+    /* swallow everything — telemetry is best-effort */
+  }
+}
+
+// Catch-all: unhandled promise rejections + uncaught errors. These are the
+// bugs we don't know to wrap yet — the kind that show up as a console red
+// line and nothing else. The 5-second client-side dedupe in track() keeps
+// a tight loop from flooding the endpoint.
+window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
+  const r: any = e.reason;
+  track('uncaught.rejection', { code: r?.code, message: r?.message || String(r) });
+});
+window.addEventListener('error', (e: ErrorEvent) => {
+  track('uncaught.error', {
+    message: e.message,
+    extra: { filename: e.filename, lineno: e.lineno, colno: e.colno },
+  });
+});
+
 // ── Persistence ─────────────────────────────────────────────────────────────
 // Talks to Firestore DIRECTLY via the Web SDK — no server middleman. The
 // browser authenticates as the signed-in user, and Firestore rules enforce
@@ -527,7 +589,7 @@ function save() {
   _pendingSaveTimer = window.setTimeout(() => {
     ref.set({ state: S, updatedAt: new Date().toISOString() })
       .then(() => setSyncState('synced'))
-      .catch((err: any) => { console.error('[sync] save failed', err?.code, err?.message, err); setSyncState('error'); });
+      .catch((err: any) => { console.error('[sync] save failed', err?.code, err?.message, err); track('sync.save.error', { code: err?.code, message: err?.message }); setSyncState('error'); });
   }, 400);
 }
 
@@ -540,7 +602,7 @@ function retrySync(): void {
   setSyncState('syncing');
   ref.set({ state: S, updatedAt: new Date().toISOString() })
     .then(() => { setSyncState('synced'); showToast('Synced to cloud', 'success'); })
-    .catch((err: any) => { console.error('[sync] retry failed', err?.code, err?.message, err); setSyncState('error');  showToast('Still offline. Will retry on next change.', 'warning'); });
+    .catch((err: any) => { console.error('[sync] retry failed', err?.code, err?.message, err); track('sync.retry.error', { code: err?.code, message: err?.message }); setSyncState('error');  showToast('Still offline. Will retry on next change.', 'warning'); });
 }
 
 function load() {
@@ -569,6 +631,7 @@ async function loadFromCloud(): Promise<void> {
     }
   } catch(err: any) {
     console.error('[sync] load failed', err?.code, err?.message, err);
+    track('sync.load.error', { code: err?.code, message: err?.message });
     // Network or rules-denied — keep local state, sync chip will surface error on next save
   }
 }
@@ -2741,6 +2804,7 @@ async function processYouTube(): Promise<void> {
     renderAIImportStep('result');
   } catch(e) {
     const msg = e instanceof Error ? e.message : String(e);
+    track('ai.youtube.error', { message: msg });
     showToast('Error: ' + msg, 'error');
     renderAIImportStep('input');
   }
@@ -2784,6 +2848,7 @@ async function processFile(): Promise<void> {
     renderAIImportStep('result');
   } catch(e) {
     const msg = e instanceof Error ? e.message : String(e);
+    track('ai.file.error', { message: msg });
     showToast('Error: ' + msg, 'error');
     renderAIImportStep('input');
   }
@@ -3631,8 +3696,9 @@ async function checkAIStatus() {
     const res  = await fetch('/api/ai-status');
     const data = await res.json();
     aiAvailable = !!data.configured;
-  } catch(_) {
+  } catch(err: any) {
     aiAvailable = false;
+    track('ai.status.error', { message: err?.message });
   }
   // Sidebar dot: green = ready, grey = offline
   const dot = document.querySelector<HTMLElement>('#aiNavBtn .ai-dot');
@@ -3730,6 +3796,7 @@ async function callClaude(userText: string): Promise<void> {
   } catch(e) {
     hideAITyping();
     const msg = e instanceof Error ? e.message : String(e);
+    track('ai.chat.error', { message: msg });
     appendAIMsg('error', `**Something went wrong:** ${msg}`);
   }
 }
