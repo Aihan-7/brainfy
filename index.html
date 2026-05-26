@@ -416,8 +416,12 @@
     }
     #fcFront { background: linear-gradient(135deg,rgba(124,58,237,0.14),rgba(76,215,246,0.06)); border: 1px solid rgba(124,58,237,0.25); }
     #fcBack  { transform: rotateY(180deg); background: linear-gradient(135deg,rgba(76,215,246,0.1),rgba(78,222,163,0.06)); border: 1px solid rgba(76,215,246,0.22); }
-    .fc-rating-btn { flex: 1; max-width: 150px; padding: 11px 6px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Manrope', sans-serif; transition: opacity 0.15s; }
-    .fc-rating-btn:hover { opacity: 0.82; }
+    .fc-rating-btn { flex: 1; max-width: 150px; padding: 10px 6px 9px; border-radius: 10px; cursor: pointer; font-family: 'Manrope', sans-serif; transition: opacity 0.15s, transform 0.12s; display: flex; flex-direction: column; align-items: center; gap: 2px; line-height: 1.15; }
+    .fc-rating-btn:hover  { opacity: 0.82; transform: translateY(-1px); }
+    .fc-rating-btn .label { font-size: 13px; font-weight: 700; }
+    .fc-rating-btn .iv    { font-size: 10px; opacity: 0.65; font-family: 'Space Grotesk'; letter-spacing: 0.04em; font-weight: 500; }
+    /* Browse mode hides the SRS interval hint */
+    #fcRating[data-mode="browse"] .iv { display: none; }
 
     /* ══ SESSION LOG ══ */
     .sess-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; background: rgba(255,255,255,0.025); border: 1px solid transparent; transition: border-color 0.15s; }
@@ -2191,6 +2195,20 @@
 
     </div>
 
+    <!-- ── Due flashcards CTA (only visible when there are due cards) ──
+         Hidden by default. renderHomeDueCards() flips display:flex and
+         fills the count. One-click → cross-deck review session. -->
+    <div id="homeDueCard" class="glass" style="display:none;padding:16px 20px;border-radius:14px;margin-bottom:14px;align-items:center;gap:16px;cursor:pointer;border:1px solid rgba(76,215,246,0.25);background:linear-gradient(135deg,rgba(76,215,246,0.10),rgba(124,58,237,0.06));transition:transform 0.15s ease, box-shadow 0.18s ease;" onclick="openReviewSession()" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 10px 30px rgba(76,215,246,0.18)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+      <div style="width:42px;height:42px;background:rgba(76,215,246,0.18);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(76,215,246,0.35);">
+        <span class="ms" style="color:var(--cyan);font-size:22px;">style</span>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:white;margin-bottom:3px;"><span id="homeDueCount">0</span> card<span id="homeDuePlural">s</span> due now</div>
+        <div style="font-size:11px;color:var(--muted);">Spaced repetition — review and watch your retention compound.</div>
+      </div>
+      <div style="font-size:11px;letter-spacing:0.08em;font-family:'Space Grotesk';color:var(--cyan);font-weight:700;white-space:nowrap;padding:7px 14px;border-radius:8px;background:rgba(76,215,246,0.12);border:1px solid rgba(76,215,246,0.3);">REVIEW →</div>
+    </div>
+
     <!-- ── Daily Goal Progress ── -->
     <div class="glass" style="padding:16px 20px;border-radius:14px;margin-bottom:20px;display:flex;align-items:center;gap:16px;">
       <div style="width:38px;height:38px;background:rgba(124,58,237,0.12);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(124,58,237,0.2);">
@@ -3240,19 +3258,23 @@
       <div id="fcProgressBar" style="height:100%;background:linear-gradient(90deg,var(--primary),var(--cyan));border-radius:2px;width:16.6%;transition:width 0.45s cubic-bezier(0.4,0,0.2,1);"></div>
     </div>
 
-    <!-- Stats row -->
-    <div style="display:flex;gap:16px;margin-bottom:28px;">
+    <!-- Stats row — counts of each rating this session -->
+    <div style="display:flex;gap:12px;margin-bottom:28px;">
+      <div style="flex:1;text-align:center;padding:10px;border-radius:10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.15);">
+        <div id="fcAgainCount" style="font-size:18px;font-weight:800;color:#f87171;">0</div>
+        <div style="font-size:9px;color:var(--muted);letter-spacing:0.1em;margin-top:2px;">AGAIN</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:10px;border-radius:10px;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.15);">
+        <div id="fcHardCount" style="font-size:18px;font-weight:800;color:#fb923c;">0</div>
+        <div style="font-size:9px;color:var(--muted);letter-spacing:0.1em;margin-top:2px;">HARD</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:10px;border-radius:10px;background:rgba(76,215,246,0.08);border:1px solid rgba(76,215,246,0.15);">
+        <div id="fcGoodCount" style="font-size:18px;font-weight:800;color:var(--cyan);">0</div>
+        <div style="font-size:9px;color:var(--muted);letter-spacing:0.1em;margin-top:2px;">GOOD</div>
+      </div>
       <div style="flex:1;text-align:center;padding:10px;border-radius:10px;background:rgba(78,222,163,0.08);border:1px solid rgba(78,222,163,0.15);">
         <div id="fcEasyCount" style="font-size:18px;font-weight:800;color:var(--green);">0</div>
         <div style="font-size:9px;color:var(--muted);letter-spacing:0.1em;margin-top:2px;">EASY</div>
-      </div>
-      <div style="flex:1;text-align:center;padding:10px;border-radius:10px;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.15);">
-        <div id="fcOkCount" style="font-size:18px;font-weight:800;color:#fb923c;">0</div>
-        <div style="font-size:9px;color:var(--muted);letter-spacing:0.1em;margin-top:2px;">MEDIUM</div>
-      </div>
-      <div style="flex:1;text-align:center;padding:10px;border-radius:10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.15);">
-        <div id="fcHardCount" style="font-size:18px;font-weight:800;color:#f87171;">0</div>
-        <div style="font-size:9px;color:var(--muted);letter-spacing:0.1em;margin-top:2px;">HARD</div>
       </div>
     </div>
 
@@ -3273,11 +3295,23 @@
       </div>
     </div>
 
-    <!-- Rating buttons (shown after flip) -->
-    <div id="fcRating" style="display:none;gap:10px;margin-top:20px;margin-bottom:20px;">
-      <button class="fc-rating-btn" onclick="rateCard('hard')" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.22);color:#f87171;">😓 Hard</button>
-      <button class="fc-rating-btn" onclick="rateCard('ok')"   style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.22);color:#fb923c;">🤔 Medium</button>
-      <button class="fc-rating-btn" onclick="rateCard('easy')" style="background:rgba(78,222,163,0.1);border:1px solid rgba(78,222,163,0.22);color:var(--green);">⚡ Easy</button>
+    <!-- Rating buttons (shown after flip). Anki-style 4-button:
+         Again / Hard / Good / Easy. The `.iv` span under each label shows
+         the predicted next interval ("3d", "<1d", "2mo") — hidden in browse
+         mode via the [data-mode="browse"] selector. -->
+    <div id="fcRating" data-mode="srs" style="display:none;gap:10px;margin-top:20px;margin-bottom:20px;">
+      <button class="fc-rating-btn" onclick="rateCard('again')" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.22);color:#f87171;">
+        <span class="label">↻ Again</span><span class="iv" id="fcInterval_again">&lt;1d</span>
+      </button>
+      <button class="fc-rating-btn" onclick="rateCard('hard')"  style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.22);color:#fb923c;">
+        <span class="label">😓 Hard</span><span class="iv" id="fcInterval_hard">1d</span>
+      </button>
+      <button class="fc-rating-btn" onclick="rateCard('good')"  style="background:rgba(76,215,246,0.1);border:1px solid rgba(76,215,246,0.22);color:var(--cyan);">
+        <span class="label">👍 Good</span><span class="iv" id="fcInterval_good">3d</span>
+      </button>
+      <button class="fc-rating-btn" onclick="rateCard('easy')"  style="background:rgba(78,222,163,0.1);border:1px solid rgba(78,222,163,0.22);color:var(--green);">
+        <span class="label">⚡ Easy</span><span class="iv" id="fcInterval_easy">7d</span>
+      </button>
     </div>
 
     <!-- Nav -->
@@ -3656,7 +3690,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = '1779151200';
+  var APP_VERSION = '1779154800';
   window.APP_VERSION = APP_VERSION;  // exposed so script.js can include it in telemetry
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {

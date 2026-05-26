@@ -10,6 +10,14 @@ declare const firebase: any;
 interface FlashCard {
   q: string;
   a: string;
+  // ── SRS scheduling (all optional for backward compat) ──
+  // A card with none of these fields set is treated as a brand-new card
+  // by the scheduler — see srs.ts-style functions below.
+  dueAt?:    number;   // ms timestamp. Missing = due now (new card).
+  interval?: number;   // days until next review after the last rating.
+  ease?:     number;   // SM-2 ease factor. Default 2.5. Clamped to [1.3, 2.5].
+  reps?:     number;   // successful reviews ("good" or "easy") in a row.
+  lapses?:   number;   // times rated "again" after the card graduated.
 }
 
 interface Doc {
@@ -102,7 +110,12 @@ interface AmbientNode {
 }
 
 type AmbientKey = 'lofi' | 'rain' | 'white' | 'forest';
-type FcRating   = 'easy' | 'ok' | 'hard';
+// Anki-style 4-button rating. The values map 1:1 onto the SM-2 inputs:
+//   again — total recall failure                 → relapse, due immediately
+//   hard  — recalled but with significant effort → smaller interval growth
+//   good  — recalled correctly                   → standard interval growth
+//   easy  — trivially recalled                   → boosted interval growth
+type FcRating   = 'again' | 'hard' | 'good' | 'easy';
 type ViewName   = 'splash' | 'signin' | 'signup' | 'home' | 'focus' | 'library' | 'flashcards' | 'stats' | 'tasks' | 'timetable' | 'settings';
 
 const STORAGE_KEY = 'brainfy_v3';
@@ -310,22 +323,193 @@ function syncAmbient(): void {
   });
 }
 
+// ── Flashcard SRS (SM-2 lite) ───────────────────────────────────────────────
+// Anki-style spaced repetition. The four buttons map onto these intervals:
+//
+//   New card (no `interval` yet):
+//     again → due in 0 min (relapse — see it again this session)
+//     hard  → 1 day
+//     good  → 3 days
+//     easy  → 7 days
+//
+//   Review card (has `interval`):
+//     again → 0 min (relapse), ease -= 0.2, lapses++,  interval reset
+//     hard  → interval × 1.2,  ease -= 0.15
+//     good  → interval × ease, ease unchanged
+//     easy  → interval × ease × 1.3, ease += 0.15
+//
+// Ease factor is clamped to [1.3, 2.5] so a hot streak doesn't blow the
+// schedule out, and a bad streak doesn't trap a card in same-day repetition.
+const SRS_NEW_INTERVALS: Record<FcRating, number> = {
+  again: 0,
+  hard:  1,
+  good:  3,
+  easy:  7,
+};
+const SRS_EASE_MIN     = 1.3;
+const SRS_EASE_MAX     = 2.5;
+const SRS_EASE_DEFAULT = 2.5;
+const DAY_MS           = 86400000;
+
+function srsSchedule(card: FlashCard, rating: FcRating): FlashCard {
+  const now = Date.now();
+  let interval = card.interval ?? 0;
+  let ease     = card.ease     ?? SRS_EASE_DEFAULT;
+  let reps     = card.reps     ?? 0;
+  let lapses   = card.lapses   ?? 0;
+
+  // First exposure — no interval recorded yet
+  const isNew = card.interval == null;
+
+  if (rating === 'again') {
+    interval = 0;             // due immediately, will re-appear this session
+    ease     = Math.max(SRS_EASE_MIN, ease - 0.20);
+    reps     = 0;
+    if (!isNew) lapses += 1;
+  } else if (isNew) {
+    interval = SRS_NEW_INTERVALS[rating];
+    if (rating === 'easy') ease = Math.min(SRS_EASE_MAX, ease + 0.15);
+    if (rating === 'hard') ease = Math.max(SRS_EASE_MIN, ease - 0.15);
+    reps = 1;
+  } else {
+    // Mature card — multiply forward.
+    const mult = rating === 'hard' ? 1.2
+               : rating === 'good' ? ease
+               : /* easy */          ease * 1.3;
+    interval = Math.max(1, Math.round(interval * mult));
+    if (rating === 'easy') ease = Math.min(SRS_EASE_MAX, ease + 0.15);
+    if (rating === 'hard') ease = Math.max(SRS_EASE_MIN, ease - 0.15);
+    reps += 1;
+  }
+
+  return {
+    ...card,
+    dueAt:    now + Math.round(interval * DAY_MS),
+    interval,
+    ease,
+    reps,
+    lapses,
+  };
+}
+
+// Predict the next interval for a card+rating without mutating. Used for the
+// labels on the rating buttons ("Good · 3d").
+function srsPreview(card: FlashCard, rating: FcRating): number {
+  const next = srsSchedule(card, rating);
+  return next.interval ?? 0;
+}
+
+function srsIsDue(card: FlashCard, now: number = Date.now()): boolean {
+  // No dueAt → never reviewed → due
+  return card.dueAt == null || card.dueAt <= now;
+}
+
+// Pretty-print an interval in days as a human label: 0d → "<1d", 1 → "1d",
+// 30 → "1mo", 365 → "1y". Used for button labels.
+function srsLabel(days: number): string {
+  if (days < 1)    return '<1d';
+  if (days < 30)   return Math.round(days) + 'd';
+  if (days < 365)  return Math.round(days / 30) + 'mo';
+  return Math.round(days / 365) + 'y';
+}
+
+// Walk every subject's cards and return the ones that are due, paired with
+// the subject they belong to so the UI can label them and we can persist
+// back. Demo cards (FLASHCARD_SETS.default) are not included — they're
+// onboarding content, not part of the user's actual study queue.
+interface DueEntry { card: FlashCard; subjectId: number; }
+function srsAllDue(now: number = Date.now()): DueEntry[] {
+  const out: DueEntry[] = [];
+  for (const subj of S.subjects) {
+    if (!subj.cards?.length) continue;
+    for (const card of subj.cards) {
+      if (srsIsDue(card, now)) out.push({ card, subjectId: subj.id });
+    }
+  }
+  return out;
+}
+
 // ── Flashcard State ──────────────────────────────────────────────────────────
+// `mode` controls the deck source and persistence behavior:
+//   'browse' — show every card in a single subject's deck, no scheduling.
+//              Mutations are skipped — useful for the demo deck or a
+//              user-initiated "just flip through everything" pass.
+//   'review' — only due cards. Ratings update SRS state and persist via save().
+//   'session' — cross-deck review queue (Home tile entry point).
+type FcMode = 'browse' | 'review' | 'session';
 const fc: {
-  cards:   FlashCard[];
-  idx:     number;
-  flipped: boolean;
-  scores:  Record<FcRating, number>;
-} = { cards: [], idx: 0, flipped: false, scores: { easy: 0, ok: 0, hard: 0 } };
+  cards:    FlashCard[];
+  idx:      number;
+  flipped:  boolean;
+  scores:   Record<FcRating, number>;
+  mode:     FcMode;
+  subjectId: number | null;  // null = cross-deck session or demo deck
+} = {
+  cards: [],
+  idx: 0,
+  flipped: false,
+  scores: { again: 0, hard: 0, good: 0, easy: 0 },
+  mode: 'browse',
+  subjectId: null,
+};
 
-function openFlashcards(subjectId: number): void {
-  const subj  = S.subjects.find(s => s.id === subjectId);
-  const set   = (subj?.cards?.length ? subj.cards : null) || FLASHCARD_SETS.default;
-  fc.cards   = [...set];
-  fc.idx     = 0;
-  fc.flipped = false;
-  fc.scores  = { easy:0, ok:0, hard:0 };
+function openFlashcards(subjectId: number, mode: FcMode = 'review'): void {
+  const subj = S.subjects.find(s => s.id === subjectId);
+  const hasOwn = !!subj?.cards?.length;
 
+  // Pick the deck source. Demo cards always force browse mode — we don't
+  // want SRS state attaching itself to module-level constants.
+  let set: FlashCard[];
+  let realMode: FcMode;
+  if (hasOwn) {
+    const all = subj!.cards!;
+    if (mode === 'review') {
+      set = all.filter(c => srsIsDue(c));
+      // If nothing's due, gracefully fall back to browse so the user isn't
+      // confronted with an empty deck after tapping a subject.
+      if (set.length === 0) { set = all; realMode = 'browse'; }
+      else                   realMode = 'review';
+    } else {
+      set = all;
+      realMode = 'browse';
+    }
+  } else {
+    set = FLASHCARD_SETS.default!;
+    realMode = 'browse';
+  }
+
+  fc.cards     = set;          // reference, not clone — so SRS mutates persist
+  fc.idx       = 0;
+  fc.flipped   = false;
+  fc.scores    = { again: 0, hard: 0, good: 0, easy: 0 };
+  fc.mode      = realMode;
+  fc.subjectId = subjectId;
+
+  showFlashcardModal(subj ? subj.name.toUpperCase() : 'FLASHCARDS');
+}
+
+// Cross-deck review — pulls all due cards from every subject and walks
+// them in due-time order. Entry point: Home "Due now" tile.
+function openReviewSession(): void {
+  const due = srsAllDue();
+  if (due.length === 0) {
+    showToast('No cards are due right now. Nice!', 'success');
+    return;
+  }
+  // Oldest-due-first so the most overdue cards get cleared first
+  due.sort((a, b) => (a.card.dueAt ?? 0) - (b.card.dueAt ?? 0));
+
+  fc.cards     = due.map(d => d.card);  // references — mutating updates the originals
+  fc.idx       = 0;
+  fc.flipped   = false;
+  fc.scores    = { again: 0, hard: 0, good: 0, easy: 0 };
+  fc.mode      = 'session';
+  fc.subjectId = null;
+
+  showFlashcardModal('REVIEW SESSION');
+}
+
+function showFlashcardModal(title: string): void {
   const modal = document.getElementById('flashcardModal');
   if (!modal) return;
   if (!fcModalHTML) fcModalHTML = modal.innerHTML; // capture original structure once
@@ -334,7 +518,7 @@ function openFlashcards(subjectId: number): void {
   document.body.style.overflow = 'hidden';
 
   const label = document.getElementById('fcSubjectLabel');
-  if (label) label.textContent = subj ? subj.name.toUpperCase() : 'FLASHCARDS';
+  if (label) label.textContent = title;
 
   renderFC();
 }
@@ -344,11 +528,15 @@ function closeFlashcards(): void {
   if (modal && fcModalHTML) modal.innerHTML = fcModalHTML;
   modal?.classList.remove('open');
   document.body.style.overflow = '';
+  // Home shows the "Due now" tile based on srsAllDue() — refresh if we're
+  // looking at it so the count updates after a review session.
+  if (currentView === 'home') renderHome();
 }
 
 function renderFC() {
   const card  = fc.cards[fc.idx];
   const total = fc.cards.length;
+  if (!card) return;
 
   // Reset flip
   fc.flipped = false;
@@ -380,10 +568,24 @@ function renderFC() {
   }
 
   // Score counters
-  (['easy','ok','hard'] as FcRating[]).forEach(k => {
+  (['again','hard','good','easy'] as FcRating[]).forEach(k => {
     const elId = document.getElementById('fc' + k.charAt(0).toUpperCase() + k.slice(1) + 'Count');
     if (elId) elId.textContent = String(fc.scores[k]);
   });
+
+  // Predicted intervals on rating buttons. Only shown in review/session
+  // modes (browse mode hides them entirely).
+  if (fc.mode === 'browse') {
+    const rating = document.getElementById('fcRating');
+    if (rating) rating.setAttribute('data-mode', 'browse');
+  } else {
+    const rating = document.getElementById('fcRating');
+    if (rating) rating.setAttribute('data-mode', 'srs');
+    (['again','hard','good','easy'] as FcRating[]).forEach(k => {
+      const span = document.getElementById('fcInterval_' + k);
+      if (span) span.textContent = srsLabel(srsPreview(card, k));
+    });
+  }
 }
 
 function flipCard() {
@@ -395,43 +597,81 @@ function flipCard() {
 }
 
 function fcNav(dir: number): void {
+  // Only useful in browse mode — review/session modes advance via rateCard.
+  if (fc.mode !== 'browse') return;
   fc.idx = Math.max(0, Math.min(fc.cards.length - 1, fc.idx + dir));
   renderFC();
 }
 
 function rateCard(rating: FcRating): void {
   fc.scores[rating]++;
-  if (fc.idx < fc.cards.length - 1) {
-    fc.idx++;
-    renderFC();
-  } else {
-    // Session complete
-    const { easy, ok, hard } = fc.scores;
-    const total = easy + ok + hard;
-    const modal = document.getElementById('flashcardModal');
-    if (!modal) return;
-    modal.innerHTML = `
-      <div style="max-width:500px;margin:80px auto;text-align:center;">
-        <div style="font-size:56px;margin-bottom:20px;">🎉</div>
-        <h2 style="font-size:28px;font-weight:900;color:white;margin-bottom:12px;">Session Complete!</h2>
-        <p style="font-size:15px;color:var(--muted);margin-bottom:32px;">You reviewed all ${total} cards.</p>
-        <div style="display:flex;gap:16px;justify-content:center;margin-bottom:36px;">
-          <div style="padding:16px 24px;border-radius:14px;background:rgba(78,222,163,0.1);border:1px solid rgba(78,222,163,0.2);">
-            <div style="font-size:28px;font-weight:900;color:var(--green);">${easy}</div>
-            <div style="font-size:10px;color:var(--muted);letter-spacing:0.1em;margin-top:4px;">EASY</div>
-          </div>
-          <div style="padding:16px 24px;border-radius:14px;background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.2);">
-            <div style="font-size:28px;font-weight:900;color:#fb923c;">${ok}</div>
-            <div style="font-size:10px;color:var(--muted);letter-spacing:0.1em;margin-top:4px;">MEDIUM</div>
-          </div>
-          <div style="padding:16px 24px;border-radius:14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);">
-            <div style="font-size:28px;font-weight:900;color:#f87171;">${hard}</div>
-            <div style="font-size:10px;color:var(--muted);letter-spacing:0.1em;margin-top:4px;">HARD</div>
-          </div>
-        </div>
-        <button onclick="closeFlashcards()" style="padding:13px 44px;background:linear-gradient(135deg,var(--primary),#6d28d9);border:none;border-radius:12px;color:white;font-size:15px;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;box-shadow:0 6px 24px rgba(124,58,237,0.4);">Done</button>
-      </div>`;
+
+  // Browse mode — just advance, no scheduling
+  if (fc.mode === 'browse') {
+    if (fc.idx < fc.cards.length - 1) { fc.idx++; renderFC(); }
+    else                                fcFinishSession();
+    return;
   }
+
+  // Review / session mode — schedule + persist
+  const current = fc.cards[fc.idx]!;
+  const updated = srsSchedule(current, rating);
+  // Mutate the card in place so the reference in S.subjects[…].cards
+  // sees the same updated values
+  Object.assign(current, updated);
+  save();
+
+  // "again" cards bubble back to the end of the queue so the user sees
+  // them once more this session (until they get a non-"again" rating).
+  // Skip the bubble when we're already at the last slot — splicing and
+  // pushing would just land the card right back at fc.idx and the user
+  // would see the same card again, looking like a broken button. The
+  // card's dueAt was set to "now" by srsSchedule, so it'll resurface on
+  // the next session anyway.
+  const isLast = fc.idx >= fc.cards.length - 1;
+  if (rating === 'again' && !isLast) {
+    const c = fc.cards.splice(fc.idx, 1)[0]!;
+    fc.cards.push(c);
+    // idx stays put — the card that was at idx+1 slides into this slot
+    renderFC();
+    return;
+  }
+
+  if (!isLast) { fc.idx++; renderFC(); }
+  else          fcFinishSession();
+}
+
+function fcFinishSession(): void {
+  const { again, hard, good, easy } = fc.scores;
+  const total = again + hard + good + easy;
+  const accuracy = total ? Math.round(((good + easy) / total) * 100) : 0;
+  const modal = document.getElementById('flashcardModal');
+  if (!modal) return;
+  modal.innerHTML = `
+    <div style="max-width:500px;margin:80px auto;text-align:center;">
+      <div style="font-size:56px;margin-bottom:20px;">🎉</div>
+      <h2 style="font-size:28px;font-weight:900;color:white;margin-bottom:12px;">Session Complete!</h2>
+      <p style="font-size:15px;color:var(--muted);margin-bottom:32px;">You reviewed ${total} card${total === 1 ? '' : 's'} · ${accuracy}% accuracy</p>
+      <div style="display:flex;gap:12px;justify-content:center;margin-bottom:36px;flex-wrap:wrap;">
+        <div style="padding:14px 22px;border-radius:14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);">
+          <div style="font-size:26px;font-weight:900;color:#f87171;">${again}</div>
+          <div style="font-size:10px;color:var(--muted);letter-spacing:0.1em;margin-top:4px;">AGAIN</div>
+        </div>
+        <div style="padding:14px 22px;border-radius:14px;background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.2);">
+          <div style="font-size:26px;font-weight:900;color:#fb923c;">${hard}</div>
+          <div style="font-size:10px;color:var(--muted);letter-spacing:0.1em;margin-top:4px;">HARD</div>
+        </div>
+        <div style="padding:14px 22px;border-radius:14px;background:rgba(76,215,246,0.1);border:1px solid rgba(76,215,246,0.2);">
+          <div style="font-size:26px;font-weight:900;color:var(--cyan);">${good}</div>
+          <div style="font-size:10px;color:var(--muted);letter-spacing:0.1em;margin-top:4px;">GOOD</div>
+        </div>
+        <div style="padding:14px 22px;border-radius:14px;background:rgba(78,222,163,0.1);border:1px solid rgba(78,222,163,0.2);">
+          <div style="font-size:26px;font-weight:900;color:var(--green);">${easy}</div>
+          <div style="font-size:10px;color:var(--muted);letter-spacing:0.1em;margin-top:4px;">EASY</div>
+        </div>
+      </div>
+      <button onclick="closeFlashcards()" style="padding:13px 44px;background:linear-gradient(135deg,var(--primary),#6d28d9);border:none;border-radius:12px;color:white;font-size:15px;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;box-shadow:0 6px 24px rgba(124,58,237,0.4);">Done</button>
+    </div>`;
 }
 
 // Keyboard handler for flashcards
@@ -1181,6 +1421,7 @@ function renderHome() {
   if (scoreTip)   scoreTip.textContent   = tier.tip;
 
   renderFocusTimeChart();
+  renderHomeDueCards();
   renderHomeSubjects();
   renderHomeTasks();
   renderHomeHeatmap();
@@ -1317,6 +1558,25 @@ function renderFocusTimeChart() {
       return `<span style="font-size:10px;letter-spacing:0.08em;${c}">${n}</span>`;
     }).join('');
   }
+}
+
+// Show / hide the "Due now" tile based on the live srsAllDue() count.
+// Called from renderHome and after closeFlashcards() so the count updates
+// the moment a session finishes.
+function renderHomeDueCards() {
+  const tile  = el('homeDueCard');
+  if (!tile) return;
+  const due   = srsAllDue();
+  const count = due.length;
+  if (count === 0) {
+    tile.style.display = 'none';
+    return;
+  }
+  tile.style.display = 'flex';
+  const num = el('homeDueCount');
+  const plr = el('homeDuePlural');
+  if (num) num.textContent = String(count);
+  if (plr) plr.textContent = count === 1 ? '' : 's';
 }
 
 function renderHomeSubjects() {
