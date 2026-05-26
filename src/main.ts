@@ -810,9 +810,30 @@ function userDoc(): any | null {
   return firebase.firestore().collection('users').doc(firebaseUser.uid);
 }
 
+// Sidebar "Flashcards" link gets a cyan count badge whenever cards are
+// due. We re-compute on every save() so the badge stays in sync with the
+// SRS state without scattering update calls across every mutation site.
+// The CSS attribute selector `.nav-badge[data-count]:not([data-count="0"])`
+// handles show/hide — we just set the number.
+function renderSidebarBadges(): void {
+  const badge = el('sidebarDueBadge');
+  if (!badge) return;
+  // Works for signed-out users too — local-only decks are also scheduled.
+  // srsAllDue() walks S.subjects; for a fresh user that's [] → count = 0
+  // → CSS hides the badge automatically via the attribute selector.
+  const count = srsAllDue().length;
+  badge.setAttribute('data-count', String(count));
+  badge.textContent = String(count);
+}
+
 function save() {
   // Always save locally for instant access
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch(_) {}
+
+  // Sidebar badge — recompute on every state change. Cheap (one walk of
+  // S.subjects + one DOM write) and the right semantic: any save() means
+  // SRS state could have moved, so refresh the count.
+  renderSidebarBadges();
 
   // Not signed in → no cloud sync to attempt
   if (!firebaseUser) { if (syncState !== 'offline') setSyncState('idle'); return; }
@@ -4349,6 +4370,9 @@ function init() {
   load();
   timer.timeLeft  = S.focusDuration;
   timer.totalTime = S.focusDuration;
+  // Sidebar badge needs a paint before the user touches anything that
+  // would call save() — render once at boot from the loaded localStorage state.
+  renderSidebarBadges();
   initEvents();
   initSplashObserver();
   initTimetable();
