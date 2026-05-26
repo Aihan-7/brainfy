@@ -1,0 +1,63 @@
+# ────────────────────────────────────────────────────────────────────────────
+#  CI: typecheck + build
+#
+#  Runs on every push and pull request targeting main. Verifies:
+#    • TypeScript compiles cleanly (no implicit-any, no type errors)
+#    • The full build pipeline (tsc → terser) succeeds
+#    • The minified script.js committed to the repo matches what `npm run
+#      build` produces — catches "forgot to rebuild before pushing" PRs
+#
+#  Does NOT run tests (there aren't any yet) or deploy — Cloudflare Pages
+#  handles deploy on its own once changes land on main.
+# ────────────────────────────────────────────────────────────────────────────
+
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        # package-lock.json is gitignored in this repo, so `npm ci` would
+        # fail. Use `npm install` instead — slower (no lockfile reuse) but
+        # the dep tree is tiny (~14 packages after dropping firebase-admin).
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck
+        # Catches type errors before they ship. The full build below would
+        # catch them too, but running --noEmit first gives a faster, clearer
+        # failure when typecheck is the actual problem.
+        run: npx tsc --noEmit
+
+      - name: Build
+        # Compiles src/main.ts → script.js → minified script.js.
+        run: npm run build
+
+      - name: Verify committed script.js matches build output
+        # script.js is committed to the repo (no build step in production —
+        # Cloudflare Pages just serves the static files). If the committed
+        # bundle drifts from what main.ts compiles to, prod will run stale
+        # code. Fail CI loudly when that happens.
+        run: |
+          if ! git diff --quiet script.js; then
+            echo "::error::script.js is out of sync with src/main.ts. Run \`npm run build\` and commit the result."
+            git diff --stat script.js
+            exit 1
+          fi
+          echo "script.js matches build output"
