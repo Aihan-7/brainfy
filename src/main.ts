@@ -527,7 +527,7 @@ function save() {
   _pendingSaveTimer = window.setTimeout(() => {
     ref.set({ state: S, updatedAt: new Date().toISOString() })
       .then(() => setSyncState('synced'))
-      .catch(() => setSyncState('error'));
+      .catch((err: any) => { console.error('[sync] save failed', err?.code, err?.message, err); setSyncState('error'); });
   }, 400);
 }
 
@@ -540,7 +540,7 @@ function retrySync(): void {
   setSyncState('syncing');
   ref.set({ state: S, updatedAt: new Date().toISOString() })
     .then(() => { setSyncState('synced'); showToast('Synced to cloud', 'success'); })
-    .catch(() => { setSyncState('error');  showToast('Still offline. Will retry on next change.', 'warning'); });
+    .catch((err: any) => { console.error('[sync] retry failed', err?.code, err?.message, err); setSyncState('error');  showToast('Still offline. Will retry on next change.', 'warning'); });
 }
 
 function load() {
@@ -567,7 +567,8 @@ async function loadFromCloud(): Promise<void> {
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch(_) {}
       }
     }
-  } catch(_) {
+  } catch(err: any) {
+    console.error('[sync] load failed', err?.code, err?.message, err);
     // Network or rules-denied — keep local state, sync chip will surface error on next save
   }
 }
