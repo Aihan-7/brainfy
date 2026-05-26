@@ -1,9 +1,14 @@
 // ══════════════════════════════════════════════════
 //  Brainfy — server.js
-//  Node.js server with:
+//  Local-dev Node.js server with:
 //   • Static file serving
 //   • AI proxy (Groq or Anthropic)
-//   • Firebase Admin — Auth verification + Firestore
+//
+//  Production runs on Cloudflare Pages, which can't
+//  execute Node — the AI endpoints live in
+//  functions/api/ as Pages Functions, and Firestore
+//  sync happens browser → Firestore directly via the
+//  Web SDK (see firestore.rules).
 // ══════════════════════════════════════════════════
 
 const http  = require('http');
@@ -27,33 +32,6 @@ if (fs.existsSync(envFile)) {
     const v = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
     if (k && !(k in process.env)) process.env[k] = v;
   });
-}
-
-// ── Firebase Admin ─────────────────────────────────
-let db   = null;   // Firestore instance
-let auth = null;   // Auth instance
-
-const SA_PATH = path.join(DIR, 'serviceAccountKey.json');
-if (fs.existsSync(SA_PATH)) {
-  try {
-    const admin = require('firebase-admin');
-    const serviceAccount = JSON.parse(fs.readFileSync(SA_PATH, 'utf8'));
-    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-    db   = admin.firestore();
-    auth = admin.auth();
-    console.log('  🔥  Firebase Admin ready');
-  } catch (e) {
-    console.warn('  ⚠️   Firebase Admin failed to init:', e.message);
-  }
-} else {
-  console.log('  ℹ️   No serviceAccountKey.json — Firebase disabled');
-}
-
-// ── Helper: verify Firebase ID token ──────────────
-async function verifyToken(idToken) {
-  if (!auth) throw new Error('Firebase not configured');
-  const decoded = await auth.verifyIdToken(idToken);
-  return decoded; // { uid, email, name, ... }
 }
 
 // ── Provider detection (AI) ────────────────────────
@@ -181,7 +159,6 @@ const server = http.createServer(async (req, res) => {
       configured: !!PROVIDER,
       provider:   PROVIDER,
       model:      MODEL,
-      firebase:   !!db,
     });
     return;
   }
@@ -293,53 +270,9 @@ Rules:
     return;
   }
 
-  // ── POST /api/auth/verify ─────────────────────
-  //  Body: { idToken: string }
-  //  Returns: { uid, email, name }
-  if (req.method === 'POST' && pathname === '/api/auth/verify') {
-    if (!auth) { json(503, { error: 'Firebase not configured' }); return; }
-    try {
-      const { idToken } = await readBody(req);
-      const decoded = await verifyToken(idToken);
-      json(200, { uid: decoded.uid, email: decoded.email, name: decoded.name || '' });
-    } catch(e) {
-      json(401, { error: 'Invalid or expired token' });
-    }
-    return;
-  }
-
-  // ── POST /api/data/save ───────────────────────
-  //  Body: { idToken: string, state: AppState }
-  //  Saves state to Firestore users/{uid}/data
-  if (req.method === 'POST' && pathname === '/api/data/save') {
-    if (!db) { json(503, { error: 'Firebase not configured' }); return; }
-    try {
-      const { idToken, state } = await readBody(req);
-      const decoded = await verifyToken(idToken);
-      await db.collection('users').doc(decoded.uid).set({
-        state,
-        updatedAt: new Date().toISOString(),
-      });
-      json(200, { ok: true });
-    } catch(e) {
-      json(e.message === 'Invalid or expired token' ? 401 : 500, { error: e.message });
-    }
-    return;
-  }
-
-  // ── POST /api/data/load ───────────────────────
-  //  Body: { idToken: string }
-  //  Returns: { state: AppState | null }
-  if (req.method === 'POST' && pathname === '/api/data/load') {
-    if (!db) { json(503, { error: 'Firebase not configured' }); return; }
-    try {
-      const { idToken } = await readBody(req);
-      const decoded = await verifyToken(idToken);
-      const doc = await db.collection('users').doc(decoded.uid).get();
-      json(200, { state: doc.exists ? doc.data().state : null });
-    } catch(e) {
-      json(e.message === 'Invalid or expired token' ? 401 : 500, { error: e.message });
-    }
+  // ── Unknown /api/* — don't fall through to SPA static handler ─
+  if (pathname.startsWith('/api/')) {
+    json(404, { error: 'Not found' });
     return;
   }
 
@@ -375,9 +308,6 @@ server.listen(PORT, () => {
   } else {
     const badge = PROVIDER === 'groq' ? '⚡ Groq' : '🤖 Anthropic';
     console.log(`  ✅  AI ready — ${badge} · ${MODEL}`);
-  }
-  if (!db) {
-    console.log('  ⚠️   Firebase disabled — add serviceAccountKey.json');
   }
   console.log('');
 });

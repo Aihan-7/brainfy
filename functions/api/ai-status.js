@@ -21,7 +21,6 @@ export async function onRequestGet(context) {
     configured: !!provider,
     provider,
     model,
-    firebase:   false, // direct-from-client Firestore now (no server middleman)
   }), {
     status: 200,
     headers: {
