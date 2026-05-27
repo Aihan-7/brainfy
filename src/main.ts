@@ -2946,7 +2946,7 @@ function renderFileInput(): string {
           <span class="ms" style="font-size:28px;color:var(--plight);">cloud_upload</span>
         </div>
         <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;">Drop your file here</div>
-        <div style="font-size:12px;color:var(--muted);">PDF, TXT, MD, images · up to 10 MB</div>
+        <div style="font-size:12px;color:var(--muted);">PDF, TXT, MD, images · up to 1 GB</div>
       </div>
       <input type="file" id="aiFileInput" style="display:none;" accept=".pdf,.txt,.md,.csv,.doc,.docx,image/*" onchange="handleAIFileSelect(this)">
       <div id="aiFileChosen" style="display:none;align-items:center;gap:12px;padding:12px 14px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:12px;">
@@ -3085,8 +3085,12 @@ function handleAIFileDrop(e: DragEvent): void {
 }
 
 function readAIFile(file: File): void {
-  const MAX = 10 * 1024 * 1024;
-  if (file.size > MAX) { showToast('File too large (max 10 MB)', 'warning'); return; }
+  // Single source of truth — matches the doc-upload path's DOC_HARD_MAX
+  // and the Storage rules' 1 GB cap. Note: this path reads the file into
+  // memory as base64, so very large uploads (hundreds of MB+) may stall
+  // the browser before the cap kicks in. If that becomes a real issue,
+  // route huge AI imports through the streaming Storage path instead.
+  if (file.size > DOC_HARD_MAX) { showToast('File too large (max 1 GB)', 'warning'); return; }
 
   const reader = new FileReader();
   reader.onload = () => {
