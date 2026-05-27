@@ -3527,6 +3527,115 @@ async function handleLogout() {
   handleSignOut();
 }
 
+// ── DELETE ACCOUNT ───────────────────────────────────────────────────────────
+// Three-step destructive flow, in this order — auth deletion must come LAST
+// because the user needs to be authenticated to delete their own
+// Firestore doc and Storage files (rules enforce auth.uid == userId).
+//
+//   1. Storage    — recursively listAll + delete every file under users/{uid}/
+//   2. Firestore  — delete users/{uid} document
+//   3. Auth       — firebase.auth().currentUser.delete()
+//
+// Idempotency: Storage and Firestore are best-effort. If Storage delete
+// fails partway, we still try Firestore and Auth — the user gets out from
+// under us, even if a few orphan files remain. (Firebase Storage doesn't
+// charge for orphan files we can't trace; the user is unbillable anyway
+// after auth deletion.)
+//
+// "requires-recent-login": Firebase Auth refuses to delete a user whose
+// last sign-in was > ~5 min ago. We catch this, sign them out, and ask
+// them to sign back in and retry. The Storage + Firestore data is already
+// gone at that point — only Auth remains, which is fine for the next try.
+async function deleteStorageFolderRecursive(ref: any): Promise<void> {
+  // Firebase Storage has no "delete folder" — list then delete each file,
+  // and recurse into each prefix (sub-"folder").
+  const result = await ref.listAll();
+  await Promise.all([
+    ...result.items.map((item: any) => item.delete().catch(() => { /* tolerate missing */ })),
+    ...result.prefixes.map((prefix: any) => deleteStorageFolderRecursive(prefix)),
+  ]);
+}
+
+async function deleteAccount(): Promise<void> {
+  if (!firebaseUser) {
+    showToast('Not signed in', 'warning');
+    return;
+  }
+
+  // Two-stage confirm. First: explain what will happen. Second: typed phrase.
+  // Both required — the explainer alone is too easy to misclick past.
+  const ok = await showConfirm({
+    title:        'Delete your account?',
+    message:      'This permanently removes your Brainfy account, all study data (subjects, flashcards, sessions, tasks) and uploaded files. This cannot be undone.',
+    confirmLabel: 'Continue',
+    dangerous:    true,
+  });
+  if (!ok) return;
+
+  const typed = await showPrompt({
+    title:   'Type DELETE to confirm',
+    message: 'Last chance — once you submit this, your account and everything in it is gone.',
+    okLabel: 'Delete forever',
+    fields:  [{ id: 'confirm', label: 'Type DELETE', required: true }],
+  });
+  if (!typed) return;
+  if (typed.confirm !== 'DELETE') {
+    showToast('You must type DELETE exactly to confirm.', 'warning');
+    return;
+  }
+
+  const uid = firebaseUser.uid;
+  showToast('Deleting your account…', 'info');
+
+  // ── 1) Storage ──
+  try {
+    if (typeof firebase.storage === 'function') {
+      await deleteStorageFolderRecursive(firebase.storage().ref(`users/${uid}`));
+    }
+  } catch (err: any) {
+    console.error('[delete] storage failed', err?.code, err?.message);
+    track('account.delete.storage.error', { code: err?.code, message: err?.message });
+    // Continue — Firestore + Auth deletion still matters more than orphan files.
+  }
+
+  // ── 2) Firestore ──
+  try {
+    const ref = userDoc();
+    if (ref) await ref.delete();
+  } catch (err: any) {
+    console.error('[delete] firestore failed', err?.code, err?.message);
+    track('account.delete.firestore.error', { code: err?.code, message: err?.message });
+    // Continue — we still want to delete the Auth user.
+  }
+
+  // ── 3) Auth (the part that can fail with requires-recent-login) ──
+  try {
+    await firebaseUser.delete();
+  } catch (err: any) {
+    console.error('[delete] auth failed', err?.code, err?.message);
+    track('account.delete.auth.error', { code: err?.code, message: err?.message });
+    if (err?.code === 'auth/requires-recent-login') {
+      showToast('Please sign in again, then try delete one more time.', 'warning');
+      try { await firebase.auth().signOut(); } catch (_) {}
+      firebaseUser = null;
+      idToken      = null;
+      goTo('signin');
+      return;
+    }
+    showToast('Account deletion failed: ' + (err?.message || 'unknown error'), 'error');
+    return;
+  }
+
+  // ── 4) Local cleanup + navigate ──
+  try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+  S = structuredClone(DEFAULT_STATE);
+  firebaseUser = null;
+  idToken      = null;
+  track('account.delete.success');
+  showToast('Account deleted. Goodbye.', 'success');
+  goTo('splash');
+}
+
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 function passwordStrength(pw: string): number {
   if (!pw) return 0;
@@ -4933,6 +5042,9 @@ function initSettings(): void {
     showToast('Local cache cleared — reloading', 'info');
     setTimeout(() => location.reload(), 600);
   });
+
+  // Delete account — irreversibly removes Storage files, Firestore doc, Auth user.
+  el('setDeleteAccountBtn')?.addEventListener('click', deleteAccount);
 }
 
 
