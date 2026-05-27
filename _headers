@@ -1,0 +1,96 @@
+# ────────────────────────────────────────────────────────────────────────────
+#  Cloudflare Pages headers for Brainfy
+#
+#  Applies to every static response served from brainfy.online. The /api/*
+#  Pages Functions set their own Content-Type headers; everything else here
+#  layers on top of whatever the response already carries.
+#
+#  Goal: reduce the blast radius if an XSS, clickjacking, or mixed-content
+#  bug ever slips through. We can't realistically remove every inline
+#  onclick or inline style from a 3.8 k-line index.html, so the CSP keeps
+#  'unsafe-inline' for script/style and instead spends its rigour on
+#  connect-src / frame-ancestors / base-uri — the directives that actually
+#  contain a compromised app.
+#
+#  Syntax: each block starts with a URL pattern, then indented headers.
+# ────────────────────────────────────────────────────────────────────────────
+
+/*
+  # Clickjacking — defence in depth. CSP frame-ancestors supersedes this
+  # on modern browsers, but old Edge / corporate proxies still honour it.
+  X-Frame-Options: DENY
+
+  # Don't let browsers guess content types — every response must declare
+  # what it is. Mitigates a class of "upload a .jpg that's actually JS"
+  # bugs even though we don't host user-controlled JS.
+  X-Content-Type-Options: nosniff
+
+  # Don't leak full URLs (including query strings — sometimes auth tokens
+  # in redirect flows) to third parties when navigating off-site.
+  Referrer-Policy: strict-origin-when-cross-origin
+
+  # Disable browser features the app doesn't use. If a future bug or rogue
+  # script tries to ask for the camera, browser refuses before the user
+  # even sees a prompt.
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=(), magnetometer=(), midi=(), interest-cohort=()
+
+  # Force HTTPS for ~1 year. No preload yet — keeps this reversible if
+  # we ever need to serve a subdomain over HTTP for testing.
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+  # ── Content-Security-Policy ────────────────────────────────────────────
+  #
+  # default-src 'self'      — refuse anything not explicitly allowed.
+  # script-src              — own scripts + Firebase SDK CDN. 'unsafe-inline'
+  #                           is required: the inline splash IIFE in
+  #                           index.html plus ~71 inline onclick handlers
+  #                           across the HTML. Removing them would be a
+  #                           multi-day refactor with no functional gain.
+  # style-src               — own stylesheets + Google Fonts CSS. 'unsafe-inline'
+  #                           is required for the many `style="..."` attrs
+  #                           sprinkled through index.html for layout.
+  # font-src                — Google Fonts binary files.
+  # img-src                 — self + data: (base64 file previews) + https:
+  #                           (avatars + YouTube thumbnails — any HTTPS host).
+  # connect-src             — the IMPORTANT one. Restricts where fetch() can
+  #                           talk to. Without this, a compromised script
+  #                           could exfiltrate to anywhere. Allows:
+  #                             • self (/api/* Cloudflare Functions)
+  #                             • *.googleapis.com (Firestore, Identity,
+  #                               Securetoken, Storage, Installations)
+  #                             • *.firebasestorage.app (signed download URLs)
+  #                             • *.firebaseio.com (auth/realtime if used)
+  # frame-src 'none'        — we don't embed any iframes.
+  # frame-ancestors 'none'  — modern equivalent of X-Frame-Options: DENY.
+  # base-uri 'self'         — prevents <base href> injection from rebasing
+  #                           relative URLs to an attacker-controlled origin.
+  # form-action 'self'      — POSTed forms can only go back to brainfy.online.
+  # object-src 'none'       — no Flash, no <embed>, no <object>.
+  # worker-src 'self'       — future-proof for service worker / web workers.
+  # Note on script-src — apis.google.com is loaded dynamically by Firebase
+  #   Auth for Google sign-in flows (gapi.iframes). Without it, "Sign in
+  #   with Google" silently fails.
+  # Note on frame-src — Firebase Auth popups render iframes from the
+  #   project's authDomain (*.firebaseapp.com) and from accounts.google.com.
+  # Note on connect-src — *.firebaseapp.com is for auth iframe traffic.
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com https://*.firebasestorage.app https://*.firebaseio.com https://*.firebaseapp.com; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; worker-src 'self'
+
+# ── Long-cache versioned assets ───────────────────────────────────────────
+# script.js is fetched as /script.js?v=APP_VERSION and icons.js as
+# /icons.js?v=... — both browser and CDN cache by full URL including
+# query, so 1y immutable is safe (a new APP_VERSION = new cache key).
+/script.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/icons.js
+  Cache-Control: public, max-age=31536000, immutable
+
+# ── Index must NOT cache ──────────────────────────────────────────────────
+# index.html is the entry point that picks up the new APP_VERSION constant
+# on every refresh. If a CDN node caches a stale index.html for hours, the
+# user keeps loading old script.js even after we deploy. no-cache forces a
+# revalidation on every request. Match both `/` and `/index.html`.
+/
+  Cache-Control: no-cache, no-store, must-revalidate
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
