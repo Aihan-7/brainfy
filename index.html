@@ -3736,7 +3736,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = '1779180000';
+  var APP_VERSION = '1779183600';
   window.APP_VERSION = APP_VERSION;  // exposed so script.js can include it in telemetry
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {
@@ -3797,13 +3797,36 @@
   // We attach minimal handlers here so first-click immediately starts
   // the lazy load AND queues the action.
   document.addEventListener('DOMContentLoaded', function () {
+    // ── Personalised "Continue as <name>" — runs SYNCHRONOUSLY before
+    //    paint so returning users see the right button immediately, even
+    //    though script.js hasn't loaded yet (code-split splash). The
+    //    in-bundle applySigninHint() later re-applies the same change
+    //    from src/main.ts; until then this is the only thing keeping the
+    //    button truthful. Both branches end up at the same destination,
+    //    so a click between IIFE wiring and bundle load works either way.
+    var hintName = null;
+    try {
+      var raw = localStorage.getItem('brainfy_user_hint');
+      if (raw) {
+        var hint = JSON.parse(raw);
+        if (hint && hint.name) hintName = String(hint.name);
+      }
+    } catch (_) { /* malformed hint → fall through to generic CTA */ }
+
+    var enterBtn = document.getElementById('enterBrainBtn');
+    if (enterBtn && hintName) {
+      enterBtn.textContent = 'Continue as ' + hintName + ' →';
+    }
+
     function wire(id, action) {
       var el = document.getElementById(id);
       if (el) el.addEventListener('click', function () {
         window.loadApp().then(action);
       });
     }
-    wire('enterBrainBtn',  function () { window.goTo('signin'); });
+    // Enter button routes based on the hint — returning users go straight
+    // to home; first-timers continue to the sign-in form.
+    wire('enterBrainBtn',  function () { window.goTo(hintName ? 'home' : 'signin'); });
     wire('getStartedBtn',  function () { window.goTo('signup'); });
 
     // Prefetch the heavy bundle the moment the user shows intent

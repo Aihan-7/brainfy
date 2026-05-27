@@ -4626,9 +4626,14 @@ function init() {
       setSyncState('synced');
       // Always use real Firebase identity — never let stale Firestore data override the name
       S.userName = user.displayName || user.email?.split('@')[0] || 'Student';
-      // Only auto-navigate if we're still on splash/signin/signup
-      const authViews: ViewName[] = ['splash', 'signin', 'signup'];
-      if (authViews.includes(currentView)) goTo('home');
+      // Re-set the splash hint so it's in sync if displayName changed.
+      setSigninHint(S.userName);
+      // Auto-navigate ONLY from active auth flows (signin/signup) — NOT from
+      // splash. Splash exists so returning users can click their personalised
+      // "Continue as <name>" button intentionally; auto-redirecting them
+      // would skip that click and create an "I never clicked anything" UX.
+      const navAwayFrom: ViewName[] = ['signin', 'signup'];
+      if (navAwayFrom.includes(currentView)) goTo('home');
     } else {
       firebaseUser = null;
       idToken      = '';
