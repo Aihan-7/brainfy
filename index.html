@@ -582,6 +582,13 @@
       color: var(--plight); font-weight: 800;
     }
 
+    /* Daily-quote card on the home dashboard. Subtle radial glow on the
+       left edge keeps the eye drawn to the quote glyph + opening words. */
+    .quote-card-glow {
+      position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse 60% 80% at 0% 50%, rgba(124,58,237,0.10), transparent 70%);
+    }
+
     /* Blinking caret shown at the tail of a streaming bubble. Removed by
        finalize() once the SSE [DONE] arrives. */
     .ai-caret {
@@ -2517,28 +2524,14 @@
       </div>
     </div>
 
-    <!-- ── Activity Heatmap ── -->
-    <div class="glass" style="padding:22px;border-radius:18px;margin-bottom:24px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <div>
-          <h2 style="font-size:14px;font-weight:700;margin-bottom:3px;">Learning Activity</h2>
-          <p style="font-size:12px;color:var(--muted);">Focus sessions over the past 12 weeks</p>
-        </div>
-        <div style="display:flex;align-items:center;gap:12px;">
-          <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);">
-            <span>Less</span>
-            <div style="width:8px;height:8px;border-radius:2px;background:rgba(124,58,237,0.08);"></div>
-            <div style="width:8px;height:8px;border-radius:2px;background:rgba(124,58,237,0.28);"></div>
-            <div style="width:8px;height:8px;border-radius:2px;background:rgba(124,58,237,0.52);"></div>
-            <div style="width:8px;height:8px;border-radius:2px;background:rgba(124,58,237,0.78);"></div>
-            <div style="width:8px;height:8px;border-radius:2px;background:#7c3aed;"></div>
-            <span>More</span>
-          </div>
-          <button id="explorationViewBtn" class="btn-ghost" style="padding:5px 12px;font-size:11px;font-family:'Space Grotesk';letter-spacing:0.05em;">FULL STATS</button>
-        </div>
+    <!-- ── Daily wisdom (rotates hourly) ── -->
+    <div class="glass quote-card" style="padding:30px 34px;border-radius:18px;margin-bottom:24px;display:flex;align-items:center;gap:24px;position:relative;overflow:hidden;">
+      <div class="quote-card-glow"></div>
+      <span class="ms" style="font-size:48px;color:var(--plight);opacity:0.55;flex-shrink:0;line-height:1;position:relative;z-index:1;">format_quote</span>
+      <div style="flex:1;min-width:0;position:relative;z-index:1;">
+        <p id="dailyQuoteText" style="font-size:16px;font-weight:500;color:var(--text);line-height:1.55;letter-spacing:-0.005em;margin:0 0 10px;">Loading…</p>
+        <p id="dailyQuoteAuthor" style="font-size:10px;color:var(--muted2);letter-spacing:0.14em;font-family:'Space Grotesk';font-weight:600;margin:0;">— BRAINFY</p>
       </div>
-      <div id="homeHeatmap" style="display:flex;gap:3px;overflow:hidden;"></div>
-      <div id="homeHeatmapLabels" style="display:flex;justify-content:space-between;margin-top:8px;font-size:10px;color:var(--muted);letter-spacing:0.05em;"></div>
     </div>
 
     <!-- Footer -->
@@ -3905,7 +3898,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = '1779249600';
+  var APP_VERSION = '1779256800';
   window.APP_VERSION = APP_VERSION;  // exposed so script.js can include it in telemetry
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {

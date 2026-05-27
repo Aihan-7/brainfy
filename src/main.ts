@@ -127,6 +127,10 @@ const USER_HINT_KEY = 'brainfy_user_hint';
 const TIMER_C = 754;   // 2π × 120  (timer ring circumference)
 const SCORE_C = 339;   // 2π × 54   (score ring circumference)
 
+// 24 quotes = once-a-day uniqueness when the dashboard rotates hourly
+// (renderHomeQuote picks index = hour-of-epoch % length). Keep this list
+// curated — every entry should earn its slot. Mix philosophy, focus,
+// learning, persistence; avoid generic hustle bromides.
 const QUOTES = [
   { t: '"The important thing is not to stop questioning. Curiosity has its own reason for existence."', a: 'Albert Einstein' },
   { t: '"An investment in knowledge pays the best interest."', a: 'Benjamin Franklin' },
@@ -136,6 +140,22 @@ const QUOTES = [
   { t: '"Education is not the filling of a pail, but the lighting of a fire."', a: 'W.B. Yeats' },
   { t: '"The beautiful thing about learning is that no one can take it away from you."', a: 'B.B. King' },
   { t: '"Tell me and I forget. Teach me and I remember. Involve me and I learn."', a: 'Benjamin Franklin' },
+  { t: '"What we learn with pleasure we never forget."', a: 'Alfred Mercier' },
+  { t: '"The expert in anything was once a beginner."', a: 'Helen Hayes' },
+  { t: '"You don\'t have to be great to start, but you have to start to be great."', a: 'Zig Ziglar' },
+  { t: '"Discipline is choosing between what you want now and what you want most."', a: 'Abraham Lincoln' },
+  { t: '"Concentration is the secret of strength."', a: 'Ralph Waldo Emerson' },
+  { t: '"The mind is not a vessel to be filled, but a fire to be kindled."', a: 'Plutarch' },
+  { t: '"It always seems impossible until it\'s done."', a: 'Nelson Mandela' },
+  { t: '"We are what we repeatedly do. Excellence, then, is not an act, but a habit."', a: 'Will Durant' },
+  { t: '"Knowing is not enough; we must apply. Willing is not enough; we must do."', a: 'Goethe' },
+  { t: '"The roots of education are bitter, but the fruit is sweet."', a: 'Aristotle' },
+  { t: '"Success is the sum of small efforts, repeated day in and day out."', a: 'Robert Collier' },
+  { t: '"Do not be embarrassed by your failures, learn from them and start again."', a: 'Richard Branson' },
+  { t: '"The only way to do great work is to love what you do."', a: 'Steve Jobs' },
+  { t: '"A year from now you may wish you had started today."', a: 'Karen Lamb' },
+  { t: '"Quality is not an act, it is a habit."', a: 'Aristotle' },
+  { t: '"The best way to predict the future is to create it."', a: 'Peter Drucker' },
 ];
 
 const SUBJECT_COLORS = ['#7c3aed','#0891b2','#065f46','#9a3412','#1e40af','#b45309','#be185d'];
@@ -1126,6 +1146,7 @@ const ICONS: Record<string, string> = {
   flag:                    '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
   forest:                  '<path d="M12 2L3 14h4l-3 6h16l-3-6h4z"/>',
   format_list_bulleted:    '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6"  r="0.8"/><circle cx="3.5" cy="12" r="0.8"/><circle cx="3.5" cy="18" r="0.8"/>',
+  format_quote:            '<path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2-1 0-1 .008-1 1.031V20c0 1 0 1 1 1z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2-1 0-1 .008-1 1.031V20c0 1 0 1 1 1z"/>',
   home:                    '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
   info:                    '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
   lightbulb:               '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c1 .7 1.5 1.5 1.5 2.3v1a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1c0-.8.5-1.6 1.5-2.3A7 7 0 0 0 12 2z"/>',
@@ -1532,7 +1553,7 @@ function renderHome() {
   renderHomeDueCards();
   renderHomeSubjects();
   renderHomeTasks();
-  renderHomeHeatmap();
+  renderHomeQuote();
   renderGoalProgress();
 }
 
@@ -1574,59 +1595,6 @@ async function promptGoal() {
     save();
     renderGoalProgress();
     showToast(`Daily goal set to ${S.dailyGoal} minutes`, 'success');
-  }
-}
-
-function renderHomeHeatmap() {
-  const wrap = el('homeHeatmap');
-  const labels = el('homeHeatmapLabels');
-  if (!wrap) return;
-
-  const COLS = 84; // 12 weeks × 7 days
-  const ROWS = 7;
-  const now  = new Date();
-
-  // Build day-indexed session counts for last 84 days
-  const counts: Record<string, number> = {};
-  S.sessions.forEach(s => {
-    const key = new Date(s.date).toDateString();
-    counts[key] = (counts[key] || 0) + 1;
-  });
-
-  // Generate 12 columns (weeks), each containing 7 day-cells stacked vertically
-  const weeks = [];
-  for (let w = 11; w >= 0; w--) {
-    const cells = [];
-    for (let d = 6; d >= 0; d--) {
-      const day = new Date(now);
-      day.setDate(now.getDate() - (w * 7 + d));
-      const c = counts[day.toDateString()] || 0;
-      const isToday = day.toDateString() === now.toDateString();
-      const level = c === 0 ? 0 : c === 1 ? 1 : c <= 3 ? 2 : c <= 5 ? 3 : 4;
-      const alphas = ['0.07', '0.25', '0.48', '0.72', '1'];
-      const bg = isToday
-        ? `rgba(76,215,246,${alphas[Math.max(level, 1)]})`
-        : `rgba(124,58,237,${alphas[level]})`;
-      const title = `${day.toLocaleDateString('en-US',{month:'short',day:'numeric'})}: ${c} session${c !== 1 ? 's' : ''}`;
-      cells.push(`<div style="width:10px;height:10px;border-radius:2px;background:${bg};margin-bottom:3px;${isToday ? 'box-shadow:0 0 6px rgba(76,215,246,0.5);' : ''}" title="${title}"></div>`);
-    }
-    weeks.push(`<div style="display:flex;flex-direction:column;">${cells.join('')}</div>`);
-  }
-  wrap.innerHTML = weeks.join('');
-
-  // Month labels
-  if (labels) {
-    const months: string[] = [];
-    for (let w = 11; w >= 0; w--) {
-      const day = new Date(now);
-      day.setDate(now.getDate() - w * 7);
-      months.push(day.toLocaleDateString('en-US', { month: 'short' }));
-    }
-    // Deduplicate adjacent same-month labels
-    labels.innerHTML = months.map((m, i) => {
-      const show = i === 0 || months[i - 1] !== m;
-      return `<span style="${show ? '' : 'visibility:hidden'}">${m}</span>`;
-    }).join('');
   }
 }
 
@@ -1932,6 +1900,25 @@ function renderQuote() {
   const a = el('quoteAuthor');
   if (t) t.textContent = q.t;
   if (a) a.textContent = '— ' + q.a.toUpperCase();
+}
+
+// Dashboard quote — deterministic per hour (every user sees the same quote
+// during a given UTC hour, communal feel). Self-perpetuating: each render
+// schedules its own next refresh at the top of the next hour, so a user
+// who leaves the dashboard open for hours still sees fresh quotes. Clearing
+// the existing timer first keeps repeated renders idempotent.
+let homeQuoteTimer: ReturnType<typeof setTimeout> | null = null;
+function renderHomeQuote(): void {
+  const idx = Math.floor(Date.now() / 3_600_000) % QUOTES.length;
+  const q   = QUOTES[idx];
+  const t   = el('dailyQuoteText');
+  const a   = el('dailyQuoteAuthor');
+  if (t) t.textContent = q.t;
+  if (a) a.textContent = '— ' + q.a.toUpperCase();
+  if (homeQuoteTimer) clearTimeout(homeQuoteTimer);
+  // +50ms cushion so we definitely land in the next hour bucket.
+  const msToNextHour = 3_600_000 - (Date.now() % 3_600_000) + 50;
+  homeQuoteTimer = setTimeout(renderHomeQuote, msToNextHour);
 }
 
 // ── TIMER ENGINE ─────────────────────────────────────────────────────────────
@@ -4241,9 +4228,6 @@ function initEvents() {
     document.getElementById('splash-pricing')?.scrollIntoView({ behavior: 'smooth' });
   });
 
-  // ── Home: Exploration View ─────────────────────────
-  el('explorationViewBtn')?.addEventListener('click', () => goTo('stats'));
-
   // ── Focus active: Notifications & Settings ─────────
   // ── Fullscreen toggle ──────────────────────────────
   const fsBtn  = el('focusFullscreenBtn');
@@ -5655,7 +5639,11 @@ interface TourStep {
 
 const TOUR_STEPS: TourStep[] = [
   {
-    target: '#appSidebar > div:first-child',
+    // Target the inner flex row, NOT the padded wrapper. The wrapper sits
+    // flush at (0,0) of the viewport so the .tour-target outline + glow
+    // (extends ~15px outward) gets clipped at the top/left edges. The inner
+    // row sits inside 22px top / 18px left padding — comfortable clearance.
+    target: '#appSidebar > div:first-child > div',
     title:  'Welcome to Brainfy',
     body:   'Your private, AI-powered study companion. A 90-second tour so you know where everything lives.',
     side:   'right',
