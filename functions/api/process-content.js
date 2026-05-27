@@ -48,7 +48,8 @@ async function callAI(systemPrompt, userMsg, env) {
       },
       body: JSON.stringify({
         model:      env.AI_MODEL || DEFAULT_MODELS.groq,
-        max_tokens: 2048,
+        max_tokens: 4096,                                  // ↑ from 2048 — 2k could truncate JSON mid-string
+        response_format: { type: 'json_object' },          // server-enforced valid JSON
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user',   content: userMsg },
@@ -60,7 +61,10 @@ async function callAI(systemPrompt, userMsg, env) {
     return data.choices?.[0]?.message?.content || '';
   }
 
-  // Anthropic
+  // Anthropic — no equivalent of response_format, so we use a prefill trick:
+  // pre-supply the assistant's opening "{" so the model continues as a JSON
+  // object rather than starting with prose. Need to re-prepend the { when
+  // re-assembling the response.
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -70,14 +74,17 @@ async function callAI(systemPrompt, userMsg, env) {
     },
     body: JSON.stringify({
       model:      env.AI_MODEL || DEFAULT_MODELS.anthropic,
-      max_tokens: 2048,
+      max_tokens: 4096,
       system:     systemPrompt,
-      messages: [{ role: 'user', content: userMsg }],
+      messages: [
+        { role: 'user',      content: userMsg },
+        { role: 'assistant', content: '{' },     // prefill — forces JSON
+      ],
     }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error?.message || `AI error ${res.status}`);
-  return data.content?.[0]?.text || '';
+  return '{' + (data.content?.[0]?.text || '');
 }
 
 export async function onRequestPost(context) {
@@ -98,11 +105,38 @@ export async function onRequestPost(context) {
     ? `Video title: "${title}"\nSubject: ${subjName}\n\nTranscript:\n${content || '(transcript unavailable — generate from title)'}`
     : `Document: "${title}"\nSubject: ${subjName}\n\nContent:\n${content}`;
 
+  // Two-attempt strategy. Attempt 1 uses the standard prompt + (for Groq)
+  // server-enforced JSON mode → should succeed almost always. If parse
+  // fails anyway (Anthropic edge cases, or Groq somehow emits invalid JSON
+  // despite response_format), attempt 2 retries with a stricter prompt
+  // that explicitly demands escaping. Avoids burning the user's request
+  // entirely on a single bad token-stream from the model.
+  function tryParse(text) {
+    const clean = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+    return JSON.parse(clean);
+  }
+
   try {
     const text = await callAI(SYSTEM_PROMPT, userMsg, env);
-    // Strip potential ```json fences the model might wrap output in
-    const clean = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-    const parsed = JSON.parse(clean);
+    let parsed;
+    try {
+      parsed = tryParse(text);
+    } catch (firstErr) {
+      // Retry once with a stricter prompt that hammers the escaping rules.
+      // Most parse failures we've seen are missing opening quotes on long
+      // markdown string values (e.g. "summary": ## Heading…). Calling this
+      // out explicitly + asking to double-check has been reliable enough.
+      const stricter = SYSTEM_PROMPT + `
+
+ABSOLUTE OUTPUT REQUIREMENTS — your previous attempt produced invalid JSON.
+- Every string VALUE must be wrapped in matching " quotes.
+- Inside string values, escape newlines as \\n and quotes as \\".
+- Do not put bare markdown after a colon. The summary field is a STRING.
+- Validate your JSON mentally before emitting it.
+- Output ONLY the JSON object. No prose, no fences, no commentary.`;
+      const retryText = await callAI(stricter, userMsg, env);
+      parsed = tryParse(retryText);
+    }
     return jsonResponse(parsed);
   } catch (e) {
     return jsonResponse({ error: e.message || String(e) }, 500);
