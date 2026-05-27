@@ -1,17 +1,20 @@
 // Cloudflare Pages Function — POST /api/process-content
-// Takes raw content (note text, YouTube transcript, etc.) and asks the AI
-// to extract flashcards + summary + outline in one shot. Returns parsed
-// JSON to the client.
+// Takes raw content (note text, YouTube transcript, image upload, etc.) and
+// asks the AI to extract flashcards + summary + outline in one shot. Returns
+// parsed JSON to the client.
 //
 // Auth: requires a valid Firebase ID token. Each call burns thousands of
-// tokens (max_tokens=2048 with non-trivial prompt) — unauthenticated traffic
-// here is direct billing pain.
+// tokens — unauthenticated traffic here is direct billing pain.
 
 import { requireAuth } from './_lib/auth.js';
 
+// Default text models. Vision-capable counterparts are picked when the
+// request carries an image; both can be overridden via env vars.
 const DEFAULT_MODELS = {
-  groq:      'llama-3.3-70b-versatile',
-  anthropic: 'claude-3-5-haiku-20241022',
+  groq:             'llama-3.3-70b-versatile',
+  groqVision:       'meta-llama/llama-4-scout-17b-16e-instruct',
+  anthropic:        'claude-3-5-haiku-20241022',
+  anthropicVision:  'claude-haiku-4-5-20251001',
 };
 
 const SYSTEM_PROMPT = `You are an expert study assistant. Analyze the provided content and return a JSON object with exactly this structure:
@@ -35,36 +38,65 @@ function jsonResponse(obj, status = 200) {
   });
 }
 
+// userMsg shape — either a plain string (text path) or
+//   { text: string, image: { b64: string, mime: string } } (vision path).
+// Returning a single string vs. a multimodal content array is the only thing
+// that differs in the body structure per provider.
 async function callAI(systemPrompt, userMsg, env) {
   const provider = env.GROQ_API_KEY ? 'groq' : env.ANTHROPIC_API_KEY ? 'anthropic' : null;
   if (!provider) throw new Error('AI not configured');
 
+  const isImage = typeof userMsg !== 'string';
+  const visionModelKey = provider === 'groq' ? 'groqVision' : 'anthropicVision';
+  const textModelKey   = provider;
+  const model = isImage
+    ? (env.AI_VISION_MODEL || DEFAULT_MODELS[visionModelKey])
+    : (env.AI_MODEL        || DEFAULT_MODELS[textModelKey]);
+
   if (provider === 'groq') {
+    const userContent = isImage
+      ? [
+          { type: 'text',      text: userMsg.text },
+          { type: 'image_url', image_url: { url: `data:${userMsg.image.mime};base64,${userMsg.image.b64}` } },
+        ]
+      : userMsg;
+
+    // Groq supports server-enforced JSON mode on text models. The vision
+    // models don't accept response_format=json_object — relying on the
+    // prompt + the retry-once fallback in onRequestPost for those.
+    const reqBody = {
+      model,
+      max_tokens: 4096,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userContent  },
+      ],
+    };
+    if (!isImage) reqBody.response_format = { type: 'json_object' };
+
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${env.GROQ_API_KEY}`,
         'Content-Type':  'application/json',
       },
-      body: JSON.stringify({
-        model:      env.AI_MODEL || DEFAULT_MODELS.groq,
-        max_tokens: 4096,                                  // ↑ from 2048 — 2k could truncate JSON mid-string
-        response_format: { type: 'json_object' },          // server-enforced valid JSON
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user',   content: userMsg },
-        ],
-      }),
+      body: JSON.stringify(reqBody),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error?.message || `AI error ${res.status}`);
     return data.choices?.[0]?.message?.content || '';
   }
 
-  // Anthropic — no equivalent of response_format, so we use a prefill trick:
-  // pre-supply the assistant's opening "{" so the model continues as a JSON
-  // object rather than starting with prose. Need to re-prepend the { when
-  // re-assembling the response.
+  // Anthropic — no response_format equivalent, so we prefill the assistant
+  // with an opening "{" to force a JSON-object completion (works with both
+  // text-only and image inputs). Need to re-prepend the { on the way out.
+  const userContent = isImage
+    ? [
+        { type: 'text',  text: userMsg.text },
+        { type: 'image', source: { type: 'base64', media_type: userMsg.image.mime, data: userMsg.image.b64 } },
+      ]
+    : userMsg;
+
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -73,12 +105,12 @@ async function callAI(systemPrompt, userMsg, env) {
       'Content-Type':      'application/json',
     },
     body: JSON.stringify({
-      model:      env.AI_MODEL || DEFAULT_MODELS.anthropic,
+      model,
       max_tokens: 4096,
       system:     systemPrompt,
       messages: [
-        { role: 'user',      content: userMsg },
-        { role: 'assistant', content: '{' },     // prefill — forces JSON
+        { role: 'user',      content: userContent },
+        { role: 'assistant', content: '{'         },
       ],
     }),
   });
@@ -100,17 +132,26 @@ export async function onRequestPost(context) {
   try { body = await request.json(); }
   catch (_) { return jsonResponse({ error: 'Invalid JSON body' }, 400); }
 
-  const { content, contentType, title, subjName } = body;
-  const userMsg = contentType === 'youtube'
-    ? `Video title: "${title}"\nSubject: ${subjName}\n\nTranscript:\n${content || '(transcript unavailable — generate from title)'}`
-    : `Document: "${title}"\nSubject: ${subjName}\n\nContent:\n${content}`;
+  const { content, contentType, title, subjName, image } = body;
 
-  // Two-attempt strategy. Attempt 1 uses the standard prompt + (for Groq)
-  // server-enforced JSON mode → should succeed almost always. If parse
-  // fails anyway (Anthropic edge cases, or Groq somehow emits invalid JSON
-  // despite response_format), attempt 2 retries with a stricter prompt
-  // that explicitly demands escaping. Avoids burning the user's request
-  // entirely on a single bad token-stream from the model.
+  // Build the user message in our internal shape (string vs multimodal).
+  let userMsg;
+  if (contentType === 'image') {
+    if (!image || !image.b64) return jsonResponse({ error: 'Missing image data' }, 400);
+    userMsg = {
+      text: `Image: "${title}"\nSubject: ${subjName}\n\nExtract the readable content from this image and produce study materials about it. If the image contains text (notes, slides, a textbook page), use that text. If it shows a diagram or scene, describe what's depicted and build flashcards around the concepts it illustrates.`,
+      image: { b64: image.b64, mime: image.mime || 'image/png' },
+    };
+  } else if (contentType === 'youtube') {
+    userMsg = `Video title: "${title}"\nSubject: ${subjName}\n\nTranscript:\n${content || '(transcript unavailable — generate from title)'}`;
+  } else {
+    userMsg = `Document: "${title}"\nSubject: ${subjName}\n\nContent:\n${content}`;
+  }
+
+  // Two-attempt strategy. Attempt 1 uses the standard prompt; if parse fails
+  // (most often: a long markdown summary missing escaping), attempt 2 retries
+  // with a stricter prompt. Avoids burning the user's request on a single
+  // bad token-stream.
   function tryParse(text) {
     const clean = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
     return JSON.parse(clean);
@@ -122,10 +163,6 @@ export async function onRequestPost(context) {
     try {
       parsed = tryParse(text);
     } catch (firstErr) {
-      // Retry once with a stricter prompt that hammers the escaping rules.
-      // Most parse failures we've seen are missing opening quotes on long
-      // markdown string values (e.g. "summary": ## Heading…). Calling this
-      // out explicitly + asking to double-check has been reliable enough.
       const stricter = SYSTEM_PROMPT + `
 
 ABSOLUTE OUTPUT REQUIREMENTS — your previous attempt produced invalid JSON.

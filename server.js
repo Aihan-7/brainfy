@@ -40,10 +40,13 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 const PROVIDER = GROQ_KEY ? 'groq' : ANTHROPIC_KEY ? 'anthropic' : null;
 
 const DEFAULT_MODELS = {
-  groq:      'llama-3.3-70b-versatile',
-  anthropic: 'claude-3-5-haiku-20241022',
+  groq:            'llama-3.3-70b-versatile',
+  groqVision:      'meta-llama/llama-4-scout-17b-16e-instruct',
+  anthropic:       'claude-3-5-haiku-20241022',
+  anthropicVision: 'claude-haiku-4-5-20251001',
 };
-const MODEL = process.env.AI_MODEL || (PROVIDER ? DEFAULT_MODELS[PROVIDER] : '');
+const MODEL        = process.env.AI_MODEL        || (PROVIDER ? DEFAULT_MODELS[PROVIDER] : '');
+const VISION_MODEL = process.env.AI_VISION_MODEL || (PROVIDER ? DEFAULT_MODELS[PROVIDER + 'Vision'] : '');
 
 // ── MIME types ─────────────────────────────────────
 const MIME = {
@@ -86,6 +89,9 @@ function httpsPost(hostname, reqPath, headers, payload) {
 }
 
 // ── Groq ───────────────────────────────────────────
+// body.model (when set) overrides the default — used by the image path to
+// route to a vision-capable model. body.messages may contain multimodal
+// content arrays (OpenAI shape: [{type:'text'},{type:'image_url'}]).
 async function callGroq(body) {
   const messages = [];
   if (body.system) messages.push({ role: 'system', content: body.system });
@@ -95,7 +101,7 @@ async function callGroq(body) {
     'api.groq.com',
     '/openai/v1/chat/completions',
     { Authorization: `Bearer ${GROQ_KEY}` },
-    { model: MODEL, messages, max_tokens: body.max_tokens || 1024 }
+    { model: body.model || MODEL, messages, max_tokens: body.max_tokens || 1024 }
   );
 
   if (result.status === 200) {
@@ -118,7 +124,7 @@ async function callAnthropic(body) {
     'api.anthropic.com',
     '/v1/messages',
     { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-    { ...body, model: MODEL }
+    { ...body, model: body.model || MODEL }
   );
 }
 
@@ -239,12 +245,14 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── POST /api/process-content ─────────────────
-  //  Body: { content, contentType, title, subjName }
+  //  Body: { content, contentType, title, subjName, image? }
+  //   contentType: 'file' | 'youtube' | 'image'
+  //   image (only when contentType==='image'): { b64, mime }
   //  Returns: { flashcards:[{q,a}], summary, outline }
   if (req.method === 'POST' && pathname === '/api/process-content') {
     if (!PROVIDER) { json(503, { error: 'AI not configured' }); return; }
     try {
-      const { content, contentType, title, subjName } = await readBody(req);
+      const { content, contentType, title, subjName, image } = await readBody(req);
 
       const systemPrompt = `You are an expert study assistant. Analyze the provided content and return a JSON object with exactly this structure:
 {
@@ -260,15 +268,40 @@ Rules:
 - Outline should be a flat string array representing hierarchy with indentation
 - Return ONLY the JSON, no markdown fences`;
 
-      const userMsg = contentType === 'youtube'
-        ? `Video title: "${title}"\nSubject: ${subjName}\n\nTranscript:\n${content || '(transcript unavailable — generate from title)'}`
-        : `Document: "${title}"\nSubject: ${subjName}\n\nContent:\n${content}`;
+      const isImage = contentType === 'image';
+      if (isImage && (!image || !image.b64)) {
+        json(400, { error: 'Missing image data' });
+        return;
+      }
+
+      const userText = isImage
+        ? `Image: "${title}"\nSubject: ${subjName}\n\nExtract the readable content from this image and produce study materials about it. If the image contains text (notes, slides, a textbook page), use that text. If it shows a diagram or scene, describe what's depicted and build flashcards around the concepts it illustrates.`
+        : (contentType === 'youtube'
+            ? `Video title: "${title}"\nSubject: ${subjName}\n\nTranscript:\n${content || '(transcript unavailable — generate from title)'}`
+            : `Document: "${title}"\nSubject: ${subjName}\n\nContent:\n${content}`);
+
+      // Provider-specific user-content shape for multimodal input.
+      let userContent;
+      if (isImage) {
+        userContent = PROVIDER === 'groq'
+          ? [
+              { type: 'text',      text: userText },
+              { type: 'image_url', image_url: { url: `data:${image.mime || 'image/png'};base64,${image.b64}` } },
+            ]
+          : [
+              { type: 'text',  text: userText },
+              { type: 'image', source: { type: 'base64', media_type: image.mime || 'image/png', data: image.b64 } },
+            ];
+      } else {
+        userContent = userText;
+      }
 
       const aiBody = {
         system: systemPrompt,
-        messages: [{ role: 'user', content: userMsg }],
-        max_tokens: 2048,
+        messages: [{ role: 'user', content: userContent }],
+        max_tokens: 4096,
       };
+      if (isImage) aiBody.model = VISION_MODEL;
 
       const result = await callAI(aiBody);
       if (result.status !== 200) { json(result.status, result.body); return; }

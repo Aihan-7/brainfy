@@ -2946,9 +2946,9 @@ function renderFileInput(): string {
           <span class="ms" style="font-size:28px;color:var(--plight);">cloud_upload</span>
         </div>
         <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;">Drop your file here</div>
-        <div style="font-size:12px;color:var(--muted);">TXT, MD, CSV, JSON · PDF + images coming soon</div>
+        <div style="font-size:12px;color:var(--muted);">PDF, TXT, MD, PNG, JPG · up to 1 GB</div>
       </div>
-      <input type="file" id="aiFileInput" style="display:none;" accept=".txt,.md,.csv,.json,text/*" onchange="handleAIFileSelect(this)">
+      <input type="file" id="aiFileInput" style="display:none;" accept=".txt,.md,.csv,.json,text/*,.pdf,application/pdf,image/png,image/jpeg,image/webp,image/gif" onchange="handleAIFileSelect(this)">
       <div id="aiFileChosen" style="display:none;align-items:center;gap:12px;padding:12px 14px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:12px;">
         <span class="ms" style="font-size:22px;color:var(--plight);">draft</span>
         <div style="flex:1;min-width:0;">
@@ -3070,7 +3070,64 @@ function setAIResultTab(tab: typeof aiImportResultTab): void {
 }
 
 // ── File handling ────────────────────────────────
-let aiImportFileData: { name: string; content: string; size: number; mime: string } | null = null;
+// Tagged union — each kind carries only the fields it needs.
+//   text  → readAsText, send the string to /api/process-content as before
+//   pdf   → text was extracted client-side via PDF.js; dataUrl preserves the
+//           original file so we can save it to the doc library unchanged.
+//   image → base64 payload sent to a vision model; dataUrl serves both as
+//           the AI input (data:<mime>;base64,...) and the saved doc.
+type AIFileKind = 'text' | 'pdf' | 'image';
+interface AIImportFileData {
+  kind:    AIFileKind;
+  name:    string;
+  size:    number;
+  mime:    string;
+  text?:   string;   // text/pdf — extracted plain text for the AI
+  dataUrl?: string;  // pdf/image — original file as data: URL for the doc
+}
+let aiImportFileData: AIImportFileData | null = null;
+
+// PDF.js — vendored via cdnjs. Lazy-loaded on first PDF pick so the splash
+// page stays unaware of it. Pinned version; bump intentionally.
+declare const pdfjsLib: any;
+const PDFJS_VERSION = '3.11.174';
+const PDFJS_BASE    = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}`;
+let pdfJsPromise: Promise<any> | null = null;
+function loadPdfJs(): Promise<any> {
+  if ((window as any).pdfjsLib) return Promise.resolve((window as any).pdfjsLib);
+  if (pdfJsPromise) return pdfJsPromise;
+  pdfJsPromise = new Promise<any>((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = `${PDFJS_BASE}/pdf.min.js`;
+    s.onload = () => {
+      const lib = (window as any).pdfjsLib;
+      if (!lib) { reject(new Error('PDF.js failed to load')); return; }
+      lib.GlobalWorkerOptions.workerSrc = `${PDFJS_BASE}/pdf.worker.min.js`;
+      resolve(lib);
+    };
+    s.onerror = () => reject(new Error('Could not fetch PDF.js'));
+    document.head.appendChild(s);
+  });
+  return pdfJsPromise;
+}
+
+// Pull plain text out of every page. Capped at 30 pages to keep extraction
+// snappy and the resulting prompt within model token budgets — beyond ~30
+// pages of dense text we'd be truncating in /api/process-content anyway.
+const PDF_MAX_PAGES = 30;
+async function extractPdfText(buf: ArrayBuffer): Promise<{ text: string; pages: number; extracted: number }> {
+  const lib = await loadPdfJs();
+  const pdf = await lib.getDocument({ data: buf }).promise;
+  const extracted = Math.min(pdf.numPages, PDF_MAX_PAGES);
+  const chunks: string[] = [];
+  for (let i = 1; i <= extracted; i++) {
+    const page = await pdf.getPage(i);
+    const tc   = await page.getTextContent();
+    const text = tc.items.map((it: any) => it.str || '').join(' ');
+    chunks.push(text);
+  }
+  return { text: chunks.join('\n\n').trim(), pages: pdf.numPages, extracted };
+}
 
 function handleAIFileSelect(input: HTMLInputElement): void {
   const file = input.files?.[0];
@@ -3084,56 +3141,111 @@ function handleAIFileDrop(e: DragEvent): void {
   if (file) readAIFile(file);
 }
 
-// Whitelist of file types the AI Import flow can actually process. Anything
-// outside this set (PDFs, images, .docx, etc.) is read in but the file
-// CONTENT never reaches the model — the old code substituted a literal
-// "[File: name]" placeholder, so the model would hallucinate flashcards
-// from just the filename. Rather than ship convincing fabrication, we
-// reject the file at pick time with a clear "coming soon" message. PDF
-// extraction and image OCR are tracked in task #13.
-function isAITextFile(file: File): boolean {
-  if (file.type.startsWith('text/')) return true;
-  return /\.(txt|md|csv|json)$/i.test(file.name);
+// Classifier — returns null for unsupported types (e.g. .docx, .pptx).
+// Order matters: image MIME is checked before extension so a .png that
+// the OS mislabels still routes correctly via the extension fallback.
+function classifyAIFile(file: File): AIFileKind | null {
+  if (file.type.startsWith('text/')) return 'text';
+  if (/\.(txt|md|csv|json)$/i.test(file.name)) return 'text';
+  if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) return 'pdf';
+  if (file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(file.name)) return 'image';
+  return null;
 }
 
-function readAIFile(file: File): void {
-  // Single source of truth — matches the doc-upload path's DOC_HARD_MAX
-  // and the Storage rules' 1 GB cap. Note: this path reads the file into
-  // memory as base64, so very large uploads (hundreds of MB+) may stall
-  // the browser before the cap kicks in. If that becomes a real issue,
-  // route huge AI imports through the streaming Storage path instead.
+function readFileAs(file: File, as: 'text' | 'dataurl' | 'arraybuffer'): Promise<string | ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload  = () => resolve(r.result as string | ArrayBuffer);
+    r.onerror = () => reject(r.error || new Error('File read failed'));
+    if      (as === 'text')        r.readAsText(file);
+    else if (as === 'dataurl')     r.readAsDataURL(file);
+    else                           r.readAsArrayBuffer(file);
+  });
+}
+
+async function readAIFile(file: File): Promise<void> {
+  // Matches DOC_HARD_MAX (1 GB) — the Storage-rules cap. We keep the file
+  // entirely in memory on this path, so very large uploads can stall the
+  // tab before the limit kicks in; route huge files through the
+  // Storage-streaming path in Library instead.
   if (file.size > DOC_HARD_MAX) { showToast('File too large (max 1 GB)', 'warning'); return; }
-  if (!isAITextFile(file)) {
-    // Friendly + honest. Tells them what's supported AND what's coming.
+
+  const kind = classifyAIFile(file);
+  if (!kind) {
     showToast(
-      'PDF and image support is coming soon. For now, please use a text file (.txt, .md, .csv, .json).',
+      'Unsupported file type. Use TXT, MD, CSV, JSON, PDF, or an image (PNG/JPG/WEBP).',
       'warning',
     );
     return;
   }
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    const content = reader.result as string;
-    aiImportFileData = { name: file.name, content, size: file.size, mime: file.type };
+  showFileChosenUI(file, kind === 'pdf' ? 'Reading PDF…' : undefined);
 
-    const chosen = el('aiFileChosen');
-    const nameEl = el('aiFileName');
-    const sizeEl = el('aiFileSize');
-    const btn    = el('aiFileProcessBtn') as HTMLButtonElement | null;
-    const zone   = el('aiDropZone');
-    if (chosen) { chosen.style.display = 'flex'; }
-    if (nameEl) nameEl.textContent = file.name;
-    if (sizeEl) sizeEl.textContent = docSize(file.size);
-    if (zone)   zone.style.display = 'none';
-    if (btn)    { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
-  };
-  // Read as text for text files, dataURL for others
-  if (file.type.startsWith('text/') || /\.(txt|md|csv|json)$/i.test(file.name)) {
-    reader.readAsText(file);
-  } else {
-    reader.readAsDataURL(file);
+  try {
+    if (kind === 'text') {
+      const content = await readFileAs(file, 'text') as string;
+      aiImportFileData = { kind, name: file.name, size: file.size, mime: file.type, text: content };
+    } else if (kind === 'image') {
+      const dataUrl = await readFileAs(file, 'dataurl') as string;
+      aiImportFileData = { kind, name: file.name, size: file.size, mime: file.type || guessImageMime(file.name), dataUrl };
+    } else {
+      // PDF — read twice: once as ArrayBuffer for PDF.js, once as data URL
+      // for the doc library. Both come from a single File reference so the
+      // tab keeps only one copy in memory at a time.
+      const buf     = await readFileAs(file, 'arraybuffer') as ArrayBuffer;
+      const result  = await extractPdfText(buf);
+      // Scanned PDFs have negligible text-layer content. Threshold is
+      // intentionally generous — a 1-page PDF with a single paragraph still
+      // clears it. Below this we'd be feeding the AI noise + page-number
+      // fragments and getting fabricated cards back.
+      if (result.text.length < 40) {
+        clearAIFile();
+        showToast(
+          'This looks like a scanned PDF (no extractable text). Image-based PDF support is coming soon.',
+          'warning',
+        );
+        return;
+      }
+      const dataUrl = await readFileAs(file, 'dataurl') as string;
+      aiImportFileData = {
+        kind, name: file.name, size: file.size, mime: 'application/pdf',
+        text: result.text, dataUrl,
+      };
+      if (result.pages > result.extracted) {
+        showToast(`Read first ${result.extracted} of ${result.pages} pages. The rest will be ignored.`, 'info');
+      }
+      // Swap the spinner sublabel back to file size now that extraction succeeded.
+      const sizeEl = el('aiFileSize'); if (sizeEl) sizeEl.textContent = docSize(file.size);
+    }
+    enableAIProcessBtn();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    track('ai.file.read.error', { kind, message: msg });
+    showToast(`Couldn't read file: ${msg}`, 'error');
+    clearAIFile();
   }
+}
+
+function guessImageMime(name: string): string {
+  const m = name.toLowerCase().match(/\.(png|jpe?g|webp|gif)$/);
+  if (!m) return 'image/png';
+  return m[1] === 'jpg' || m[1] === 'jpeg' ? 'image/jpeg' : `image/${m[1]}`;
+}
+
+function showFileChosenUI(file: File, sizeOverride?: string): void {
+  const chosen = el('aiFileChosen');
+  const nameEl = el('aiFileName');
+  const sizeEl = el('aiFileSize');
+  const zone   = el('aiDropZone');
+  if (chosen) chosen.style.display = 'flex';
+  if (nameEl) nameEl.textContent = file.name;
+  if (sizeEl) sizeEl.textContent = sizeOverride || docSize(file.size);
+  if (zone)   zone.style.display  = 'none';
+}
+
+function enableAIProcessBtn(): void {
+  const btn = el('aiFileProcessBtn') as HTMLButtonElement | null;
+  if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
 }
 
 function clearAIFile(): void {
@@ -3205,25 +3317,49 @@ async function processYouTube(): Promise<void> {
 
 async function processFile(): Promise<void> {
   if (!aiImportFileData) return;
-  const { name, content, size, mime } = aiImportFileData;
+  const fd = aiImportFileData;
+  const { name, size, mime, kind } = fd;
 
   renderAIImportStep('processing');
   advanceProcStep(0, 'Reading file…', name);
   await new Promise(r => setTimeout(r, 300));
 
-  advanceProcStep(1, 'Analysing content…', 'Extracting key concepts');
+  const analyseSub = kind === 'image' ? 'Looking at your image' :
+                     kind === 'pdf'   ? 'Reading your PDF'        :
+                                        'Extracting key concepts';
+  advanceProcStep(1, 'Analysing content…', analyseSub);
 
   try {
     const s = S.subjects.find(x => x.id === aiImportSubjId);
-    // readAIFile now rejects non-text files at pick time (isAITextFile
-    // guard), so `content` here is always plain text from readAsText. We
-    // still cap at 12 KB to keep the prompt manageable — separate todo
-    // tracks warning the user when their file gets truncated.
-    const textContent = content.slice(0, 12000);
+
+    // Build the request body per kind. Backend distinguishes by contentType:
+    //   'image'           → vision model, image:{ b64, mime } payload
+    //   'file' / 'youtube' → text path (unchanged)
+    let body: Record<string, unknown>;
+    if (kind === 'image') {
+      // Strip the "data:<mime>;base64," prefix — backend wants raw b64.
+      const b64 = (fd.dataUrl || '').replace(/^data:[^;]+;base64,/, '');
+      body = {
+        contentType: 'image',
+        title: name,
+        subjName: s?.name || '',
+        image: { b64, mime: mime || 'image/png' },
+      };
+    } else {
+      // text or pdf — both carry .text. 12 KB cap keeps prompt size bounded
+      // (~3 K tokens). Going much higher trades latency for marginal gains.
+      const textContent = (fd.text || '').slice(0, 12000);
+      body = {
+        contentType: 'file',
+        title: name,
+        subjName: s?.name || '',
+        content: textContent,
+      };
+    }
 
     const procRes = await fetch('/api/process-content', {
       method: 'POST', headers: await aiHeaders(),
-      body: JSON.stringify({ content: textContent, contentType: 'file', title: name, subjName: s?.name || '' }),
+      body: JSON.stringify(body),
     });
 
     advanceProcStep(2, 'Generating flashcards…', 'AI is creating study cards');
@@ -3236,15 +3372,18 @@ async function processFile(): Promise<void> {
     aiImportResult = result;
     aiImportResultTab = 'flashcards';
 
-    // Auto-save the file as a doc
+    // Auto-save the original file as a doc. For text we save the text itself;
+    // for PDFs/images we save the data URL so the user can re-open the file
+    // unchanged from the library.
     if (aiImportSubjId !== null) {
-      addDocToSubject({ id: S.nextId++, name, type: 'file', content, mime, size, date: Date.now() });
+      const docContent = kind === 'text' ? (fd.text || '') : (fd.dataUrl || '');
+      addDocToSubject({ id: S.nextId++, name, type: 'file', content: docContent, mime, size, date: Date.now() });
     }
 
     renderAIImportStep('result');
   } catch(e) {
     const msg = e instanceof Error ? e.message : String(e);
-    track('ai.file.error', { message: msg });
+    track('ai.file.error', { kind, message: msg });
     showToast('Error: ' + msg, 'error');
     renderAIImportStep('input');
   }
