@@ -6,6 +6,7 @@
     "tsc": "tsc",
     "minify": "terser script.js -o script.js -c passes=2 -m --source-map \"content='script.js.map',url='script.js.map'\"",
     "build": "npm run tsc && npm run minify",
+    "test":  "node --test tests/*.test.mjs",
     "watch": "tsc --watch",
     "start": "node server.js",
     "dev": "tsc --watch & node server.js"

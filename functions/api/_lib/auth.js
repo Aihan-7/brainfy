@@ -27,6 +27,13 @@ const JWK_URL =
 const KEY_TTL_MS = 60 * 60 * 1000;
 let _keyCache = { fetchedAt: 0, keysByKid: /** @type {Record<string, JsonWebKey>} */ ({}) };
 
+// Test-only escape hatch — resets the in-memory key cache so a unit test
+// can swap in a mocked fetch and have the verifier actually call it instead
+// of using a previously-cached real-Google JWKS. NOT for prod code paths.
+export function _resetJwksCacheForTests() {
+  _keyCache = { fetchedAt: 0, keysByKid: {} };
+}
+
 async function fetchJwks() {
   const now = Date.now();
   if (now - _keyCache.fetchedAt < KEY_TTL_MS && Object.keys(_keyCache.keysByKid).length) {
