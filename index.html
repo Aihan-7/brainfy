@@ -3961,15 +3961,17 @@
       grid-template-columns: 1fr !important;
     }
 
-    /* ─── In-app footers: hide Privacy / Terms / Community / Contact rows
-       inside dashboard views on mobile. They eat vertical space at the
-       bottom of every signed-in screen (home, library, stats…). The
-       splash footer stays visible because the splash view doesn't carry
-       the .app-view class; the same links are also reachable from
-       Settings within the app and from the static /privacy.html and
-       /terms.html pages for SEO. */
-    .app-view footer { display: none !important; }
   }
+
+  /* ─── In-app footers: hide Privacy / Terms / Community / Contact rows
+     inside dashboard views on EVERY viewport size (desktop + mobile).
+     They eat vertical space at the bottom of every signed-in screen
+     (home, library, stats…) without adding value to users already in
+     the product. The splash footer stays visible because the splash
+     view doesn't carry the .app-view class; the same links are also
+     reachable from Settings within the app and from the static
+     /privacy.html and /terms.html pages for SEO crawlers. */
+  .app-view footer { display: none !important; }
 
   /* iPhone SE and other very narrow phones: stack rating buttons 2×2 so
      each one gets a comfortable tap target instead of being squeezed
