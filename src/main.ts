@@ -2946,9 +2946,9 @@ function renderFileInput(): string {
           <span class="ms" style="font-size:28px;color:var(--plight);">cloud_upload</span>
         </div>
         <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;">Drop your file here</div>
-        <div style="font-size:12px;color:var(--muted);">PDF, TXT, MD, images · up to 1 GB</div>
+        <div style="font-size:12px;color:var(--muted);">TXT, MD, CSV, JSON · PDF + images coming soon</div>
       </div>
-      <input type="file" id="aiFileInput" style="display:none;" accept=".pdf,.txt,.md,.csv,.doc,.docx,image/*" onchange="handleAIFileSelect(this)">
+      <input type="file" id="aiFileInput" style="display:none;" accept=".txt,.md,.csv,.json,text/*" onchange="handleAIFileSelect(this)">
       <div id="aiFileChosen" style="display:none;align-items:center;gap:12px;padding:12px 14px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:12px;">
         <span class="ms" style="font-size:22px;color:var(--plight);">draft</span>
         <div style="flex:1;min-width:0;">
@@ -3084,6 +3084,18 @@ function handleAIFileDrop(e: DragEvent): void {
   if (file) readAIFile(file);
 }
 
+// Whitelist of file types the AI Import flow can actually process. Anything
+// outside this set (PDFs, images, .docx, etc.) is read in but the file
+// CONTENT never reaches the model — the old code substituted a literal
+// "[File: name]" placeholder, so the model would hallucinate flashcards
+// from just the filename. Rather than ship convincing fabrication, we
+// reject the file at pick time with a clear "coming soon" message. PDF
+// extraction and image OCR are tracked in task #13.
+function isAITextFile(file: File): boolean {
+  if (file.type.startsWith('text/')) return true;
+  return /\.(txt|md|csv|json)$/i.test(file.name);
+}
+
 function readAIFile(file: File): void {
   // Single source of truth — matches the doc-upload path's DOC_HARD_MAX
   // and the Storage rules' 1 GB cap. Note: this path reads the file into
@@ -3091,6 +3103,14 @@ function readAIFile(file: File): void {
   // the browser before the cap kicks in. If that becomes a real issue,
   // route huge AI imports through the streaming Storage path instead.
   if (file.size > DOC_HARD_MAX) { showToast('File too large (max 1 GB)', 'warning'); return; }
+  if (!isAITextFile(file)) {
+    // Friendly + honest. Tells them what's supported AND what's coming.
+    showToast(
+      'PDF and image support is coming soon. For now, please use a text file (.txt, .md, .csv, .json).',
+      'warning',
+    );
+    return;
+  }
 
   const reader = new FileReader();
   reader.onload = () => {
@@ -3195,8 +3215,11 @@ async function processFile(): Promise<void> {
 
   try {
     const s = S.subjects.find(x => x.id === aiImportSubjId);
-    // For base64 files, send just the data (AI can handle images too if provider supports it)
-    const textContent = content.startsWith('data:') ? `[File: ${name}]` : content.slice(0, 12000);
+    // readAIFile now rejects non-text files at pick time (isAITextFile
+    // guard), so `content` here is always plain text from readAsText. We
+    // still cap at 12 KB to keep the prompt manageable — separate todo
+    // tracks warning the user when their file gets truncated.
+    const textContent = content.slice(0, 12000);
 
     const procRes = await fetch('/api/process-content', {
       method: 'POST', headers: await aiHeaders(),
