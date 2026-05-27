@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Free AI Study Planner — Weekly Timetable | Brainfy</title>
+  <meta name="description" content="Brainfy's free AI study planner gives you a weekly study timetable, focus-block scheduling, and honest analytics on what you actually finished. Built for students." />
+  <meta name="keywords" content="AI study planner, weekly study timetable, study scheduler, student planner app, study calendar, focus block scheduler, study planner free" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="theme-color" content="#0b1326" />
+  <link rel="canonical" href="https://brainfy.online/study-planner.html" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Brainfy" />
+  <meta property="og:url" content="https://brainfy.online/study-planner.html" />
+  <meta property="og:title" content="Free AI Study Planner — Weekly Timetable | Brainfy" />
+  <meta property="og:description" content="A free AI study planner with a weekly timetable, focus blocks, and honest analytics on what you actually finished." />
+  <meta property="og:image" content="https://brainfy.online/og-image.svg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Free AI Study Planner — Weekly Timetable | Brainfy" />
+  <meta name="twitter:description" content="A free AI study planner with a weekly timetable, focus blocks, and honest analytics on what you actually finished." />
+  <meta name="twitter:image" content="https://brainfy.online/og-image.svg" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://brainfy.online/study-planner.html#app",
+        "name": "Brainfy Study Planner",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "Web",
+        "url": "https://brainfy.online/study-planner.html",
+        "description": "Free AI study planner with a weekly timetable, focus-block scheduling, and honest analytics for students.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "publisher": { "@id": "https://brainfy.online/#org" }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://brainfy.online/" },
+          { "@type": "ListItem", "position": 2, "name": "Study Planner", "item": "https://brainfy.online/study-planner.html" }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Is the Brainfy study planner free?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Brainfy is free during beta — the study planner and every other feature are fully unlocked at no cost." } },
+          { "@type": "Question", "name": "Can I plan more than one subject?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Add as many subjects as you study, then schedule focus blocks for each across the week. The planner shows everything in one weekly view." } },
+          { "@type": "Question", "name": "Does the planner work on mobile?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Brainfy is web-based and runs in any modern mobile browser — drag and drop is also touch-friendly." } },
+          { "@type": "Question", "name": "Can I set recurring study blocks?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Blocks can repeat weekly so a regular routine — Monday 7pm calc, Wednesday morning reading — stays in place without re-adding." } },
+          { "@type": "Question", "name": "Does the planner connect to the Pomodoro timer?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Start a focus session from a planned block and Brainfy logs the real minutes against that block — so your weekly analytics reflect what you actually did, not what you intended." } }
+        ]
+      }
+    ]
+  }
+  </script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg:#0b1326; --card:rgba(255,255,255,0.04); --border:rgba(255,255,255,0.08); --primary:#7c3aed; --plight:#a78bfa; --cyan:#4cd7f6; --text:#dae2fd; --muted:#94a3b8; --green:#4ede9a; }
+    body { background:var(--bg); color:var(--text); font-family:'Manrope',sans-serif; line-height:1.7; -webkit-font-smoothing:antialiased; }
+    .page { max-width:780px; margin:0 auto; padding:56px 24px 96px; }
+    .back { display:inline-flex; align-items:center; gap:6px; color:var(--plight); text-decoration:none; font-size:14px; font-weight:600; margin-bottom:32px; opacity:.85; }
+    .back:hover { opacity:1; } .back::before { content:'←'; font-size:16px; }
+    nav.crumbs { font-size:12px; color:var(--muted); margin-bottom:14px; font-family:'Space Grotesk',sans-serif; letter-spacing:0.04em; }
+    nav.crumbs a { color:var(--plight); text-decoration:none; } nav.crumbs a:hover { text-decoration:underline; }
+    .eyebrow { font-family:'Space Grotesk',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.18em; color:var(--plight); margin-bottom:14px; text-transform:uppercase; }
+    h1 { font-size:clamp(2rem,4.5vw,2.8rem); font-weight:900; letter-spacing:-0.025em; line-height:1.12; color:#fff; margin-bottom:18px; }
+    .lede { font-size:1.08rem; color:#c8d4ec; margin-bottom:32px; }
+    .cta-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:48px; }
+    .btn { padding:13px 22px; border-radius:12px; font-family:'Manrope',sans-serif; font-size:14px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:8px; transition:transform 0.12s, box-shadow 0.18s; }
+    .btn-primary { background:linear-gradient(135deg,var(--primary),#6d28d9); color:#fff; box-shadow:0 10px 30px rgba(124,58,237,0.32); }
+    .btn-primary:hover { transform:translateY(-1px); box-shadow:0 14px 34px rgba(124,58,237,0.42); }
+    .btn-ghost { background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text); }
+    .btn-ghost:hover { background:rgba(255,255,255,0.08); }
+    h2 { font-size:1.45rem; font-weight:800; color:#fff; letter-spacing:-0.015em; margin:48px 0 16px; }
+    h3 { font-size:1.05rem; font-weight:700; color:var(--plight); margin:24px 0 8px; }
+    p { color:#b8c5dd; margin-bottom:16px; }
+    p strong { color:#fff; font-weight:700; }
+    ul { color:#b8c5dd; padding-left:22px; margin-bottom:18px; }
+    ul li { margin-bottom:8px; }
+    a { color:var(--plight); }
+    .steps { display:grid; gap:14px; margin:18px 0 24px; }
+    .step { display:grid; grid-template-columns:auto 1fr; gap:16px; padding:18px 20px; border-radius:14px; background:var(--card); border:1px solid var(--border); }
+    .step-n { width:34px; height:34px; border-radius:50%; background:rgba(124,58,237,0.18); border:1px solid rgba(124,58,237,0.35); color:var(--plight); font-family:'Space Grotesk',sans-serif; font-weight:800; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+    .step h3 { color:#fff; margin:0 0 4px; font-size:15px; }
+    .step p { color:#a8b6d0; margin:0; font-size:14px; }
+    .faq details { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 18px; margin-bottom:10px; }
+    .faq summary { cursor:pointer; font-weight:700; color:#fff; font-size:15px; list-style:none; outline:none; }
+    .faq summary::-webkit-details-marker { display:none; }
+    .faq summary::after { content:'+'; float:right; color:var(--plight); font-weight:700; transition:transform 0.2s; }
+    .faq details[open] summary::after { transform:rotate(45deg); display:inline-block; }
+    .faq details p { margin:12px 0 4px; font-size:14px; }
+    .crosslinks { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:18px 0 24px; }
+    .crosslinks a { display:block; padding:16px 18px; border-radius:12px; background:var(--card); border:1px solid var(--border); color:var(--text); text-decoration:none; transition:border-color 0.15s, transform 0.12s; }
+    .crosslinks a:hover { border-color:rgba(124,58,237,0.35); transform:translateY(-2px); }
+    .crosslinks strong { display:block; color:#fff; font-weight:700; margin-bottom:4px; font-size:14px; }
+    .crosslinks span { color:var(--muted); font-size:12px; }
+    hr { border:none; border-top:1px solid var(--border); margin:44px 0 24px; }
+    .foot { color:var(--muted); font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <a class="back" href="/">Back to Brainfy</a>
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/">Home</a> &nbsp;›&nbsp; <span>Study Planner</span>
+    </nav>
+
+    <p class="eyebrow">Feature · Study Planner</p>
+    <h1>Free AI Study Planner — Weekly Timetable</h1>
+    <p class="lede">
+      Brainfy's <strong>study planner</strong> gives you a clean weekly timetable, focus-block scheduling, and analytics on what
+      you actually finished — not what you intended to do. Free, built for students, designed for the kind of week where
+      you're juggling four subjects and a deadline.
+    </p>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" href="/">Plan your week →</a>
+      <a class="btn btn-ghost" href="/pomodoro-timer.html">See the focus timer</a>
+    </div>
+
+    <h2>How the study planner works</h2>
+    <div class="steps">
+      <div class="step"><div class="step-n">1</div><div><h3>Add your subjects</h3><p>Drop in every subject you study this term — Brainfy gives each one a colour so the week reads at a glance.</p></div></div>
+      <div class="step"><div class="step-n">2</div><div><h3>Schedule focus blocks</h3><p>Drag blocks onto the week, set recurring slots for regular routines, and reorder when the week shifts on you.</p></div></div>
+      <div class="step"><div class="step-n">3</div><div><h3>Start a block, log real focus</h3><p>Launch a <a href="/pomodoro-timer.html">Pomodoro session</a> from any block — Brainfy logs the real minutes against it so your weekly analytics reflect what you actually did.</p></div></div>
+    </div>
+
+    <h2>Why Brainfy's planner is different</h2>
+    <ul>
+      <li><strong>Plans the focus, not just the work.</strong> Blocks are tied to focus sessions, so "study chemistry Mon 7pm" becomes a real 50-minute timer.</li>
+      <li><strong>Honest follow-through.</strong> Analytics show planned vs. actual focus time — no streak theatre, no inflated numbers.</li>
+      <li><strong>Recurring routines.</strong> Set a weekly slot once and it stays put.</li>
+      <li><strong>Multi-subject by default.</strong> Every subject in one view; nothing buried in tabs.</li>
+      <li><strong>Free during beta.</strong> Unlimited subjects, unlimited blocks, no paywalls.</li>
+    </ul>
+
+    <h2>Who this is for</h2>
+    <p>
+      Built for <strong>students juggling several subjects with shifting weekly deadlines.</strong> University semesters, A-Level
+      revision, MCAT / LSAT prep, IB diplomas — anywhere the work is spread across a week and you need a single view to
+      see whether you're actually keeping up.
+    </p>
+
+    <h2>Frequently asked questions</h2>
+    <div class="faq">
+      <details><summary>Is the Brainfy study planner free?</summary>
+        <p>Yes. Brainfy is free during beta — the planner and every other feature are fully unlocked at no cost.</p>
+      </details>
+      <details><summary>Can I plan more than one subject?</summary>
+        <p>Yes. Add every subject you study; the planner shows them all in one weekly view, colour-coded.</p>
+      </details>
+      <details><summary>Does the planner work on mobile?</summary>
+        <p>Yes. Brainfy is web-based and runs in any modern mobile browser — drag and drop is touch-friendly.</p>
+      </details>
+      <details><summary>Can I set recurring study blocks?</summary>
+        <p>Yes — blocks can repeat weekly so your routine stays in place without re-adding.</p>
+      </details>
+      <details><summary>Does the planner connect to the Pomodoro timer?</summary>
+        <p>Yes. Start a focus session from a planned block and Brainfy logs the real minutes against it — your analytics reflect what you actually did, not what you intended.</p>
+      </details>
+    </div>
+
+    <h2>Explore more of Brainfy</h2>
+    <div class="crosslinks">
+      <a href="/pomodoro-timer.html"><strong>Pomodoro Timer →</strong><span>Free, distraction-free focus timer with honest analytics.</span></a>
+      <a href="/ai-flashcards.html"><strong>AI Flashcards →</strong><span>Turn notes, PDFs, and images into spaced-repetition cards.</span></a>
+      <a href="/pdf-to-flashcards.html"><strong>PDF to Flashcards →</strong><span>Upload a PDF and get a full deck in seconds.</span></a>
+      <a href="/ai-tutor.html"><strong>AI Tutor →</strong><span>Streaming chat that explains concepts and quizzes you.</span></a>
+    </div>
+
+    <hr>
+    <p class="foot">Brainfy is built by <a href="/founder.html">Aihan Mifthas</a>. <a href="/">Open Brainfy →</a></p>
+  </div>
+</body>
+</html>

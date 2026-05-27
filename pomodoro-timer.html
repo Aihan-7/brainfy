@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Free Pomodoro Timer for Students — Brainfy</title>
+  <meta name="description" content="A free, distraction-free Pomodoro timer built for students. 25/5 default, customisable intervals, focus mode, and honest study analytics. No signup, no ads." />
+  <meta name="keywords" content="pomodoro timer, free pomodoro app, study focus timer, pomodoro for students, deep work timer, 25 5 timer, study timer online" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="theme-color" content="#0b1326" />
+  <link rel="canonical" href="https://brainfy.online/pomodoro-timer.html" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Brainfy" />
+  <meta property="og:url" content="https://brainfy.online/pomodoro-timer.html" />
+  <meta property="og:title" content="Free Pomodoro Timer for Students — Brainfy" />
+  <meta property="og:description" content="A free, distraction-free Pomodoro timer built for students. 25/5 default, customisable intervals, focus mode, and honest study analytics." />
+  <meta property="og:image" content="https://brainfy.online/og-image.svg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Free Pomodoro Timer for Students — Brainfy" />
+  <meta name="twitter:description" content="A free, distraction-free Pomodoro timer built for students. 25/5 default, customisable intervals, focus mode, honest analytics." />
+  <meta name="twitter:image" content="https://brainfy.online/og-image.svg" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://brainfy.online/pomodoro-timer.html#app",
+        "name": "Brainfy Pomodoro Timer",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "Web",
+        "url": "https://brainfy.online/pomodoro-timer.html",
+        "description": "Free Pomodoro timer for students with adjustable intervals, distraction-free focus mode, and honest study analytics.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "publisher": { "@id": "https://brainfy.online/#org" }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://brainfy.online/" },
+          { "@type": "ListItem", "position": 2, "name": "Pomodoro Timer", "item": "https://brainfy.online/pomodoro-timer.html" }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Is the Brainfy Pomodoro timer free?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Brainfy is free during beta — the Pomodoro timer and every other feature are unlocked at no cost, with no ads and no paywalls." } },
+          { "@type": "Question", "name": "Do I need to sign up to use the timer?",
+            "acceptedAnswer": { "@type": "Answer", "text": "You can start a session immediately. Signing up only matters if you want your focus sessions to sync across devices and feed your study analytics." } },
+          { "@type": "Question", "name": "Can I change the 25/5 intervals?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Brainfy ships with the classic 25-minute focus / 5-minute break preset, plus longer presets for deep work, and a custom option so you can dial in any session length." } },
+          { "@type": "Question", "name": "Does the Pomodoro timer work on mobile?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Brainfy is web-based and runs in any modern mobile browser — no app install required." } },
+          { "@type": "Question", "name": "What is the Pomodoro technique?",
+            "acceptedAnswer": { "@type": "Answer", "text": "The Pomodoro technique is a focus method developed by Francesco Cirillo: work in short, timed sprints (traditionally 25 minutes) separated by short breaks. It trains sustained attention and reduces decision fatigue." } }
+        ]
+      }
+    ]
+  }
+  </script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg:#0b1326; --card:rgba(255,255,255,0.04); --border:rgba(255,255,255,0.08); --primary:#7c3aed; --plight:#a78bfa; --cyan:#4cd7f6; --text:#dae2fd; --muted:#94a3b8; --green:#4ede9a; }
+    body { background:var(--bg); color:var(--text); font-family:'Manrope',sans-serif; line-height:1.7; -webkit-font-smoothing:antialiased; }
+    .page { max-width:780px; margin:0 auto; padding:56px 24px 96px; }
+    .back { display:inline-flex; align-items:center; gap:6px; color:var(--plight); text-decoration:none; font-size:14px; font-weight:600; margin-bottom:32px; opacity:.85; }
+    .back:hover { opacity:1; } .back::before { content:'←'; font-size:16px; }
+    nav.crumbs { font-size:12px; color:var(--muted); margin-bottom:14px; font-family:'Space Grotesk',sans-serif; letter-spacing:0.04em; }
+    nav.crumbs a { color:var(--plight); text-decoration:none; } nav.crumbs a:hover { text-decoration:underline; }
+    .eyebrow { font-family:'Space Grotesk',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.18em; color:var(--plight); margin-bottom:14px; text-transform:uppercase; }
+    h1 { font-size:clamp(2rem,4.5vw,2.8rem); font-weight:900; letter-spacing:-0.025em; line-height:1.12; color:#fff; margin-bottom:18px; }
+    .lede { font-size:1.08rem; color:#c8d4ec; margin-bottom:32px; }
+    .cta-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:48px; }
+    .btn { padding:13px 22px; border-radius:12px; font-family:'Manrope',sans-serif; font-size:14px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:8px; transition:transform 0.12s, box-shadow 0.18s; }
+    .btn-primary { background:linear-gradient(135deg,var(--primary),#6d28d9); color:#fff; box-shadow:0 10px 30px rgba(124,58,237,0.32); }
+    .btn-primary:hover { transform:translateY(-1px); box-shadow:0 14px 34px rgba(124,58,237,0.42); }
+    .btn-ghost { background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text); }
+    .btn-ghost:hover { background:rgba(255,255,255,0.08); }
+    h2 { font-size:1.45rem; font-weight:800; color:#fff; letter-spacing:-0.015em; margin:48px 0 16px; }
+    h3 { font-size:1.05rem; font-weight:700; color:var(--plight); margin:24px 0 8px; }
+    p { color:#b8c5dd; margin-bottom:16px; }
+    p strong { color:#fff; font-weight:700; }
+    ul { color:#b8c5dd; padding-left:22px; margin-bottom:18px; }
+    ul li { margin-bottom:8px; }
+    a { color:var(--plight); }
+    .steps { display:grid; gap:14px; margin:18px 0 24px; }
+    .step { display:grid; grid-template-columns:auto 1fr; gap:16px; padding:18px 20px; border-radius:14px; background:var(--card); border:1px solid var(--border); }
+    .step-n { width:34px; height:34px; border-radius:50%; background:rgba(124,58,237,0.18); border:1px solid rgba(124,58,237,0.35); color:var(--plight); font-family:'Space Grotesk',sans-serif; font-weight:800; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+    .step h3 { color:#fff; margin:0 0 4px; font-size:15px; }
+    .step p { color:#a8b6d0; margin:0; font-size:14px; }
+    .faq details { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 18px; margin-bottom:10px; }
+    .faq summary { cursor:pointer; font-weight:700; color:#fff; font-size:15px; list-style:none; outline:none; }
+    .faq summary::-webkit-details-marker { display:none; }
+    .faq summary::after { content:'+'; float:right; color:var(--plight); font-weight:700; transition:transform 0.2s; }
+    .faq details[open] summary::after { transform:rotate(45deg); display:inline-block; }
+    .faq details p { margin:12px 0 4px; font-size:14px; }
+    .crosslinks { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:18px 0 24px; }
+    .crosslinks a { display:block; padding:16px 18px; border-radius:12px; background:var(--card); border:1px solid var(--border); color:var(--text); text-decoration:none; transition:border-color 0.15s, transform 0.12s; }
+    .crosslinks a:hover { border-color:rgba(124,58,237,0.35); transform:translateY(-2px); }
+    .crosslinks strong { display:block; color:#fff; font-weight:700; margin-bottom:4px; font-size:14px; }
+    .crosslinks span { color:var(--muted); font-size:12px; }
+    hr { border:none; border-top:1px solid var(--border); margin:44px 0 24px; }
+    .foot { color:var(--muted); font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <a class="back" href="/">Back to Brainfy</a>
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/">Home</a> &nbsp;›&nbsp; <span>Pomodoro Timer</span>
+    </nav>
+
+    <p class="eyebrow">Feature · Focus Timer</p>
+    <h1>Free Pomodoro Timer for Students</h1>
+    <p class="lede">
+      Brainfy's <strong>Pomodoro timer</strong> is a free, distraction-free study timer built for deep work. Start a 25/5 session
+      in one click, customise the intervals, and let Brainfy quietly track your real focus minutes — no ads, no streak
+      pressure, no signup required to start.
+    </p>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" href="/">Start a focus session →</a>
+      <a class="btn btn-ghost" href="/founder.html">Why we built it this way</a>
+    </div>
+
+    <h2>How the Pomodoro timer works</h2>
+    <div class="steps">
+      <div class="step"><div class="step-n">1</div><div><h3>Pick a preset (or set your own)</h3><p>Default to the classic 25 / 5, jump to a longer 50 / 10 deep-work block, or set any custom focus and break length.</p></div></div>
+      <div class="step"><div class="step-n">2</div><div><h3>Hit start and disappear into the work</h3><p>The interface goes quiet. No notifications, no streak guilt — just a clean countdown and the work in front of you.</p></div></div>
+      <div class="step"><div class="step-n">3</div><div><h3>Brainfy logs the real focus minutes</h3><p>Sessions feed your honest study analytics so you can see actual focus time across the week, not vanity streaks.</p></div></div>
+    </div>
+
+    <h2>Why Brainfy's Pomodoro timer is different</h2>
+    <ul>
+      <li><strong>Calm by default.</strong> No streak prompts, no badges, no "you broke your run" guilt screens.</li>
+      <li><strong>Honest analytics.</strong> Focus minutes are logged as they happened — paused, abandoned, completed — not inflated.</li>
+      <li><strong>Distraction-free running state.</strong> The page strips down to just the timer when a session is live.</li>
+      <li><strong>Free and unlimited.</strong> Run as many sessions per day as you want. No daily caps.</li>
+      <li><strong>Connects to the rest of your study setup.</strong> Pairs with <a href="/ai-flashcards.html">AI flashcards</a>, <a href="/study-planner.html">your weekly timetable</a>, and your library.</li>
+    </ul>
+
+    <h2>Who this is for</h2>
+    <p>
+      Brainfy's Pomodoro timer is built for <strong>university and high-school students, exam preppers, and self-learners</strong>
+      who want a focus tool that respects their attention. If you've bounced between Forest, TickTick, and a dozen other
+      Pomodoro apps and bounced off the gamification, this one is for you.
+    </p>
+
+    <h2>Frequently asked questions</h2>
+    <div class="faq">
+      <details><summary>Is the Brainfy Pomodoro timer really free?</summary>
+        <p>Yes. Brainfy is free during beta — the Pomodoro timer and every other feature are unlocked at no cost, with no ads or paywalls.</p>
+      </details>
+      <details><summary>Do I need to sign up to use the timer?</summary>
+        <p>You can start a session immediately. Signing up only matters if you want your focus sessions to sync across devices and feed your study analytics.</p>
+      </details>
+      <details><summary>Can I change the 25/5 intervals?</summary>
+        <p>Yes — Brainfy ships the classic 25/5 preset, a longer deep-work preset, and a custom option for any session length.</p>
+      </details>
+      <details><summary>Does it work on mobile?</summary>
+        <p>Yes. Brainfy is web-based and runs in any modern mobile browser — no app install required.</p>
+      </details>
+      <details><summary>What is the Pomodoro technique?</summary>
+        <p>A focus method developed by Francesco Cirillo: work in short timed sprints (classically 25 minutes), separated by short breaks. It trains sustained attention and lowers decision fatigue.</p>
+      </details>
+    </div>
+
+    <h2>Explore more of Brainfy</h2>
+    <div class="crosslinks">
+      <a href="/ai-flashcards.html"><strong>AI Flashcards →</strong><span>Turn notes, PDFs, and images into spaced-repetition cards.</span></a>
+      <a href="/pdf-to-flashcards.html"><strong>PDF to Flashcards →</strong><span>Upload a PDF and get a full deck in seconds.</span></a>
+      <a href="/ai-tutor.html"><strong>AI Tutor →</strong><span>Streaming chat that explains concepts and quizzes you.</span></a>
+      <a href="/study-planner.html"><strong>Study Planner →</strong><span>A weekly timetable that plans the focus, not just the work.</span></a>
+    </div>
+
+    <hr>
+    <p class="foot">Brainfy is built by <a href="/founder.html">Aihan Mifthas</a>. <a href="/">Open Brainfy →</a></p>
+  </div>
+</body>
+</html>

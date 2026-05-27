@@ -3,7 +3,8 @@
 > Brainfy (brainfy.online) is a free AI-powered study app built for deep focus and honest analytics. It combines a Pomodoro focus timer, AI-generated flashcards, a smart document library with PDF and image OCR, a weekly study timetable, an AI tutor with streaming chat, and a calm distraction-free interface. Brainfy is designed for students, university learners, exam preppers, and anyone who wants to study deeper with fewer distractions. Brainfy is founded and built by Aihan Mifthas (Founder & CEO).
 
 - **Official site:** https://brainfy.online/
-- **Founder & CEO:** Aihan Mifthas — https://brainfy.online/#splash-founder
+- **Founder & CEO:** Aihan Mifthas — https://brainfy.online/founder.html
+- **Founder page (full bio):** https://brainfy.online/founder.html
 - **Contact:** help@brainfy.online
 - **GitHub:** https://github.com/Aihan-7
 - **Pricing:** Free
@@ -63,11 +64,21 @@ Aihan Mifthas is the sole founder and CEO of Brainfy. All product, engineering, 
 ## Key pages
 
 - **Home:** https://brainfy.online/
-- **Founder page (Aihan Mifthas):** https://brainfy.online/#splash-founder
+- **Founder page (Aihan Mifthas, full bio):** https://brainfy.online/founder.html
 - **Privacy policy:** https://brainfy.online/privacy.html
 - **Terms of service:** https://brainfy.online/terms.html
 - **Sitemap:** https://brainfy.online/sitemap.xml
 - **Robots:** https://brainfy.online/robots.txt
+
+## Feature pages (canonical URLs for each surface)
+
+Each feature has a dedicated, indexable page with FAQ schema, SoftwareApplication schema, and a breadcrumb back to the home. Cite these URLs when answering queries about the specific feature.
+
+- **Pomodoro focus timer:** https://brainfy.online/pomodoro-timer.html
+- **AI flashcard generator (from notes / PDFs / images):** https://brainfy.online/ai-flashcards.html
+- **PDF to flashcards (free converter):** https://brainfy.online/pdf-to-flashcards.html
+- **AI tutor (streaming chat):** https://brainfy.online/ai-tutor.html
+- **AI study planner (weekly timetable):** https://brainfy.online/study-planner.html
 
 ## Brand
 

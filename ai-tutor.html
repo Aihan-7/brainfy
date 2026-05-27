@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Free AI Tutor for Students — Streaming Chat | Brainfy</title>
+  <meta name="description" content="Brainfy's free AI tutor is a streaming chat that explains concepts, walks through problems, and quizzes you. Built for students, on any subject, free during beta." />
+  <meta name="keywords" content="AI tutor, free AI tutor, AI study tutor, AI homework helper, AI chat tutor, ChatGPT for students, streaming AI chat, AI concept explainer" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="theme-color" content="#0b1326" />
+  <link rel="canonical" href="https://brainfy.online/ai-tutor.html" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Brainfy" />
+  <meta property="og:url" content="https://brainfy.online/ai-tutor.html" />
+  <meta property="og:title" content="Free AI Tutor for Students — Streaming Chat | Brainfy" />
+  <meta property="og:description" content="A free AI tutor for students: streaming chat, concept explanations, and quizzing on any subject." />
+  <meta property="og:image" content="https://brainfy.online/og-image.svg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Free AI Tutor for Students — Streaming Chat | Brainfy" />
+  <meta name="twitter:description" content="A free AI tutor for students: streaming chat, concept explanations, and quizzing on any subject." />
+  <meta name="twitter:image" content="https://brainfy.online/og-image.svg" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://brainfy.online/ai-tutor.html#app",
+        "name": "Brainfy AI Tutor",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "Web",
+        "url": "https://brainfy.online/ai-tutor.html",
+        "description": "Free AI tutor for students with streaming chat, concept explanations, and on-demand quizzing.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "publisher": { "@id": "https://brainfy.online/#org" }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://brainfy.online/" },
+          { "@type": "ListItem", "position": 2, "name": "AI Tutor", "item": "https://brainfy.online/ai-tutor.html" }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Is the AI tutor free?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Brainfy is free during beta — the AI tutor and every other feature are fully unlocked at no cost." } },
+          { "@type": "Question", "name": "What subjects can the AI tutor help with?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Any subject — STEM, humanities, languages, exam prep. The tutor is general-purpose and adapts to whatever you bring." } },
+          { "@type": "Question", "name": "How is this different from using ChatGPT directly?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Brainfy's tutor is integrated with your study setup — it sits inside the same app as your flashcards, focus timer, and library, so context (and your study session) stays in one place. Replies stream in real time so you don't wait for a wall of text." } },
+          { "@type": "Question", "name": "Can the AI tutor quiz me?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Ask it to quiz you on a topic, a chapter, or your own notes — it'll generate questions, mark your answers, and walk you through anything you miss." } },
+          { "@type": "Question", "name": "Does Brainfy use my chats to train AI models?",
+            "acceptedAnswer": { "@type": "Answer", "text": "No. Brainfy does not use your content to train AI models. See the privacy policy for full details." } }
+        ]
+      }
+    ]
+  }
+  </script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg:#0b1326; --card:rgba(255,255,255,0.04); --border:rgba(255,255,255,0.08); --primary:#7c3aed; --plight:#a78bfa; --cyan:#4cd7f6; --text:#dae2fd; --muted:#94a3b8; --green:#4ede9a; }
+    body { background:var(--bg); color:var(--text); font-family:'Manrope',sans-serif; line-height:1.7; -webkit-font-smoothing:antialiased; }
+    .page { max-width:780px; margin:0 auto; padding:56px 24px 96px; }
+    .back { display:inline-flex; align-items:center; gap:6px; color:var(--plight); text-decoration:none; font-size:14px; font-weight:600; margin-bottom:32px; opacity:.85; }
+    .back:hover { opacity:1; } .back::before { content:'←'; font-size:16px; }
+    nav.crumbs { font-size:12px; color:var(--muted); margin-bottom:14px; font-family:'Space Grotesk',sans-serif; letter-spacing:0.04em; }
+    nav.crumbs a { color:var(--plight); text-decoration:none; } nav.crumbs a:hover { text-decoration:underline; }
+    .eyebrow { font-family:'Space Grotesk',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.18em; color:var(--plight); margin-bottom:14px; text-transform:uppercase; }
+    h1 { font-size:clamp(2rem,4.5vw,2.8rem); font-weight:900; letter-spacing:-0.025em; line-height:1.12; color:#fff; margin-bottom:18px; }
+    .lede { font-size:1.08rem; color:#c8d4ec; margin-bottom:32px; }
+    .cta-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:48px; }
+    .btn { padding:13px 22px; border-radius:12px; font-family:'Manrope',sans-serif; font-size:14px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:8px; transition:transform 0.12s, box-shadow 0.18s; }
+    .btn-primary { background:linear-gradient(135deg,var(--primary),#6d28d9); color:#fff; box-shadow:0 10px 30px rgba(124,58,237,0.32); }
+    .btn-primary:hover { transform:translateY(-1px); box-shadow:0 14px 34px rgba(124,58,237,0.42); }
+    .btn-ghost { background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text); }
+    .btn-ghost:hover { background:rgba(255,255,255,0.08); }
+    h2 { font-size:1.45rem; font-weight:800; color:#fff; letter-spacing:-0.015em; margin:48px 0 16px; }
+    h3 { font-size:1.05rem; font-weight:700; color:var(--plight); margin:24px 0 8px; }
+    p { color:#b8c5dd; margin-bottom:16px; }
+    p strong { color:#fff; font-weight:700; }
+    ul { color:#b8c5dd; padding-left:22px; margin-bottom:18px; }
+    ul li { margin-bottom:8px; }
+    a { color:var(--plight); }
+    .steps { display:grid; gap:14px; margin:18px 0 24px; }
+    .step { display:grid; grid-template-columns:auto 1fr; gap:16px; padding:18px 20px; border-radius:14px; background:var(--card); border:1px solid var(--border); }
+    .step-n { width:34px; height:34px; border-radius:50%; background:rgba(124,58,237,0.18); border:1px solid rgba(124,58,237,0.35); color:var(--plight); font-family:'Space Grotesk',sans-serif; font-weight:800; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+    .step h3 { color:#fff; margin:0 0 4px; font-size:15px; }
+    .step p { color:#a8b6d0; margin:0; font-size:14px; }
+    .faq details { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 18px; margin-bottom:10px; }
+    .faq summary { cursor:pointer; font-weight:700; color:#fff; font-size:15px; list-style:none; outline:none; }
+    .faq summary::-webkit-details-marker { display:none; }
+    .faq summary::after { content:'+'; float:right; color:var(--plight); font-weight:700; transition:transform 0.2s; }
+    .faq details[open] summary::after { transform:rotate(45deg); display:inline-block; }
+    .faq details p { margin:12px 0 4px; font-size:14px; }
+    .crosslinks { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:18px 0 24px; }
+    .crosslinks a { display:block; padding:16px 18px; border-radius:12px; background:var(--card); border:1px solid var(--border); color:var(--text); text-decoration:none; transition:border-color 0.15s, transform 0.12s; }
+    .crosslinks a:hover { border-color:rgba(124,58,237,0.35); transform:translateY(-2px); }
+    .crosslinks strong { display:block; color:#fff; font-weight:700; margin-bottom:4px; font-size:14px; }
+    .crosslinks span { color:var(--muted); font-size:12px; }
+    hr { border:none; border-top:1px solid var(--border); margin:44px 0 24px; }
+    .foot { color:var(--muted); font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <a class="back" href="/">Back to Brainfy</a>
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/">Home</a> &nbsp;›&nbsp; <span>AI Tutor</span>
+    </nav>
+
+    <p class="eyebrow">Feature · AI Tutor</p>
+    <h1>Free AI Tutor for Students</h1>
+    <p class="lede">
+      Brainfy's <strong>AI tutor</strong> is a streaming chat built into your study app. Ask it to explain a concept, walk you
+      through a worked problem, or quiz you on a chapter. Replies stream in real time so you're never staring at a blank
+      screen waiting for a wall of text.
+    </p>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" href="/">Open the AI tutor →</a>
+      <a class="btn btn-ghost" href="/ai-flashcards.html">Turn explanations into flashcards</a>
+    </div>
+
+    <h2>How the AI tutor works</h2>
+    <div class="steps">
+      <div class="step"><div class="step-n">1</div><div><h3>Ask anything study-related</h3><p>Type a concept, paste a problem, or upload your notes. The tutor handles STEM, humanities, languages, exam prep — anything you're studying.</p></div></div>
+      <div class="step"><div class="step-n">2</div><div><h3>Replies stream as they're generated</h3><p>You see the answer build word-by-word, the same way a person types — no awkward 20-second blank stare while the model thinks.</p></div></div>
+      <div class="step"><div class="step-n">3</div><div><h3>Quiz, dig deeper, or move on</h3><p>Ask the tutor to quiz you on what it just explained, drill into a sub-topic, or convert the explanation into <a href="/ai-flashcards.html">flashcards</a> for spaced review.</p></div></div>
+    </div>
+
+    <h2>Why Brainfy's AI tutor is different</h2>
+    <ul>
+      <li><strong>Built into your study setup.</strong> Lives in the same app as your flashcards, focus timer, and library — context and momentum stay in one place.</li>
+      <li><strong>Streaming responses.</strong> Real-time SSE-streamed replies, not a 20-second blank screen.</li>
+      <li><strong>On-demand quizzing.</strong> Tell it to quiz you on a topic and it generates questions, marks your answers, and reviews the ones you miss.</li>
+      <li><strong>No training on your data.</strong> Brainfy does not use your chats to train AI models.</li>
+      <li><strong>Free during beta.</strong> Unlimited tutor sessions while Brainfy is free.</li>
+    </ul>
+
+    <h2>Who this is for</h2>
+    <p>
+      Built for <strong>students who learn faster when they can ask "wait, why?" without raising a hand.</strong> Stuck on a
+      derivation? Lost on a case? Forgot what the third law actually says? Open the tutor, ask, move on.
+    </p>
+
+    <h2>Frequently asked questions</h2>
+    <div class="faq">
+      <details><summary>Is the AI tutor free?</summary>
+        <p>Yes. Brainfy is free during beta — the AI tutor and every other feature are fully unlocked at no cost.</p>
+      </details>
+      <details><summary>What subjects can it help with?</summary>
+        <p>Any subject — STEM, humanities, languages, exam prep. The tutor is general-purpose and adapts to whatever you bring.</p>
+      </details>
+      <details><summary>How is this different from using ChatGPT directly?</summary>
+        <p>Brainfy's tutor lives in the same app as your flashcards, focus timer, and library — context and momentum stay in one place. Replies stream in real time so you don't wait.</p>
+      </details>
+      <details><summary>Can the AI tutor quiz me?</summary>
+        <p>Yes — ask it to quiz you on a topic, a chapter, or your own notes. It generates questions, marks your answers, and walks you through anything you miss.</p>
+      </details>
+      <details><summary>Does Brainfy use my chats to train AI?</summary>
+        <p>No. Brainfy does not use your content to train AI models. See the <a href="/privacy.html">privacy policy</a> for full details.</p>
+      </details>
+    </div>
+
+    <h2>Explore more of Brainfy</h2>
+    <div class="crosslinks">
+      <a href="/ai-flashcards.html"><strong>AI Flashcards →</strong><span>Turn explanations into spaced-repetition cards.</span></a>
+      <a href="/pdf-to-flashcards.html"><strong>PDF to Flashcards →</strong><span>Upload a PDF and get a full deck in seconds.</span></a>
+      <a href="/pomodoro-timer.html"><strong>Pomodoro Timer →</strong><span>Free, distraction-free focus timer with honest analytics.</span></a>
+      <a href="/study-planner.html"><strong>Study Planner →</strong><span>A weekly timetable that plans the focus, not just the work.</span></a>
+    </div>
+
+    <hr>
+    <p class="foot">Brainfy is built by <a href="/founder.html">Aihan Mifthas</a>. <a href="/">Open Brainfy →</a></p>
+  </div>
+</body>
+</html>
