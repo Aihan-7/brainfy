@@ -8,7 +8,7 @@
   <!-- ── SEO ── -->
   <meta name="description" content="Brainfy is a free AI-powered study app: Pomodoro focus timer, auto-generated flashcards, a smart library and honest analytics. Study deeper, distraction-free." />
   <meta name="keywords" content="study app, focus timer, pomodoro app, AI flashcards, flashcard app, study planner, deep work, spaced repetition, student productivity" />
-  <meta name="author" content="Brainfy" />
+  <meta name="author" content="Aihan Mifthas" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="theme-color" content="#0b1326" />
   <link rel="canonical" href="https://brainfy.online/" />
@@ -46,12 +46,27 @@
         "inLanguage": "en"
       },
       {
+        "@type": "Person",
+        "@id": "https://brainfy.online/#aihan",
+        "name": "Aihan Mifthas",
+        "givenName": "Aihan",
+        "familyName": "Mifthas",
+        "url": "https://brainfy.online/#splash-founder",
+        "jobTitle": "Founder & Developer",
+        "description": "Solo founder and developer of Brainfy, an AI-powered study app for deep focus and honest study analytics.",
+        "worksFor": { "@id": "https://brainfy.online/#org" },
+        "sameAs": [
+          "https://github.com/Aihan-7"
+        ]
+      },
+      {
         "@type": "Organization",
         "@id": "https://brainfy.online/#org",
         "name": "Brainfy",
         "url": "https://brainfy.online/",
         "logo": "https://brainfy.online/og-image.svg",
-        "email": "help@brainfy.online"
+        "email": "help@brainfy.online",
+        "founder": { "@id": "https://brainfy.online/#aihan" }
       },
       {
         "@type": "SoftwareApplication",
@@ -60,6 +75,8 @@
         "applicationCategory": "EducationalApplication",
         "description": "Brainfy is an AI-powered study app: Pomodoro focus timer, auto-generated flashcards, a smart library, a weekly timetable and honest study analytics.",
         "url": "https://brainfy.online/",
+        "creator": { "@id": "https://brainfy.online/#aihan" },
+        "publisher": { "@id": "https://brainfy.online/#org" },
         "featureList": [
           "Pomodoro focus timer",
           "AI-generated flashcards",
@@ -898,6 +915,28 @@
     #sidebarStartBtn:hover { transform: translateY(-2px) !important; }
     #sidebarStartBtn:active { transform: scale(0.97) !important; }
 
+    /* ── Founder section ── */
+    .founder-avatar {
+      width: 130px; height: 130px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 44px; font-weight: 800; color: white;
+      box-shadow: 0 10px 40px rgba(124,58,237,0.42);
+      flex-shrink: 0;
+      letter-spacing: -0.02em;
+    }
+    /* If a real photo is swapped in via <img class="founder-avatar">, the
+       same dimensions apply but we override the background so the image
+       fills the circle without gradient bleed-through. */
+    img.founder-avatar { object-fit: cover; background: none; }
+    @media (max-width: 640px) {
+      .founder-card { grid-template-columns: 1fr !important; text-align: center; gap: 18px !important; }
+      .founder-avatar { width: 100px; height: 100px; font-size: 36px; margin: 0 auto; }
+      .founder-socials { justify-content: center; }
+    }
+
     /* ── Preset focus-time buttons: spring ──
        Inactive baseline lives on .preset-btn (not the inline style) so
        that when JS removes .active-preset from a button, it falls back
@@ -1680,11 +1719,67 @@
             </div>
           </div>
 
-          <!-- Founder note -->
-          <div style="margin-top:24px;padding:18px 20px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);position:relative;">
-            <p style="font-size:12px;color:var(--muted);line-height:1.65;">Built because the study apps I tried optimised for engagement metrics, not learning. Brainfy is what I wish I'd had during exams — focused, calm, and out of your way.</p>
-            <p style="font-size:11px;color:var(--plight);font-weight:600;margin-top:8px;">— Aihan, creator of Brainfy</p>
-          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════
+       FOUNDER SECTION
+       Visible identity for SEO ("who built this?") + branding ("real
+       human, shipping in the open"). The Person entity in the JSON-LD
+       graph at the top of <head> links back to this via creator on
+       SoftwareApplication + founder on Organization, so Google can
+       connect the name on this section to the same identity across
+       its knowledge graph.
+
+       Avatar placeholder: when a real photo is ready, replace the
+       <div class="founder-avatar">AM</div> with
+       <img src="/founder.jpg" alt="Aihan Mifthas" class="founder-avatar" />
+       — the CSS already sizes it correctly.
+  ════════════════════════════ -->
+  <section id="splash-founder" style="padding:60px 40px;max-width:920px;margin:0 auto;width:100%;">
+    <div style="text-align:center;margin-bottom:34px;">
+      <p style="font-size:10px;letter-spacing:0.18em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;margin-bottom:12px;">THE FOUNDER</p>
+      <h2 style="font-size:clamp(26px,3.5vw,38px);font-weight:900;letter-spacing:-0.025em;color:white;margin-bottom:10px;">Built by a student, for students</h2>
+      <p style="font-size:14px;color:var(--muted);max-width:520px;margin:0 auto;line-height:1.65;">One person, one obsession: a study tool that respects your attention.</p>
+    </div>
+
+    <div class="glass founder-card" itemscope itemtype="https://schema.org/Person" style="padding:36px 32px;border-radius:22px;display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:center;">
+      <!-- Avatar — see comment block above for swapping in a real photo -->
+      <div class="founder-avatar" aria-hidden="true">AM</div>
+
+      <div>
+        <h3 itemprop="name" style="font-size:22px;font-weight:800;color:white;margin-bottom:4px;letter-spacing:-0.01em;">Aihan Mifthas</h3>
+        <p style="font-size:11px;letter-spacing:0.1em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;margin-bottom:16px;">
+          <span itemprop="jobTitle">Founder &amp; Developer</span> · Brainfy
+        </p>
+        <p itemprop="description" style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:18px;">
+          Aihan Mifthas built Brainfy as the focused, calm study tool he wished he'd had during his own exams —
+          frustrated by apps that optimise for engagement metrics instead of actual learning. Solo founder,
+          shipping in the open, every commit visible on GitHub.
+        </p>
+
+        <!-- Social row. Add more <a> entries when LinkedIn / X / Instagram /
+             Facebook URLs are available; the Person schema's sameAs[] in
+             head should mirror this list 1:1 so structured data and visible
+             links stay in sync. -->
+        <div class="founder-socials" style="display:flex;gap:10px;flex-wrap:wrap;">
+          <a href="https://github.com/Aihan-7" target="_blank" rel="noopener author" itemprop="sameAs"
+             aria-label="Aihan Mifthas on GitHub"
+             style="padding:8px 14px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);text-decoration:none;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.15s, transform 0.12s;"
+             onmouseover="this.style.background='rgba(255,255,255,0.08)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='rgba(255,255,255,0.04)';this.style.transform=''">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.79 23.4c.6.11.82-.26.82-.58v-2c-3.34.73-4.04-1.6-4.04-1.6-.55-1.4-1.34-1.77-1.34-1.77-1.09-.75.08-.74.08-.74 1.2.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.3 3.5.99.1-.78.42-1.3.76-1.6-2.66-.3-5.46-1.33-5.46-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.17 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.66 1.65.25 2.87.12 3.17.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.62-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0 0 12 .3"/></svg>
+            GitHub
+          </a>
+          <!-- LinkedIn  — paste URL into href when ready: -->
+          <!-- <a href="LINKEDIN_URL" target="_blank" rel="noopener author" itemprop="sameAs" aria-label="Aihan Mifthas on LinkedIn" style="…"> … LinkedIn </a> -->
+          <!-- X / Twitter — paste URL into href when ready: -->
+          <!-- <a href="X_URL" …> … X </a> -->
+          <!-- Instagram — paste URL into href when ready: -->
+          <!-- <a href="INSTAGRAM_URL" …> … Instagram </a> -->
+          <!-- Facebook — paste URL into href when ready: -->
+          <!-- <a href="FACEBOOK_URL" …> … Facebook </a> -->
         </div>
       </div>
     </div>
@@ -3743,7 +3838,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = '1779194400';
+  var APP_VERSION = '1779198000';
   window.APP_VERSION = APP_VERSION;  // exposed so script.js can include it in telemetry
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {
