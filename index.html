@@ -898,8 +898,15 @@
     #sidebarStartBtn:hover { transform: translateY(-2px) !important; }
     #sidebarStartBtn:active { transform: scale(0.97) !important; }
 
-    /* ── Preset focus-time buttons: spring ── */
+    /* ── Preset focus-time buttons: spring ──
+       Inactive baseline lives on .preset-btn (not the inline style) so
+       that when JS removes .active-preset from a button, it falls back
+       cleanly to "transparent + muted" — without this, buttons that
+       were initially rendered with the active class (e.g. the default
+       25/5) end up showing the browser's native <button> rendering. */
     .preset-btn {
+      background: transparent;
+      color: var(--muted);
       transition: background 0.18s, color 0.18s, border-color 0.18s,
                   transform 0.2s cubic-bezier(0.34,1.56,0.64,1) !important;
     }
@@ -3736,7 +3743,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = '1779183600';
+  var APP_VERSION = '1779187200';
   window.APP_VERSION = APP_VERSION;  // exposed so script.js can include it in telemetry
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {

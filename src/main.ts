@@ -3963,7 +3963,9 @@ function initEvents() {
   // View all library
   el('viewAllBtn')?.addEventListener('click', () => goTo('library'));
 
-  // Focus: preset buttons
+  // Focus: preset buttons. The active style (.preset-btn.active-preset) is
+  // defined in index.html — don't re-inject a style block here, it just
+  // confuses anyone reading the CSS chain.
   document.querySelectorAll<HTMLElement>('.preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active-preset', 'btn-primary'));
@@ -3973,11 +3975,6 @@ function initEvents() {
       save();
     });
   });
-
-  // Style active-preset button
-  const style = document.createElement('style');
-  style.textContent = '.active-preset { background: var(--primary) !important; color: white !important; border-color: var(--primary) !important; }';
-  document.head.appendChild(style);
 
   // Focus: begin
   el('beginFocusBtn')?.addEventListener('click', beginFocusSession);
