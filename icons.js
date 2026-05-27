@@ -61,6 +61,7 @@
     trending_up:             '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
     tune:                    '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8"  x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8"  x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
     upload_file:             '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/>',
+    visibility:              '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
     visibility_off:          '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>',
     warning:                 '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9"  x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
     water_drop:              '<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>',
@@ -68,9 +69,14 @@
   };
 
   function hydrateOneIcon(span) {
-    if (span.dataset.msHydrated === '1') return;
+    // Skip ONLY when the span has both the hydrated flag AND a real SVG
+    // child. Common "de-hydration" pattern: toggle handlers replace the
+    // span's text (e.g., `el.textContent = 'visibility'`) which removes
+    // the SVG but leaves the flag set. Without re-checking for the SVG
+    // we'd never re-hydrate after a toggle.
     var name = (span.textContent || '').trim();
     if (!name) return;
+    if (span.dataset.msHydrated === '1' && span.querySelector('svg')) return;
     if (!ICONS[name]) { span.dataset.msHydrated = '?'; return; }
     var inlineFs = parseFloat(span.style && span.style.fontSize);
     var size = (isFinite(inlineFs) && inlineFs > 0) ? inlineFs : 18;
@@ -86,22 +92,41 @@
   }
 
   // Watch the DOM for any newly-inserted .ms spans (re-renders by the app
-  // bundle) and hydrate them automatically.
+  // bundle) AND for text-content changes inside existing .ms spans
+  // (toggle handlers that swap the icon name as plain text — e.g., the
+  // password-visibility toggle rewriting "visibility_off" ↔ "visibility").
   if (typeof MutationObserver !== 'undefined') {
     var obs = new MutationObserver(function (mutations) {
       for (var i = 0; i < mutations.length; i++) {
-        mutations[i].addedNodes.forEach(function (node) {
+        var m = mutations[i];
+        // 1. Newly added nodes — initial hydrate for any .ms among them.
+        m.addedNodes.forEach(function (node) {
           if (!(node instanceof HTMLElement)) return;
           if (node.classList && node.classList.contains('ms')) hydrateOneIcon(node);
           if (typeof node.querySelectorAll === 'function') {
             node.querySelectorAll('.ms').forEach(hydrateOneIcon);
           }
         });
+        // 2. Text or child changes inside an existing .ms — re-hydrate it.
+        //    Covers both `el.textContent = 'visibility'` (childList mutation
+        //    on the span) and direct text-node tweaks (characterData on the
+        //    text-node child whose parent is the .ms span).
+        var t = m.target;
+        if (t && t.nodeType === 1 && t.classList && t.classList.contains('ms')) {
+          hydrateOneIcon(t);
+        } else if (t && t.parentElement && t.parentElement.classList &&
+                   t.parentElement.classList.contains('ms')) {
+          hydrateOneIcon(t.parentElement);
+        }
       }
     });
     function start() {
       hydrateIcons();
-      obs.observe(document.body, { childList: true, subtree: true });
+      obs.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+      });
     }
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', start);
