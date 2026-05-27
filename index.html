@@ -1150,14 +1150,6 @@
       .hd-stat { animation: none !important; }
     }
 
-    /* ── Pricing responsive ── */
-    #pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start; }
-    @media (max-width: 860px) {
-      #pricing-grid { grid-template-columns: 1fr; max-width: 440px; margin: 0 auto; }
-      #pricing-grid > div[style*="scale(1.03)"] { transform: none !important; }
-      #pricing-grid > div[style*="scale(1.03)"]:hover { transform: translateY(-4px) !important; }
-    }
-
     /* ══════════════════════════════════════════════════════════════════
        MOBILE LAYOUT  (≤ 768 px)
        — Sidebar slides off-screen behind a hamburger top bar
@@ -1917,155 +1909,6 @@
   </section>
 
   <!-- ════════════════════════════
-       PRICING SECTION
-  ════════════════════════════ -->
-  <section id="splash-pricing" style="padding:0 40px 110px;max-width:1240px;margin:0 auto;width:100%;">
-    <div style="text-align:center;margin-bottom:40px;">
-      <p style="font-size:10px;letter-spacing:0.18em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;margin-bottom:12px;">PRICING</p>
-      <h2 style="font-size:clamp(26px,3.5vw,42px);font-weight:900;letter-spacing:-0.025em;color:white;margin-bottom:14px;">Free while we're in beta</h2>
-      <p style="font-size:16px;color:var(--muted);max-width:480px;margin:0 auto;line-height:1.65;">Every feature is unlocked. Paid plans land later — pricing below is a preview, not yet active.</p>
-    </div>
-
-    <!-- Blurred pricing preview — paid tiers are disabled until launch -->
-    <div style="position:relative;">
-
-      <!-- "Free for now" overlay -->
-      <div style="position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;">
-        <div style="background:rgba(10,18,34,0.92);border:1px solid rgba(124,58,237,0.45);border-radius:22px;padding:24px 36px;text-align:center;backdrop-filter:blur(20px);box-shadow:0 20px 60px rgba(0,0,0,0.5);max-width:380px;">
-          <div style="display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;background:rgba(78,222,163,0.12);border:1px solid rgba(78,222,163,0.3);font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--green);margin-bottom:14px;">
-            <span style="width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);"></span>
-            FREE FOR NOW
-          </div>
-          <div style="font-size:18px;font-weight:800;color:white;letter-spacing:-0.015em;margin-bottom:6px;">No payment required</div>
-          <div style="font-size:13px;color:var(--muted);line-height:1.6;">Use everything while Brainfy is in beta. Paid tiers will roll out once the product is fully stable.</div>
-        </div>
-      </div>
-
-    <div id="pricing-grid" style="filter:blur(5px) saturate(0.7);opacity:0.55;pointer-events:none;user-select:none;transition:filter 0.3s ease;">
-
-      <!-- ── Student (Free) ── -->
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:22px;padding:32px;position:relative;transition:border-color 0.2s,transform 0.2s,box-shadow 0.2s;"
-           onmouseover="this.style.borderColor='rgba(124,58,237,0.35)';this.style.transform='translateY(-4px)';this.style.boxShadow='0 20px 50px rgba(0,0,0,0.35)'"
-           onmouseout="this.style.borderColor='';this.style.transform='';this.style.boxShadow=''">
-        <p style="font-size:11px;letter-spacing:0.14em;color:var(--muted);font-weight:700;margin-bottom:10px;">STUDENT</p>
-        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:6px;">
-          <span style="font-size:42px;font-weight:900;color:white;letter-spacing:-0.03em;">Free</span>
-        </div>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.5;">Everything you need to get started.</p>
-        <button onclick="goTo('signup')" class="btn-primary" style="width:100%;padding:13px;font-size:14px;font-weight:700;border-radius:12px;margin-bottom:28px;background:rgba(124,58,237,0.22);border:1px solid rgba(124,58,237,0.35);color:var(--plight);box-shadow:none;">Get started free</button>
-        <div style="display:flex;flex-direction:column;gap:12px;">
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--green);">check_circle</span>Pomodoro focus timer
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--green);">check_circle</span>Up to 3 subjects
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--green);">check_circle</span>Manual flashcards
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--green);">check_circle</span>Daily task list
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--green);">check_circle</span>Basic analytics
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);">
-            <span class="ms" style="font-size:16px;color:var(--muted2);">remove_circle</span>Cloud sync
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);">
-            <span class="ms" style="font-size:16px;color:var(--muted2);">remove_circle</span>AI tutor
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);">
-            <span class="ms" style="font-size:16px;color:var(--muted2);">remove_circle</span>Ambient sounds
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Student+ (Most Popular) ── -->
-      <div style="background:linear-gradient(160deg,rgba(124,58,237,0.18),rgba(76,215,246,0.07));border:1.5px solid rgba(124,58,237,0.5);border-radius:22px;padding:32px;position:relative;transform:scale(1.03);box-shadow:0 0 60px rgba(124,58,237,0.2);transition:transform 0.2s,box-shadow 0.2s;"
-           onmouseover="this.style.transform='scale(1.03) translateY(-4px)';this.style.boxShadow='0 28px 60px rgba(124,58,237,0.32)'"
-           onmouseout="this.style.transform='scale(1.03)';this.style.boxShadow='0 0 60px rgba(124,58,237,0.2)'">
-        <div style="position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--primary),#6d28d9);color:white;font-size:10px;font-weight:800;letter-spacing:0.1em;padding:5px 16px;border-radius:20px;white-space:nowrap;">MOST POPULAR</div>
-        <p style="font-size:11px;letter-spacing:0.14em;color:var(--plight);font-weight:700;margin-bottom:10px;">STUDENT+</p>
-        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:6px;">
-          <span style="font-size:42px;font-weight:900;color:white;letter-spacing:-0.03em;">₹67</span>
-          <span style="font-size:15px;color:var(--muted);font-weight:500;">/month</span>
-        </div>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.5;">For students serious about their results.</p>
-        <button onclick="goTo('signup')" class="btn-primary" style="width:100%;padding:13px;font-size:14px;font-weight:700;border-radius:12px;margin-bottom:28px;background:linear-gradient(135deg,var(--primary),#6d28d9);box-shadow:0 6px 24px rgba(124,58,237,0.45);">Start Student+</button>
-        <div style="display:flex;flex-direction:column;gap:12px;">
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Everything in Student
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Unlimited subjects
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Cloud sync across devices
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Brainfy AI tutor
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>100 AI flashcards / month
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Ambient focus sounds
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Advanced analytics
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);">
-            <span class="ms" style="font-size:16px;color:var(--muted2);">remove_circle</span>Document / PDF import
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Deep Worker ── -->
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:22px;padding:32px;position:relative;transition:border-color 0.2s,transform 0.2s,box-shadow 0.2s;"
-           onmouseover="this.style.borderColor='rgba(76,215,246,0.35)';this.style.transform='translateY(-4px)';this.style.boxShadow='0 20px 50px rgba(0,0,0,0.35)'"
-           onmouseout="this.style.borderColor='';this.style.transform='';this.style.boxShadow=''">
-        <p style="font-size:11px;letter-spacing:0.14em;color:var(--cyan);font-weight:700;margin-bottom:10px;">DEEP WORKER</p>
-        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:6px;">
-          <span style="font-size:42px;font-weight:900;color:white;letter-spacing:-0.03em;">₹159</span>
-          <span style="font-size:15px;color:var(--muted);font-weight:500;">/month</span>
-        </div>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.5;">For those who take deep work seriously.</p>
-        <button onclick="goTo('signup')" class="btn-primary" style="width:100%;padding:13px;font-size:14px;font-weight:700;border-radius:12px;margin-bottom:28px;background:linear-gradient(135deg,#0891b2,#0e7490);box-shadow:0 6px 24px rgba(76,215,246,0.28);">Start Deep Worker</button>
-        <div style="display:flex;flex-direction:column;gap:12px;">
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Everything in Student+
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Unlimited AI flashcards
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>PDF & document import
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>YouTube → flashcards
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Deep focus analytics
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Priority support
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Early access to new features
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);">
-            <span class="ms" style="font-size:16px;color:var(--cyan);">check_circle</span>Custom study schedule AI
-          </div>
-        </div>
-      </div>
-
-    </div><!-- /#pricing-grid -->
-
-    </div><!-- /pricing wrapper (blur + overlay) -->
-  </section>
-
-  <!-- ════════════════════════════
        CTA SECTION
   ════════════════════════════ -->
   <section style="padding:0 40px 90px;max-width:1240px;margin:0 auto;width:100%;">
@@ -2077,7 +1920,6 @@
         <p style="font-size:16px;color:var(--muted);margin-bottom:36px;max-width:460px;margin-left:auto;margin-right:auto;line-height:1.66;">Join deep workers who have reclaimed their attention span and transformed their study habits.</p>
         <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:20px;">
           <button class="btn-primary" id="getStartedBtn" style="padding:16px 56px;font-size:16px;font-weight:700;border-radius:12px;background:linear-gradient(135deg,var(--primary),#6d28d9);box-shadow:0 8px 36px rgba(124,58,237,0.48);letter-spacing:0.01em;">Get Started Free →</button>
-          <button id="viewPricingBtn" class="btn-ghost" style="padding:16px 28px;font-size:15px;border-radius:12px;">View Pricing</button>
         </div>
         <p style="font-size:12px;color:var(--muted2);">No credit card required · Free forever · Instant access</p>
       </div>
