@@ -120,6 +120,10 @@ type FcRating   = 'again' | 'hard' | 'good' | 'easy';
 type ViewName   = 'splash' | 'signin' | 'signup' | 'home' | 'focus' | 'library' | 'flashcards' | 'stats' | 'tasks' | 'timetable' | 'settings';
 
 const STORAGE_KEY = 'brainfy_v3';
+// Lightweight "did this device sign in before?" hint, separate from STORAGE_KEY
+// (which we wipe on sign-out / clear-cache). Lets the splash personalise its
+// CTA to "Continue as <name>" without waiting for the Firebase SDK to load.
+const USER_HINT_KEY = 'brainfy_user_hint';
 const TIMER_C = 754;   // 2π × 120  (timer ring circumference)
 const SCORE_C = 339;   // 2π × 54   (score ring circumference)
 
@@ -935,6 +939,50 @@ async function loadFromCloud(): Promise<void> {
   }
 }
 
+// ── Splash personalisation ──────────────────────────────────────────────────
+// If we've remembered a previous sign-in on this device, swap the splash
+// CTA from generic "Enter Brainfy" → personalised "Continue as <name>" and
+// route it straight to the home view instead of the sign-in form. The
+// Firebase auth observer (running in parallel as the SDK lazy-loads) will
+// resolve the actual session; if the cached identity is stale, the observer
+// will detect it and bounce the user back to splash. Worst case the user
+// sees one wrong button click — much better than always forcing a fresh
+// "go through sign-in" trip for returning users.
+//
+// Called from the router whenever splash is shown, so sign-out + account-
+// deletion (both navigate to splash) revert the button to generic on the
+// same render pass.
+function applySigninHint(): void {
+  const btn = el('enterBrainBtn');
+  if (!btn) return;
+
+  let hint: { name?: string } | null = null;
+  try {
+    const raw = localStorage.getItem(USER_HINT_KEY);
+    if (raw) hint = JSON.parse(raw);
+  } catch (_) { /* malformed — treat as no hint */ }
+
+  // Clone-and-replace the node to drop any previously-attached listener so
+  // we don't end up with stacked handlers on repeat splash visits.
+  const fresh = btn.cloneNode(true) as HTMLElement;
+  btn.parentNode?.replaceChild(fresh, btn);
+
+  if (hint?.name) {
+    fresh.textContent = `Continue as ${hint.name} →`;
+    fresh.addEventListener('click', () => goTo('home'));
+  } else {
+    fresh.textContent = 'Enter Brainfy →';
+    fresh.addEventListener('click', () => goTo('signin'));
+  }
+}
+
+function setSigninHint(name: string): void {
+  try { localStorage.setItem(USER_HINT_KEY, JSON.stringify({ name })); } catch (_) {}
+}
+function clearSigninHint(): void {
+  try { localStorage.removeItem(USER_HINT_KEY); } catch (_) {}
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 function goTo(view: ViewName): void {
   // Smooth exit: fade out current view slightly before switching
@@ -968,6 +1016,7 @@ function _goToFinish(view: ViewName): void {
     btn.classList.toggle('active', btn.dataset['go'] === view);
   });
 
+  if (view === 'splash')     applySigninHint();
   if (view === 'home')       renderHome();
   if (view === 'focus')      renderFocus();
   if (view === 'library')    renderLibrary();
@@ -3673,6 +3722,7 @@ async function deleteAccount(): Promise<void> {
 
   // ── 4) Local cleanup + navigate ──
   try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+  clearSigninHint();
   S = structuredClone(DEFAULT_STATE);
   firebaseUser = null;
   idToken      = null;
@@ -3740,6 +3790,8 @@ async function onFirebaseSignIn(user: any, displayName?: string): Promise<void> 
   // Always sync name from the real Firebase user — overrides any stale cloud value
   const realName = displayName || user.displayName || user.email?.split('@')[0] || 'Student';
   S.userName = realName;
+  // Stash the name for next-tab personalisation (see applySigninHint).
+  setSigninHint(realName);
 
   save();
   goTo('home');
@@ -3802,6 +3854,7 @@ function handleSignOut(): void {
     idToken      = null;
     S = structuredClone(DEFAULT_STATE);
     try { localStorage.removeItem(STORAGE_KEY); } catch(_) {}
+    clearSigninHint();           // forget "Continue as X" — next tab opens generic splash
     goTo('splash');
   });
 }
@@ -3830,7 +3883,9 @@ function showForgot(): void {
 function initEvents() {
   // Splash CTAs
   el('splashEnterBtn')?.addEventListener('click', () => goTo('signin'));
-  el('enterBrainBtn')?.addEventListener('click', () => goTo('signin'));
+  // Note: enterBrainBtn click is wired up by applySigninHint() — it picks
+  // the right destination (signin vs home) based on whether we have a
+  // cached identity from a previous sign-in on this device.
   el('getStartedBtn')?.addEventListener('click', () => goTo('signup'));
 
   // ── Auth ──────────────────────────────────────────
@@ -4549,6 +4604,10 @@ function init() {
   // would call save() — render once at boot from the loaded localStorage state.
   renderSidebarBadges();
   initEvents();
+  // Splash is the initial view (no goTo call fires at boot), so personalise
+  // its CTA now — after initEvents has registered the default click handler
+  // that applySigninHint may override.
+  applySigninHint();
   initSplashObserver();
   initTimetable();
   initSettings();
