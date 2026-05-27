@@ -3783,6 +3783,20 @@
   }
   body.tour-active .tour-strip { opacity: 1; pointer-events: auto; }
 
+  /* Mobile / low-power perf:
+     - backdrop-filter on a fixed overlay that also animates geometry is the
+       single biggest source of tour jank — the blur has to re-rasterise on
+       every layout tick. Drop it on small screens (the solid 0.82-alpha
+       overlay reads nearly identical) and snap the strips between steps
+       instead of animating top/left/width/height. */
+  @media (max-width: 768px) {
+    .tour-strip {
+      backdrop-filter: none;
+      background: rgba(7, 13, 28, 0.82);
+      transition: opacity 0.24s ease;
+    }
+  }
+
   /* The target element gets emphasis via outline + glow — both render
      OUTSIDE the element's box, so they're not clipped by ancestor
      overflow:hidden. No z-index needed because the strips form a hole
@@ -3795,6 +3809,14 @@
       0 14px 48px rgba(124, 58, 237, 0.5) !important;
     border-radius: 14px;
     transition: outline 0.3s ease, box-shadow 0.3s ease;
+  }
+  /* Drop the expensive 48px blurred glow on mobile — it repaints whenever
+     the target scrolls or the strips move, and stacks with the dimmer. */
+  @media (max-width: 768px) {
+    .tour-target {
+      box-shadow: 0 0 0 6px rgba(124, 58, 237, 0.28) !important;
+      transition: outline 0.2s ease;
+    }
   }
 
   /* Tooltip popover — positioned by JS */
