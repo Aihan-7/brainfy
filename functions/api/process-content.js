@@ -2,6 +2,12 @@
 // Takes raw content (note text, YouTube transcript, etc.) and asks the AI
 // to extract flashcards + summary + outline in one shot. Returns parsed
 // JSON to the client.
+//
+// Auth: requires a valid Firebase ID token. Each call burns thousands of
+// tokens (max_tokens=2048 with non-trivial prompt) — unauthenticated traffic
+// here is direct billing pain.
+
+import { requireAuth } from './_lib/auth.js';
 
 const DEFAULT_MODELS = {
   groq:      'llama-3.3-70b-versatile',
@@ -76,6 +82,10 @@ async function callAI(systemPrompt, userMsg, env) {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+
+  const auth = await requireAuth(request, env);
+  if (auth instanceof Response) return auth;
+
   const provider = env.GROQ_API_KEY ? 'groq' : env.ANTHROPIC_API_KEY ? 'anthropic' : null;
   if (!provider) return jsonResponse({ error: 'AI not configured' }, 503);
 

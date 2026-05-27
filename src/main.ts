@@ -3054,7 +3054,7 @@ async function processYouTube(): Promise<void> {
   advanceProcStep(0, 'Fetching video info…', 'Getting transcript from YouTube');
 
   try {
-    const infoRes  = await fetch('/api/youtube', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url }) });
+    const infoRes  = await fetch('/api/youtube', { method:'POST', headers: await aiHeaders(), body: JSON.stringify({ url }) });
     const info     = await infoRes.json();
     if (!infoRes.ok) throw new Error(info.error || 'YouTube fetch failed');
 
@@ -3065,7 +3065,7 @@ async function processYouTube(): Promise<void> {
 
     const s = S.subjects.find(x => x.id === aiImportSubjId);
     const procRes = await fetch('/api/process-content', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+      method: 'POST', headers: await aiHeaders(),
       body: JSON.stringify({ content: info.transcript, contentType: 'youtube', title: info.title, subjName: s?.name || '' }),
     });
     const result = await procRes.json();
@@ -3107,7 +3107,7 @@ async function processFile(): Promise<void> {
     const textContent = content.startsWith('data:') ? `[File: ${name}]` : content.slice(0, 12000);
 
     const procRes = await fetch('/api/process-content', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+      method: 'POST', headers: await aiHeaders(),
       body: JSON.stringify({ content: textContent, contentType: 'file', title: name, subjName: s?.name || '' }),
     });
 
@@ -3971,6 +3971,27 @@ let aiTypingEl:  HTMLElement | null = null;
 let aiIsOpen     = false;
 let aiAvailable  = false;
 
+// Headers for any AI/content-processing endpoint. Includes the live
+// Firebase ID token so Cloudflare Functions can verify the caller is a
+// real signed-in user (see functions/api/_lib/auth.js).
+//
+// Returns just Content-Type if there's no current token — that case will
+// be rejected by the server with a 401, which is the right UX (the catch
+// already shows "Something went wrong" + telemetry fires).
+async function aiHeaders(): Promise<Record<string, string>> {
+  const h: Record<string, string> = { 'Content-Type': 'application/json' };
+  // Always fetch a fresh token: the in-memory `idToken` could be up to 55
+  // minutes stale (auto-refresh interval), and Firebase SDK getIdToken()
+  // returns the cached token unless it's near expiry. Cheap call.
+  try {
+    if (firebaseUser && typeof firebaseUser.getIdToken === 'function') {
+      const t = await firebaseUser.getIdToken();
+      if (t) h.Authorization = `Bearer ${t}`;
+    }
+  } catch (_) { /* swallow — endpoint will 401 and the UI will tell the user */ }
+  return h;
+}
+
 // ── Check if server has AI configured ──────────
 async function checkAIStatus() {
   try {
@@ -4048,7 +4069,7 @@ async function callClaude(userText: string): Promise<void> {
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await aiHeaders(),
       body: JSON.stringify({
         model: 'claude-3-5-haiku-20241022',
         max_tokens: 1024,

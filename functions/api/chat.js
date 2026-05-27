@@ -2,6 +2,12 @@
 // Proxies to Groq (preferred — free, fast) or Anthropic. Normalises the
 // response shape so the client's existing parser doesn't have to change:
 //   { content: [{ type:'text', text:'...' }], usage: { input_tokens, output_tokens } }
+//
+// Auth: requires a valid Firebase ID token (Authorization: Bearer …). Without
+// this gate, anyone on the internet can hit our endpoint and bill our Groq /
+// Anthropic accounts.
+
+import { requireAuth } from './_lib/auth.js';
 
 const DEFAULT_MODELS = {
   groq:      'llama-3.3-70b-versatile',
@@ -63,6 +69,11 @@ async function callAnthropic(body, env) {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+
+  // Auth first — refuse to spend a token on an unauthenticated request.
+  const auth = await requireAuth(request, env);
+  if (auth instanceof Response) return auth;
+
   const provider = env.GROQ_API_KEY ? 'groq' : env.ANTHROPIC_API_KEY ? 'anthropic' : null;
   if (!provider) {
     return jsonResponse({ error: 'AI not configured. Set GROQ_API_KEY or ANTHROPIC_API_KEY in Pages env vars.' }, 503);

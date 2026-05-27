@@ -7,6 +7,11 @@
 // captionTracks URL and fetch the timedtext XML. If anything fails we
 // return an empty transcript and the client falls back to title-only
 // flashcard generation (it already handles that gracefully).
+//
+// Auth: requires a valid Firebase ID token. Scraping YouTube is rate-limited
+// from Cloudflare's IPs; we don't want anonymous traffic burning that budget.
+
+import { requireAuth } from './_lib/auth.js';
 
 function jsonResponse(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -81,7 +86,10 @@ async function fetchTranscript(videoId) {
 }
 
 export async function onRequestPost(context) {
-  const { request } = context;
+  const { request, env } = context;
+
+  const auth = await requireAuth(request, env);
+  if (auth instanceof Response) return auth;
 
   let body;
   try { body = await request.json(); }
