@@ -4429,7 +4429,13 @@ function buildSystemPrompt() {
 - Be warm, smart, and direct — like a brilliant tutor who respects the user's time`;
 }
 
-// ── API call → /api/chat proxy ──────────────────
+// ── API call → /api/chat proxy (streaming) ──────
+// SSE consumer. The server normalizes Groq + Anthropic deltas down to
+//   data: {"text":"<token>"}    ← repeating
+//   data: {"error":"..."}       ← optional, surfaces upstream errors
+//   data: [DONE]                ← terminator
+// Tokens accumulate into the open bubble; we re-render via formatAIText
+// at most once per animation frame to keep markdown formatting cheap.
 async function callClaude(userText: string): Promise<void> {
   if (!aiAvailable) { showAIOffline(); return; }
 
@@ -4437,6 +4443,9 @@ async function callClaude(userText: string): Promise<void> {
   appendAIMsg('user', userText);
   clearAIInput();
   showAITyping();
+
+  let stream: StreamingBubble | null = null;
+  let accumulated = '';
 
   try {
     const res = await fetch('/api/chat', {
@@ -4447,28 +4456,67 @@ async function callClaude(userText: string): Promise<void> {
         max_tokens: 1024,
         system: buildSystemPrompt(),
         messages: aiHistory,
+        stream: true,
       }),
     });
 
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error || `Server error ${res.status}`);
+    if (!res.ok || !res.body) {
+      // Server rejected before the stream started (e.g. 401, 503). Try to
+      // surface its error JSON; fall back to a generic message.
+      let errMsg = `Server error ${res.status}`;
+      try { const j = await res.json(); errMsg = j.error || errMsg; } catch (_) {}
+      throw new Error(errMsg);
     }
 
-    const reply = data.content?.[0]?.text || '(empty response)';
-    aiHistory.push({ role: 'assistant', content: reply });
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
 
-    hideAITyping();
-    appendAIMsg('assistant', reply);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
 
-    // Offer to import if flashcard format detected
-    if (/^Q:/m.test(reply)) {
-      appendAIAction('➕ Import as flashcards', () => importAIFlashcards(reply));
+      // SSE events are \n\n-separated. Process every complete one.
+      let nl: number;
+      while ((nl = buf.indexOf('\n\n')) !== -1) {
+        const event = buf.slice(0, nl);
+        buf = buf.slice(nl + 2);
+        for (const line of event.split('\n')) {
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (payload === '[DONE]') continue;
+          try {
+            const obj = JSON.parse(payload);
+            if (obj.error) throw new Error(obj.error);
+            if (typeof obj.text === 'string') {
+              if (!stream) { hideAITyping(); stream = appendAIMsgStreaming(); }
+              accumulated += obj.text;
+              stream.update(accumulated);
+            }
+          } catch (_) { /* swallow malformed lines, keep streaming */ }
+        }
+      }
+    }
+
+    // No tokens ever arrived (provider returned an empty stream). Don't
+    // leave the bubble blank — surface as an error so the user knows.
+    if (!stream) {
+      hideAITyping();
+      throw new Error('Empty response from AI');
+    }
+
+    stream.finalize();
+    aiHistory.push({ role: 'assistant', content: accumulated });
+
+    // Offer to import if flashcard format detected.
+    if (/^Q:/m.test(accumulated)) {
+      appendAIAction('➕ Import as flashcards', () => importAIFlashcards(accumulated));
     }
 
   } catch(e) {
     hideAITyping();
+    stream?.cancel();
     const msg = e instanceof Error ? e.message : String(e);
     track('ai.chat.error', { message: msg });
     appendAIMsg('error', `**Something went wrong:** ${msg}`);
@@ -4523,30 +4571,20 @@ function appendAIMsg(role: 'user' | 'assistant' | 'error', text: string): void {
 
   const wrap = document.createElement('div');
   wrap.className = 'ai-msg-wrap';
-  wrap.style.cssText = `display:flex;gap:9px;align-items:flex-start;margin-bottom:16px;${isUser ? 'flex-direction:row-reverse;' : ''}`;
+  wrap.style.cssText = `display:flex;gap:10px;align-items:flex-start;margin-bottom:14px;${isUser ? 'flex-direction:row-reverse;' : ''}`;
 
-  // Avatar
   const av = document.createElement('div');
-  av.style.cssText = `width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;font-family:'Space Grotesk';${
-    isUser  ? 'background:var(--primary);color:white;' :
-    isError ? 'background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.25);' :
-    'background:linear-gradient(135deg,rgba(124,58,237,0.3),rgba(76,215,246,0.15));border:1px solid rgba(124,58,237,0.35);'
-  }`;
+  av.className = 'ai-avatar ' + (isUser ? 'ai-avatar-user' : isError ? 'ai-avatar-error' : 'ai-avatar-bot');
   if (isUser) {
-    // Username could be anything; textContent prevents tag injection
+    // Username could be anything; textContent prevents tag injection.
     av.textContent = (S.userName || '?').charAt(0).toUpperCase();
   } else {
-    av.innerHTML = isError ? '<span class="ms" style="font-size:14px;color:#f87171;">error</span>' :
-                             '<span class="ms" style="font-size:14px;color:var(--plight);">auto_awesome</span>';
+    av.innerHTML = isError ? '<span class="ms" style="font-size:15px;color:#f87171;">error</span>' :
+                             '<span class="ms" style="font-size:16px;color:var(--plighter);">auto_awesome</span>';
   }
 
-  // Bubble
   const bub = document.createElement('div');
-  bub.style.cssText = `max-width:290px;padding:10px 13px;font-size:13px;line-height:1.65;word-break:break-word;border-radius:${isUser ? '14px 3px 14px 14px' : '3px 14px 14px 14px'};${
-    isUser  ? 'background:linear-gradient(135deg,var(--primary),#6d28d9);color:white;' :
-    isError ? 'background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;' :
-    'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.07);color:var(--text);'
-  }`;
+  bub.className = 'ai-bubble ' + (isUser ? 'ai-bubble-user' : isError ? 'ai-bubble-error' : '');
   bub.innerHTML = formatAIText(text);
 
   wrap.appendChild(av);
@@ -4569,16 +4607,77 @@ function appendAIAction(label: string, fn: () => void): void {
   feed.scrollTop = feed.scrollHeight;
 }
 
+// Streaming-bubble handle. `update(text)` is rAF-throttled so we don't burn
+// CPU re-formatting the full markdown string on every SSE delta. `finalize`
+// removes the caret and does a final flush; `cancel` removes the bubble
+// entirely (used on error so we don't leave a half-written ghost).
+interface StreamingBubble {
+  update:   (text: string) => void;
+  finalize: () => void;
+  cancel:   () => void;
+}
+
+function appendAIMsgStreaming(): StreamingBubble {
+  const feed = document.getElementById('aiMessages');
+  if (!feed) {
+    return { update: () => {}, finalize: () => {}, cancel: () => {} };
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'ai-msg-wrap';
+  wrap.style.cssText = 'display:flex;gap:10px;align-items:flex-start;margin-bottom:14px;';
+
+  const av = document.createElement('div');
+  av.className = 'ai-avatar ai-avatar-bot';
+  av.innerHTML = '<span class="ms" style="font-size:16px;color:var(--plighter);">auto_awesome</span>';
+
+  const bub = document.createElement('div');
+  bub.className = 'ai-bubble';
+
+  wrap.appendChild(av);
+  wrap.appendChild(bub);
+  feed.appendChild(wrap);
+
+  let latest = '';
+  let frame  = 0;
+  let cancelled = false;
+
+  const render = (withCaret: boolean) => {
+    bub.innerHTML = formatAIText(latest) + (withCaret ? '<span class="ai-caret"></span>' : '');
+    feed.scrollTop = feed.scrollHeight;
+  };
+  render(true);
+
+  return {
+    update(text) {
+      if (cancelled) return;
+      latest = text;
+      if (frame) return;
+      frame = requestAnimationFrame(() => { frame = 0; render(true); });
+    },
+    finalize() {
+      if (cancelled) return;
+      if (frame) { cancelAnimationFrame(frame); frame = 0; }
+      render(false);
+    },
+    cancel() {
+      cancelled = true;
+      if (frame) cancelAnimationFrame(frame);
+      wrap.remove();
+    },
+  };
+}
+
 function showAITyping() {
   const feed = document.getElementById('aiMessages');
   if (!feed || aiTypingEl) return;
   aiTypingEl = document.createElement('div');
-  aiTypingEl.style.cssText = 'display:flex;gap:9px;align-items:center;margin-bottom:16px;';
+  aiTypingEl.style.cssText = 'display:flex;gap:10px;align-items:center;margin-bottom:14px;';
   aiTypingEl.innerHTML = `
-    <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,rgba(124,58,237,0.3),rgba(76,215,246,0.15));border:1px solid rgba(124,58,237,0.35);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-      <span class="ms" style="font-size:14px;color:var(--plight);">auto_awesome</span>
+    <div class="ai-avatar ai-avatar-bot">
+      <span class="ms" style="font-size:16px;color:var(--plighter);">auto_awesome</span>
     </div>
-    <div style="padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.07);border-radius:3px 14px 14px 14px;display:flex;gap:5px;align-items:center;">
+    <div class="ai-bubble" style="padding:12px 16px;display:flex;gap:5px;align-items:center;">
       <span class="typing-dot"></span>
       <span class="typing-dot" style="animation-delay:0.18s;"></span>
       <span class="typing-dot" style="animation-delay:0.36s;"></span>
@@ -4593,8 +4692,14 @@ function hideAITyping() {
 }
 
 // ── Markdown → safe HTML ─────────────────────────
+// Two-pass to keep bullets tight: first run the inline + heading replacements,
+// then collapse consecutive bullet/numbered lines into a single <div class="ai-list">
+// wrapper so the surviving newlines never insert a <br/> between items. The old
+// version produced a visible blank line between every bullet because it ran
+// `\n → <br/>` after the per-line bullet replacement.
 function formatAIText(raw: string): string {
-  return raw
+  // 1. Escape + inline + block-level (non-list) transforms.
+  let html = raw
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
     .replace(/\*(.+?)\*/g,'<em>$1</em>')
@@ -4602,15 +4707,47 @@ function formatAIText(raw: string): string {
     .replace(/^### (.+)$/gm,'<div style="font-size:12px;font-weight:800;color:var(--plighter);margin:10px 0 4px;letter-spacing:0.04em;text-transform:uppercase;">$1</div>')
     .replace(/^## (.+)$/gm,'<div style="font-weight:800;color:white;margin:10px 0 5px;font-size:14px;">$1</div>')
     .replace(/^# (.+)$/gm,'<div style="font-weight:900;color:white;margin:10px 0 6px;font-size:15px;">$1</div>')
-    .replace(/^[-*•]\s+(.+)$/gm,'<div style="padding-left:14px;margin:2px 0;">• $1</div>')
-    .replace(/^\d+\.\s+(.+)$/gm,'<div style="padding-left:4px;margin:3px 0;">$&</div>')
     .replace(/^Q:\s*(.+)$/gm,'<div style="margin:6px 0 2px;color:var(--plight);font-weight:700;">Q: $1</div>')
-    .replace(/^A:\s*(.+)$/gm,'<div style="margin:0 0 8px;color:var(--text);">A: $1</div>')
-    .replace(/\n\n/g,'<br/>')
-    .replace(/\n/g,'<br/>');
+    .replace(/^A:\s*(.+)$/gm,'<div style="margin:0 0 8px;color:var(--text);">A: $1</div>');
+
+  // 2. Group consecutive bullet lines into a single <div class="ai-list">.
+  //    Pattern matches one or more `\n?[-*•] ...` lines in a row.
+  html = html.replace(/(?:^|\n)((?:[-*•] [^\n]+\n?)+)/g, (_m, block: string) => {
+    const items = block
+      .split(/\n/)
+      .filter(line => /^[-*•] /.test(line))
+      .map(line => `<div class="ai-list-item">${line.replace(/^[-*•] /, '')}</div>`)
+      .join('');
+    return `<div class="ai-list">${items}</div>`;
+  });
+
+  // 3. Same for numbered lists.
+  html = html.replace(/(?:^|\n)((?:\d+\. [^\n]+\n?)+)/g, (_m, block: string) => {
+    const items = block
+      .split(/\n/)
+      .filter(line => /^\d+\. /.test(line))
+      .map(line => `<div class="ai-list-item" style="padding-left:18px;">${line}</div>`)
+      .join('');
+    return `<div class="ai-list">${items}</div>`;
+  });
+
+  // 4. Remaining newlines become <br/>. Collapse \n\n → \n first so paragraph
+  //    breaks aren't doubled. Strip newlines directly adjacent to block-level
+  //    wrappers so we don't get phantom blank lines after a heading or list.
+  html = html
+    .replace(/\n\n+/g, '\n\n')
+    .replace(/\n+(<div )/g, '$1')
+    .replace(/(<\/div>)\n+/g, '$1')
+    .replace(/\n\n/g, '<br/>')
+    .replace(/\n/g, '<br/>');
+
+  return html;
 }
 
 // ── Welcome screen ───────────────────────────────
+// Short greeting only — the chip row below the feed already advertises the
+// available actions (Quiz me / Explain / Flashcards / Study plan / Tips),
+// so repeating them as a bulleted manifesto inside the bubble was noise.
 function showAIWelcome() {
   const feed = document.getElementById('aiMessages');
   if (!feed) return;
@@ -4619,7 +4756,7 @@ function showAIWelcome() {
   const hour  = new Date().getHours();
   const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   appendAIMsg('assistant',
-    `${greet}, **${S.userName}**! 🧠\n\nI'm **Brainfy AI** — your personal study coach.\n\nI can:\n- **Explain** any concept with analogies\n- **Generate flashcards** from your notes\n- **Quiz you** on any subject\n- **Build** a personalised study plan\n- **Analyse** your focus patterns\n\nWhat would you like to work on?`
+    `${greet}, **${S.userName}** 👋\n\nI'm your study coach. Ask me anything — or tap a shortcut below to get going.`
   );
 }
 

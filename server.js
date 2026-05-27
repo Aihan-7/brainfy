@@ -132,6 +132,84 @@ function callAI(body) {
   return PROVIDER === 'groq' ? callGroq(body) : callAnthropic(body);
 }
 
+// ── Streaming chat (mirrors functions/api/chat.js) ─
+// Opens an SSE upstream to the provider and re-emits each token delta in a
+// normalized shape (`data: {"text":"..."}`) so the client doesn't care which
+// provider is in use. Ends with `data: [DONE]`.
+function streamChat(body, res) {
+  let upstreamHost, upstreamPath, upstreamHeaders, upstreamPayload;
+
+  if (PROVIDER === 'groq') {
+    const messages = [];
+    if (body.system) messages.push({ role: 'system', content: body.system });
+    messages.push(...(body.messages || []));
+    upstreamHost    = 'api.groq.com';
+    upstreamPath    = '/openai/v1/chat/completions';
+    upstreamHeaders = { Authorization: `Bearer ${GROQ_KEY}` };
+    upstreamPayload = { model: MODEL, messages, max_tokens: body.max_tokens || 1024, stream: true };
+  } else {
+    upstreamHost    = 'api.anthropic.com';
+    upstreamPath    = '/v1/messages';
+    upstreamHeaders = { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' };
+    upstreamPayload = { ...body, model: MODEL, stream: true };
+  }
+
+  const buf = Buffer.from(JSON.stringify(upstreamPayload));
+  const upstream = https.request(
+    { hostname: upstreamHost, port: 443, path: upstreamPath, method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': buf.length, ...upstreamHeaders } },
+    provRes => {
+      if (provRes.statusCode !== 200) {
+        let err = '';
+        provRes.on('data', c => err += c);
+        provRes.on('end', () => {
+          res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+          res.write(`data: ${JSON.stringify({ error: err || `Upstream ${provRes.statusCode}` })}\n\n`);
+          res.write('data: [DONE]\n\n');
+          res.end();
+        });
+        return;
+      }
+
+      res.writeHead(200, {
+        'Content-Type':      'text/event-stream',
+        'Cache-Control':     'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
+      });
+
+      let leftover = '';
+      provRes.on('data', chunk => {
+        leftover += chunk.toString();
+        let nl;
+        while ((nl = leftover.indexOf('\n\n')) !== -1) {
+          const event = leftover.slice(0, nl);
+          leftover = leftover.slice(nl + 2);
+          for (const line of event.split('\n')) {
+            if (!line.startsWith('data:')) continue;
+            const payload = line.slice(5).trim();
+            if (payload === '[DONE]') continue;        // Groq end marker — swallow; we emit our own
+            try {
+              const obj = JSON.parse(payload);
+              const text = PROVIDER === 'groq'
+                ? (obj.choices?.[0]?.delta?.content || '')
+                : (obj.type === 'content_block_delta' && obj.delta?.type === 'text_delta' ? (obj.delta.text || '') : '');
+              if (text) res.write(`data: ${JSON.stringify({ text })}\n\n`);
+            } catch (_) { /* swallow malformed SSE lines */ }
+          }
+        }
+      });
+      provRes.on('end',   () => { res.write('data: [DONE]\n\n'); res.end(); });
+      provRes.on('error', e  => { res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`); res.write('data: [DONE]\n\n'); res.end(); });
+    }
+  );
+  upstream.on('error', e => {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: e.message }));
+  });
+  upstream.write(buf);
+  upstream.end();
+}
+
 // ── Read request body ──────────────────────────────
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -184,13 +262,20 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── POST /api/chat ────────────────────────────
+  //  body.stream:true → returns text/event-stream with normalized
+  //    `data: {"text":"..."}` events terminated by `data: [DONE]`.
+  //  Anything else → single JSON response in Anthropic's shape.
   if (req.method === 'POST' && pathname === '/api/chat') {
     if (!PROVIDER) {
       json(503, { error: 'AI not configured. Add GROQ_API_KEY or ANTHROPIC_API_KEY to .env' });
       return;
     }
     try {
-      const body   = await readBody(req);
+      const body = await readBody(req);
+      if (body.stream === true) {
+        streamChat(body, res);
+        return;
+      }
       const result = await callAI(body);
       json(result.status, result.body);
     } catch(e) {

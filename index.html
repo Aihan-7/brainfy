@@ -520,13 +520,80 @@
 
     /* Quick action chips */
     .ai-chip {
-      padding: 7px 13px; border-radius: 999px; font-size: 12px; font-weight: 600;
+      padding: 6px 11px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
       background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.22);
       color: var(--plight); cursor: pointer; font-family: 'Manrope', sans-serif;
-      transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px;
+      transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;
       white-space: nowrap;
     }
-    .ai-chip:hover { background: rgba(124,58,237,0.2); border-color: rgba(124,58,237,0.4); }
+    .ai-chip:hover { background: rgba(124,58,237,0.2); border-color: rgba(124,58,237,0.4); transform: translateY(-1px); }
+    .ai-chip:active { transform: translateY(0); }
+
+    /* ── AI message bubbles ─────────────────────────
+       Layout: wrap → avatar + bubble side-by-side.
+       Bubble corners: 18px on three corners, 6px tail on the side that
+       faces the avatar (top-left for AI, top-right for user). The tail
+       is a soft cue, not the harsh 3px of the previous design. */
+    .ai-avatar {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; font-family: 'Space Grotesk';
+    }
+    .ai-avatar-bot {
+      background: radial-gradient(circle at 30% 30%, rgba(167,139,250,0.45), rgba(124,58,237,0.25) 60%, rgba(76,215,246,0.12));
+      border: 1px solid rgba(167,139,250,0.5);
+      box-shadow: 0 0 0 3px rgba(124,58,237,0.08), 0 4px 14px rgba(124,58,237,0.22);
+    }
+    .ai-avatar-user {
+      background: linear-gradient(135deg, var(--primary), #6d28d9);
+      color: white;
+      box-shadow: 0 4px 12px rgba(124,58,237,0.3);
+    }
+    .ai-avatar-error {
+      background: rgba(239,68,68,0.15);
+      border: 1px solid rgba(239,68,68,0.3);
+    }
+    .ai-bubble {
+      max-width: 280px; padding: 11px 14px; font-size: 13px; line-height: 1.6;
+      word-break: break-word; border-radius: 18px 18px 18px 6px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025));
+      border: 1px solid rgba(255,255,255,0.07);
+      color: var(--text);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+    }
+    .ai-bubble-user {
+      border-radius: 18px 18px 6px 18px;
+      background: linear-gradient(135deg, var(--primary), #6d28d9);
+      border: 1px solid rgba(167,139,250,0.35);
+      color: white;
+      box-shadow: 0 4px 14px rgba(124,58,237,0.32);
+    }
+    .ai-bubble-error {
+      background: rgba(239,68,68,0.06);
+      border: 1px solid rgba(239,68,68,0.22);
+      color: #fca5a5;
+    }
+    /* Tight stack inside a bubble — used by formatAIText to group bullets. */
+    .ai-list { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; }
+    .ai-list-item { padding-left: 14px; position: relative; }
+    .ai-list-item::before {
+      content: '•'; position: absolute; left: 2px; top: 0;
+      color: var(--plight); font-weight: 800;
+    }
+
+    /* Blinking caret shown at the tail of a streaming bubble. Removed by
+       finalize() once the SSE [DONE] arrives. */
+    .ai-caret {
+      display: inline-block;
+      width: 7px; height: 14px;
+      background: var(--plight);
+      border-radius: 1px;
+      margin-left: 3px;
+      vertical-align: -2px;
+      animation: caretBlink 0.85s steps(2, end) infinite;
+    }
+    @keyframes caretBlink { 50% { opacity: 0; } }
 
     /* AI sidebar button glow */
     #aiNavBtn.ai-active {
@@ -3838,7 +3905,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = '1779235200';
+  var APP_VERSION = '1779249600';
   window.APP_VERSION = APP_VERSION;  // exposed so script.js can include it in telemetry
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {
