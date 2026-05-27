@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Brainfy — AI Study App with Focus Timer &amp; Flashcards</title>
 
   <!-- ── SEO ── -->
@@ -3582,8 +3582,8 @@
       <button onclick="fcNav(1)" style="padding:10px 28px;background:linear-gradient(135deg,var(--primary),#6d28d9);border:none;border-radius:10px;color:white;font-size:13px;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;box-shadow:0 4px 16px rgba(124,58,237,0.35);">Next →</button>
     </div>
 
-    <!-- Keyboard hint -->
-    <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--muted2);">
+    <!-- Keyboard hint (hidden on touch via #fcKeyboardHints rule in mobile CSS block) -->
+    <div id="fcKeyboardHints" style="text-align:center;margin-top:20px;font-size:11px;color:var(--muted2);">
       <span style="margin-right:16px;"><kbd style="padding:2px 6px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:4px;font-size:10px;">Space</kbd> flip</span>
       <span style="margin-right:16px;"><kbd style="padding:2px 6px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:4px;font-size:10px;">←→</kbd> navigate</span>
       <span><kbd style="padding:2px 6px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:4px;font-size:10px;">Esc</kbd> close</span>
@@ -3966,6 +3966,193 @@
   #footerModalBody p  { margin:0 0 10px; }
   #footerModalBody a  { color:var(--plight);text-decoration:none; }
   #footerModalBody a:hover { text-decoration:underline; }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     MOBILE POLISH PASS — fixes for iOS Safari and small-screen touch UX.
+     Lives in the last inline style block so it cascades after everything
+     else. Desktop visuals untouched.
+
+     1. Kill the default blue tap-flash on every tap.
+     2. Skip the legacy 300ms double-tap-to-zoom delay on interactive
+        targets via touch-action: manipulation.
+     3. Stop iOS auto-zooming when a user taps a form input <16px font.
+     4. Safe-area-inset so bottom-fixed UI clears the home indicator.
+     5. Touch-target floor (≥44px) for known-small interactive elements.
+     6. Replace 100vh on full-height containers with 100dvh fallback so
+        content isn't cut off by iOS Safari's collapsing toolbar.
+     7. Selectively drop backdrop-filter on heavy/animated mobile overlays
+        — re-rasterising blur is the single biggest jank source.
+     ═══════════════════════════════════════════════════════════════════ */
+
+  * { -webkit-tap-highlight-color: transparent; }
+
+  a, button, [role="button"], input, select, textarea, label {
+    touch-action: manipulation;
+  }
+
+  body { padding-bottom: env(safe-area-inset-bottom); }
+
+  /* Stop decorative orbs / fixed-position blur elements from extending past
+     the viewport right edge and triggering iOS Safari's shrink-to-fit (which
+     silently widens the layout viewport from 375 → 455+ when content
+     overflows horizontally). Safe globally — no part of the app uses a
+     horizontal scroller. */
+  html, body { overflow-x: hidden; }
+
+  /* Full-height containers: prefer dvh so the iOS Safari toolbar doesn't
+     hide the bottom of the page. The 100vh line is the older-browser
+     fallback that browsers ignoring dvh will use. */
+  body, html, .container, .app, #app, .page-wrap {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  @media (max-width: 768px) {
+    /* iOS Safari auto-zooms whenever a form input's font-size is <16px.
+       Forcing 16px stops the page from zooming on every tap into a field. */
+    input, select, textarea {
+      font-size: 16px !important;
+    }
+
+    /* Bump known-small touch targets to 44px — Apple HIG / WCAG 2.5.5. */
+    .tt-skip, .tt-next,
+    .founder-socials a, .meta-links a,
+    .faq summary {
+      min-height: 44px;
+    }
+    .tt-skip, .tt-next { display: inline-flex; align-items: center; }
+
+    /* Footer micro-links — give them real tap room. */
+    footer a, .footer-link, .foot a {
+      padding: 6px 4px;
+      display: inline-block;
+    }
+
+    /* Backdrop-filter on a fixed full-height overlay or an animated
+       popover forces the GPU to re-rasterise the blur every frame.
+       Drop it on mobile — solid background reads almost identically
+       and the perf win is huge. Every modal in this app uses a dimmed
+       full-screen backdrop, so we list them all explicitly. */
+    #aiPanel, #tourTooltip, .modal, .popover, .drawer,
+    .ai-panel, .modal-backdrop, #flashcardModal,
+    #searchModal, #docModal, #footerModal,
+    #cfmModal, #prmModal, #ttModal {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+
+    /* Close-× buttons inside modals (docModal, footerModal, ttModal etc.)
+       are often 28–32px and miss the 44-px touch target floor. Bump them
+       defensively without changing the visible icon size. */
+    #docModal button, #footerModal button[onclick*="close"i],
+    #ttModal button[onclick*="close"i], #ttModal [class*="close"],
+    .modal button[aria-label*="lose"i] {
+      min-width: 44px;
+      min-height: 44px;
+    }
+
+    /* Bottom-fixed UI must clear the iPhone home indicator. */
+    #aiPanel, .tab-bar, .nav-bottom, .bottom-bar, .ai-panel {
+      padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
+    }
+
+    /* ─── Flashcard modal: mobile-specific polish ─────────────────
+       Cramped 4-across rating buttons, missed touch targets on the
+       close / Prev / Next buttons, irrelevant keyboard hints, and
+       wasted padding all show up as soon as the modal opens at
+       narrow widths. Fix them here.
+
+       Note: we drop backdrop-filter on mobile for perf, so the
+       background MUST become fully opaque — the original 0.96-alpha
+       relied on the blur to hide the page beneath. */
+    #flashcardModal {
+      background: #070f1f !important;
+      padding: 24px 16px max(24px, env(safe-area-inset-bottom)) !important;
+    }
+    /* Bump rating-button hit area — fat-thumb friendly without changing layout.
+       justify-content: center vertically centres the label + interval so the
+       button doesn't look top-heavy (label was floating at the top of the
+       56-px box with empty space below, especially in browse mode where the
+       interval row is hidden). */
+    #fcRating .fc-rating-btn {
+      padding: 12px 4px 11px !important;
+      min-height: 56px;
+      justify-content: center !important;
+    }
+    #fcRating .fc-rating-btn .label { font-size: 14px; }
+
+    /* Close button + Prev/Next nav: enforce 44px minimum touch target. */
+    #flashcardModal button[onclick="closeFlashcards()"] {
+      width: 44px !important; height: 44px !important;
+    }
+    /* Prev / Next: keep the arrow + word on one line, give them generous
+       width on mobile, and let them split the row 50/50 with the dots
+       hidden (the progress bar at the top of the modal already shows
+       which card you're on — dots are redundant on a narrow screen and
+       were squeezing the buttons into squares). */
+    #flashcardModal button[onclick="fcNav(-1)"],
+    #flashcardModal button[onclick="fcNav(1)"] {
+      min-height: 44px;
+      min-width: 110px;
+      padding-top: 12px !important;
+      padding-bottom: 12px !important;
+      white-space: nowrap !important;
+    }
+    #fcDots { display: none !important; }
+
+    /* Hide keyboard hints — touch users can't action them. */
+    #fcKeyboardHints { display: none !important; }
+
+    /* ─── Daily Focus Goal card (home view): the row crams flag + label +
+       counter + EDIT + state badge onto one line. On 375-px phones every
+       label wraps onto multiple lines. Hide the right-side state badge —
+       the progress bar already visualises the same signal — so the
+       counter and EDIT button get real breathing room. */
+    #goalBadge { display: none !important; }
+
+    /* ─── Library grid: collapse the hard-coded 3-column grid to a single
+       column on phones so each .subj-card gets the full width. At 3 cols
+       on a 375-px viewport each card was ~115 px wide, which forced
+       "Review Flashcards" to wrap onto two lines and made every card
+       feel cramped. */
+    #libraryGrid {
+      grid-template-columns: 1fr !important;
+    }
+
+    /* ─── In-app footers: hide Privacy / Terms / Community / Contact rows
+       inside dashboard views on mobile. They eat vertical space at the
+       bottom of every signed-in screen (home, library, stats…). The
+       splash footer stays visible because the splash view doesn't carry
+       the .app-view class; the same links are also reachable from
+       Settings within the app and from the static /privacy.html and
+       /terms.html pages for SEO. */
+    .app-view footer { display: none !important; }
+  }
+
+  /* iPhone SE and other very narrow phones: stack rating buttons 2×2 so
+     each one gets a comfortable tap target instead of being squeezed
+     into ~60px on a 320px viewport. */
+  @media (max-width: 380px) {
+    #fcRating[style*="flex"], #fcRating {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px !important;
+    }
+    #fcRating .fc-rating-btn {
+      max-width: none !important;
+      flex: none !important;
+    }
+  }
+
+  /* Honour reduce-motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 </style>
 
 <!-- ──────────────────────────────────────────────────────────────────────
@@ -4086,6 +4273,173 @@
     });
   });
 })();
+</script>
+
+<script>
+  /* ═══════════════════════════════════════════════════════════════════
+     Subject-card mobile enhancement
+     ─────────────────────────────────────────────────────────────────
+     Each .subj-card renders an inline "DOCUMENTS · N + Add / No
+     documents yet" block above the Review Flashcards button. On a
+     375-px screen that block is cramped and noisy. On mobile we:
+
+       1. Hide the inline documents section entirely (CSS hides it on
+          a per-card basis once this script tags the section).
+       2. Inject a single full-width "Materials" button that opens the
+          existing AI-import picker — the picker already presents the
+          File / Note / Link / PDF add flows in one popup, which is
+          the "popup with everything" the UX needs.
+
+     The cards are rendered by minified script.js, so we observe the
+     subtree of #libraryGrid and the home view's continue-studying
+     section, augmenting any new .subj-card the first time we see it. */
+  (function () {
+    const isMobile = () => window.matchMedia('(max-width: 768px)').matches;
+    if (!isMobile()) return;
+
+    const enhance = (card) => {
+      if (card.dataset.matEnhanced) return;
+      card.dataset.matEnhanced = '1';
+
+      // Extract subject ID from the existing inline + Add button's id.
+      const addBtn = card.querySelector('button[id^="addDocBtn_"]');
+      if (!addBtn) return;
+      const subjectId = addBtn.id.replace('addDocBtn_', '');
+
+      // Reorder the header so the subject TITLE sits to the RIGHT of the
+      // book icon. Default render is:
+      //    [icon] ............................. [×]
+      //    Title
+      //    description …
+      // On mobile we wrap icon + title into a left-side flex group with
+      // the icon as the visual anchor and the title reading to its right.
+      const header = card.children[0];                  // icon + × row
+      const titleDiv = card.children[1];                 // subject name
+      const iconContainer = header?.firstElementChild;   // 44×44 book box
+      const deleteBtn = header?.children[1];             // × delete btn
+      if (header && titleDiv && iconContainer && deleteBtn &&
+          !header.dataset.titleMerged) {
+        header.dataset.titleMerged = '1';
+
+        // Build the left group [Icon][Title] in that visual order.
+        const left = document.createElement('div');
+        left.style.cssText =
+          'display:flex;align-items:center;gap:12px;' +
+          'min-width:0;flex:1;';
+
+        // Promote title typography for the new placement and clamp
+        // overflow so long subject names don't push the × off-row.
+        titleDiv.style.fontSize = '17px';
+        titleDiv.style.fontWeight = '700';
+        titleDiv.style.marginBottom = '0';
+        titleDiv.style.whiteSpace = 'nowrap';
+        titleDiv.style.overflow = 'hidden';
+        titleDiv.style.textOverflow = 'ellipsis';
+        titleDiv.style.minWidth = '0';
+
+        left.appendChild(iconContainer);     // icon first (left)
+        left.appendChild(titleDiv);          // title second (right of icon)
+        header.insertBefore(left, deleteBtn);
+
+        // Header now centres the new row against the × button.
+        header.style.alignItems = 'center';
+      }
+
+      // The documents section is the border-top'd div wrapping the
+      // DOCUMENTS · N row + placeholder/list. Hide it on mobile.
+      const docsSection = addBtn.closest('div[style*="border-top"]');
+      if (docsSection) docsSection.style.display = 'none';
+
+      // Insert the "Materials" button immediately above the Review
+      // Flashcards button so it reads naturally in the card.
+      const reviewBtn = card.querySelector('button[onclick*="openFlashcards"]');
+      if (!reviewBtn) return;
+      const mat = document.createElement('button');
+      mat.type = 'button';
+      mat.setAttribute(
+        'onclick',
+        `event.stopPropagation();(typeof openAIImportPicker==='function'?openAIImportPicker(${subjectId}, this):openDocModal(${subjectId}))`
+      );
+      mat.style.cssText =
+        'width:100%;padding:11px;border-radius:8px;' +
+        'background:rgba(255,255,255,0.04);' +
+        'border:1px solid rgba(255,255,255,0.10);' +
+        'color:var(--text);font-size:13px;font-weight:600;cursor:pointer;' +
+        'font-family:Manrope,sans-serif;display:flex;align-items:center;' +
+        'justify-content:center;gap:8px;transition:background 0.15s;' +
+        'margin-bottom:8px;';
+      mat.innerHTML =
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" ' +
+        'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+        'stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>' +
+        '<polyline points="14 2 14 8 20 8"/></svg> Materials';
+      reviewBtn.parentNode.insertBefore(mat, reviewBtn);
+    };
+
+    const scan = (root) => {
+      (root || document).querySelectorAll('.subj-card').forEach(enhance);
+    };
+
+    // Initial sweep + observer for any cards that mount later (library
+    // grid render, home "Continue Studying" section, drawer open, etc.)
+    scan();
+    new MutationObserver((muts) => {
+      for (const m of muts) {
+        m.addedNodes.forEach((n) => {
+          if (n.nodeType !== 1) return;
+          if (n.classList?.contains('subj-card')) enhance(n);
+          else scan(n);
+        });
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+
+    // If the viewport flips from desktop → mobile after load, the page
+    // would normally need a refresh. Re-scan on resize as a courtesy.
+    let lastIsMobile = true;
+    window.addEventListener('resize', () => {
+      const now = isMobile();
+      if (now && !lastIsMobile) scan();
+      lastIsMobile = now;
+    }, { passive: true });
+  })();
+
+  /* ═══════════════════════════════════════════════════════════════════
+     Home greeting: force the name onto its own line
+     ─────────────────────────────────────────────────────────────────
+     The greeting renders as "Good evening, Aihan Mifthas" which wraps
+     awkwardly on mobile ("Good evening, Aihan" / "Mifthas"). On phones
+     we want the comma to be the line break so the salutation reads as
+     two clean lines: "Good evening," / "Aihan Mifthas". Done by JS
+     because the greeting text is set by minified script.js and updates
+     as the time of day changes. */
+  (function () {
+    if (!window.matchMedia('(max-width: 768px)').matches) return;
+    const greeting = document.getElementById('homeGreeting');
+    if (!greeting) return;
+
+    const breakAfterComma = () => {
+      // If a <br> is already present, our work is done — bail out so
+      // we don't loop the MutationObserver forever.
+      if (greeting.querySelector('br')) return;
+      const txt = greeting.textContent;
+      const idx = txt.indexOf(', ');
+      if (idx === -1) return;
+      const before = txt.slice(0, idx + 1);   // "Good evening,"
+      const name   = txt.slice(idx + 2);      // "Aihan Mifthas"
+      greeting.innerHTML =
+        before.replace(/&/g, '&amp;').replace(/</g, '&lt;') +
+        '<br>' +
+        name.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    };
+
+    breakAfterComma();
+    new MutationObserver(breakAfterComma).observe(greeting, {
+      childList: true,
+      characterData: true,
+      subtree: true
+    });
+  })();
 </script>
 
 </body>

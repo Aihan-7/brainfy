@@ -13,7 +13,8 @@
    Background
 ========================= */
 body {
-  min-height: 100vh;
+  min-height: 100vh; /* fallback for older browsers */
+  min-height: 100dvh; /* iOS Safari: tracks the visible viewport, ignoring the collapsing toolbar */
   background:
     radial-gradient(circle at top, rgba(56,189,248,0.15), transparent 60%),
     linear-gradient(135deg, #020617, #0f172a);
@@ -73,7 +74,8 @@ body::after {
    Container
 ========================= */
 .container {
-  min-height: 100vh;
+  min-height: 100vh; /* fallback */
+  min-height: 100dvh; /* tracks iOS Safari's collapsing toolbar */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -2802,7 +2804,7 @@ body.reflection-answered #homeReflectionCard {
     left: 12px;
     right: 12px;
     width: auto;
-    max-height: calc(100vh - 84px);
+    max-height: calc(100dvh - 84px);
     overflow-y: auto;
     padding: 12px 12px 10px;
   }
@@ -3253,3 +3255,76 @@ body.performance-mode .flashcard.switching.slide-prev {
 }
 
 /* Active state specificity handled by consolidated :is() rules above */
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE POLISH PASS — global fixes for iOS Safari and small-screen
+   touch UX. Scope: anything that affects mobile-only behavior. Keep
+   desktop unchanged.
+
+   Covered here:
+   1. Kill the default tap-flash (the blue highlight on every tap)
+   2. Remove the residual 300ms tap delay via touch-action: manipulation
+   3. Stop iOS auto-zooming when a user taps any form input <16px
+   4. Safe-area-inset handling so bottom-fixed UI clears the home indicator
+   5. Touch-target floor (≥44×44) for known-small interactive elements
+   6. Selectively disable backdrop-filter on heavy/scroll-tracking
+      overlays on mobile — the blur re-rasterises every frame and is
+      the single biggest source of scroll/animation jank.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Kill the default tap-flash everywhere (desktop + mobile, both safe). */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Skip the legacy 300ms double-tap-to-zoom delay on interactive targets. */
+a, button, [role="button"], input, select, textarea, label {
+  touch-action: manipulation;
+}
+
+/* Bottom safe-area: keep content above the iPhone home indicator. */
+body { padding-bottom: env(safe-area-inset-bottom); }
+
+@media (max-width: 768px) {
+  /* iOS Safari auto-zooms whenever a form input's font-size is < 16px.
+     Forcing 16px stops the page from zooming on every tap into a field. */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* Bump known-small touch targets up to 44px — Apple HIG / WCAG 2.5.5. */
+  .tt-skip, .tt-next,
+  .founder-socials a, .meta-links a,
+  .faq summary {
+    min-height: 44px;
+  }
+  .tt-skip, .tt-next { display: inline-flex; align-items: center; }
+
+  /* Footer micro-links (Privacy / Terms) — give them tap room. */
+  .footer-link, footer a, .foot a {
+    padding: 6px 4px;
+    display: inline-block;
+  }
+
+  /* Backdrop-filter on a fixed full-height overlay (AI panel) or an
+     animated popover (tour tooltip) forces the GPU to re-rasterise the
+     blur on every frame. Drop it on mobile — the solid background reads
+     almost identically and the perf win is large. */
+  #aiPanel, #tourTooltip, .modal, .popover, .drawer {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Any element fixed flush to the bottom should clear the home indicator. */
+  #aiPanel, .tab-bar, .nav-bottom, .bottom-bar {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+/* Respect users who've turned reduce-motion on. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
