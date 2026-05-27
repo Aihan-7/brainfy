@@ -18,6 +18,7 @@ interface FlashCard {
   ease?:     number;   // SM-2 ease factor. Default 2.5. Clamped to [1.3, 2.5].
   reps?:     number;   // successful reviews ("good" or "easy") in a row.
   lapses?:   number;   // times rated "again" after the card graduated.
+  lastReviewedAt?: number;  // ms timestamp of most recent rating — for stats.
 }
 
 interface Doc {
@@ -351,6 +352,12 @@ const SRS_EASE_MAX     = 2.5;
 const SRS_EASE_DEFAULT = 2.5;
 const DAY_MS           = 86400000;
 
+// Anki-style daily cap on NEW cards (never-reviewed) per session. Without
+// this, a user with a freshly-imported 500-card deck would be shown all 500
+// at once — guaranteed burnout. The 20 default matches Anki's out-of-the-
+// box value; expose as a setting later if requested.
+const SRS_NEW_PER_SESSION = 20;
+
 function srsSchedule(card: FlashCard, rating: FcRating): FlashCard {
   const now = Date.now();
   let interval = card.interval ?? 0;
@@ -389,6 +396,7 @@ function srsSchedule(card: FlashCard, rating: FcRating): FlashCard {
     ease,
     reps,
     lapses,
+    lastReviewedAt: now,
   };
 }
 
@@ -427,6 +435,34 @@ function srsAllDue(now: number = Date.now()): DueEntry[] {
     }
   }
   return out;
+}
+
+// What the user will actually see in a review session = every due REVIEW
+// card (already-seen) plus at most SRS_NEW_PER_SESSION new ones. This is
+// the single source of truth — Home tile, sidebar badge, openReviewSession
+// all use this number so the user is never told "12 due" then shown 8.
+function srsSessionQueue(now: number = Date.now()): DueEntry[] {
+  const isNew = (c: FlashCard) => c.interval == null;
+  const all   = srsAllDue(now);
+  const review = all.filter(d => !isNew(d.card));
+  const news   = all.filter(d =>  isNew(d.card)).slice(0, SRS_NEW_PER_SESSION);
+  return [...review, ...news];
+}
+
+// Count cards rated within the last 24h, across all decks. Used for the
+// Stats tile. We anchor to a rolling 24h window rather than "since midnight
+// local time" so the number doesn't snap to zero at midnight while the user
+// is mid-session.
+function srsReviewedToday(now: number = Date.now()): number {
+  const cutoff = now - DAY_MS;
+  let n = 0;
+  for (const subj of S.subjects) {
+    if (!subj.cards?.length) continue;
+    for (const card of subj.cards) {
+      if (card.lastReviewedAt && card.lastReviewedAt >= cutoff) n++;
+    }
+  }
+  return n;
 }
 
 // ── Flashcard State ──────────────────────────────────────────────────────────
@@ -491,7 +527,9 @@ function openFlashcards(subjectId: number, mode: FcMode = 'review'): void {
 // Cross-deck review — pulls all due cards from every subject and walks
 // them in due-time order. Entry point: Home "Due now" tile.
 function openReviewSession(): void {
-  const due = srsAllDue();
+  // srsSessionQueue caps new cards at SRS_NEW_PER_SESSION (default 20). A
+  // user with 200 freshly-imported cards sees 20 today, not 200 → no burnout.
+  const due = srsSessionQueue();
   if (due.length === 0) {
     showToast('No cards are due right now. Nice!', 'success');
     return;
@@ -818,10 +856,10 @@ function userDoc(): any | null {
 function renderSidebarBadges(): void {
   const badge = el('sidebarDueBadge');
   if (!badge) return;
-  // Works for signed-out users too — local-only decks are also scheduled.
-  // srsAllDue() walks S.subjects; for a fresh user that's [] → count = 0
-  // → CSS hides the badge automatically via the attribute selector.
-  const count = srsAllDue().length;
+  // Single source of truth: the same capped count the user will see when
+  // they tap into a review session. Avoids the "badge says 50, session
+  // shows 12" mismatch.
+  const count = srsSessionQueue().length;
   badge.setAttribute('data-count', String(count));
   badge.textContent = String(count);
 }
@@ -1581,13 +1619,14 @@ function renderFocusTimeChart() {
   }
 }
 
-// Show / hide the "Due now" tile based on the live srsAllDue() count.
+// Show / hide the "Due now" tile based on the live srsSessionQueue() count.
 // Called from renderHome and after closeFlashcards() so the count updates
-// the moment a session finishes.
+// the moment a session finishes. Same capped count as the sidebar badge
+// and the review session itself.
 function renderHomeDueCards() {
   const tile  = el('homeDueCard');
   if (!tile) return;
-  const due   = srsAllDue();
+  const due   = srsSessionQueue();
   const count = due.length;
   if (count === 0) {
     tile.style.display = 'none';
@@ -3198,6 +3237,12 @@ function renderMilestoneCards(): void {
   // Total sessions
   const sessEl = el('statTotalSessions');
   if (sessEl) sessEl.textContent = String(totalSess);
+
+  // SRS — cards reviewed in the last 24h. Reads from card.lastReviewedAt
+  // (set in srsSchedule). Stays at 0 for users who never opened the
+  // flashcard modal — fine, the tile just shows 0.
+  const cardsEl = el('statCardsReviewed');
+  if (cardsEl) cardsEl.textContent = String(srsReviewedToday());
 
   // Focus level based on total sessions
   const levelEl = el('statFocusLevel');

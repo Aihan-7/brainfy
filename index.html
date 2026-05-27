@@ -2773,10 +2773,10 @@
       </div>
     </div>
 
-    <!-- Achievements -->
+    <!-- Achievements — auto-fit so the 5 tiles wrap nicely on narrow screens -->
     <div style="margin-bottom:20px;">
       <h2 style="font-size:16px;font-weight:700;margin-bottom:16px;">Milestones &amp; Achievements</h2>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;">
         <div class="glass" style="padding:20px;text-align:center;">
           <p style="font-size:11px;color:var(--muted);letter-spacing:0.08em;margin-bottom:8px;font-family:'Space Grotesk';">STREAK RECORD</p>
           <p id="statBestStreak" style="font-size:26px;font-weight:800;color:var(--plight);">—</p>
@@ -2788,6 +2788,10 @@
         <div class="glass" style="padding:20px;text-align:center;">
           <p style="font-size:11px;color:var(--muted);letter-spacing:0.08em;margin-bottom:8px;font-family:'Space Grotesk';">TOTAL SESSIONS</p>
           <p id="statTotalSessions" style="font-size:26px;font-weight:800;color:var(--green);">—</p>
+        </div>
+        <div class="glass" style="padding:20px;text-align:center;">
+          <p style="font-size:11px;color:var(--muted);letter-spacing:0.08em;margin-bottom:8px;font-family:'Space Grotesk';">CARDS / 24H</p>
+          <p id="statCardsReviewed" style="font-size:26px;font-weight:800;color:var(--cyan);">—</p>
         </div>
         <div class="glass" style="padding:20px;text-align:center;">
           <p style="font-size:11px;color:var(--muted);letter-spacing:0.08em;margin-bottom:8px;font-family:'Space Grotesk';">FOCUS LEVEL</p>
@@ -3732,7 +3736,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = '1779172800';
+  var APP_VERSION = '1779176400';
   window.APP_VERSION = APP_VERSION;  // exposed so script.js can include it in telemetry
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {
