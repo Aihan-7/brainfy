@@ -4284,6 +4284,59 @@
       subtree: true
     });
   })();
+
+  /* ═══════════════════════════════════════════════════════════════════
+     Flashcard Prev / Next: enable in every mode
+     ─────────────────────────────────────────────────────────────────
+     The shipped fcNav() is hard-gated to fc.mode === "browse", so the
+     Prev / Next buttons silently do nothing in SRS / review mode —
+     they're visible but dead. We can't just shadow window.fcNav from
+     here: script.js loads lazily AFTER this inline script, and its
+     `function fcNav(){}` declaration re-hoists onto window, clobbering
+     any earlier override.
+
+     Reliable workaround: when the flashcard modal opens, directly
+     reassign .onclick on the two nav buttons to a navigator that
+     advances fc.idx regardless of mode. This bypasses the inline
+     onclick="fcNav(±1)" attribute entirely. Rating buttons keep
+     driving SRS scheduling — this only adds free navigation. */
+  (function () {
+    const navigate = function (delta) {
+      if (typeof fc === 'undefined' || !fc.cards || fc.cards.length === 0) return;
+      fc.idx = Math.max(0, Math.min(fc.cards.length - 1, fc.idx + delta));
+      const card = document.getElementById('fcCard');
+      if (card) card.classList.remove('flipped');
+      if (typeof renderFC === 'function') renderFC();
+    };
+
+    const retargetButtons = function () {
+      const prev = document.querySelector('#flashcardModal button[onclick="fcNav(-1)"]');
+      const next = document.querySelector('#flashcardModal button[onclick="fcNav(1)"]');
+      if (prev && !prev.dataset.navPatched) {
+        prev.dataset.navPatched = '1';
+        prev.onclick = function (e) { e.preventDefault(); navigate(-1); };
+      }
+      if (next && !next.dataset.navPatched) {
+        next.dataset.navPatched = '1';
+        next.onclick = function (e) { e.preventDefault(); navigate(1); };
+      }
+    };
+
+    const modal = document.getElementById('flashcardModal');
+    if (!modal) return;
+    // Initial sweep (in case the modal exists in the DOM from page load).
+    retargetButtons();
+    // Re-sweep whenever the modal opens (class="open"). The buttons live
+    // inside the modal markup as static children, so they exist as long
+    // as the modal does — one patch per page-load is enough, but observe
+    // anyway in case the rating panel reshuffles them.
+    new MutationObserver(retargetButtons).observe(modal, {
+      attributes: true,
+      attributeFilter: ['class'],
+      childList: true,
+      subtree: true
+    });
+  })();
 </script>
 
 </body>
