@@ -17,19 +17,35 @@ const DEFAULT_MODELS = {
   anthropicVision:  'claude-haiku-4-5-20251001',
 };
 
-const SYSTEM_PROMPT = `You are an expert study assistant. Analyze the provided content and return a JSON object with exactly this structure:
+// Study mode (default) — auto-generated on the processing screen. Flashcards
+// + outline only; the summary is generated lazily later (summary mode).
+const STUDY_PROMPT = `You are an expert study assistant. Analyze the provided content and return a JSON object with exactly this structure:
 {
   "flashcards": [{"q": "question", "a": "answer"}, ...],
-  "summary": "A well-structured markdown summary with headings, bullet points and key concepts. 300-500 words.",
   "outline": ["Topic 1", "  • Subtopic 1a", "  • Subtopic 1b", "Topic 2", ...]
 }
 
 Rules:
-- Generate 8-15 high-quality flashcards covering key concepts
+- Generate AT LEAST 15 high-quality flashcards covering key concepts (aim for 15-25). Never return fewer than 15.
 - Flashcard questions should test real understanding, not trivial facts
-- Summary should use ## headings and bullet points
 - Outline should be a flat string array representing hierarchy with indentation
+- Do NOT include a summary field
 - Return ONLY the JSON, no markdown fences`;
+
+// Summary mode — generated on demand when the user clicks "Generate summary".
+const SUMMARY_PROMPT = `You are an expert study assistant. Analyze the provided content and return a JSON object with exactly this structure:
+{
+  "summary": "A comprehensive, well-structured markdown study summary. 700-1000 words."
+}
+
+Rules:
+- Write a thorough, in-depth summary of 700-1000 words — never fewer than 700 words.
+- Organize it into MULTIPLE sections using ## headings (e.g. Overview, Key Concepts, Important Details, Examples, Takeaways). Use as many sections as the content needs.
+- Under each heading use bullet points (- ) for facts, lists, and steps, and short paragraphs for explanations.
+- Define every important term, explain the reasoning behind key ideas, and include concrete examples where relevant.
+- Bold the most important keywords with **double asterisks**.
+- Cover the material comprehensively — do not omit significant topics from the source content.
+- Return ONLY the JSON object, no markdown fences, no commentary.`;
 
 function jsonResponse(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -132,7 +148,8 @@ export async function onRequestPost(context) {
   try { body = await request.json(); }
   catch (_) { return jsonResponse({ error: 'Invalid JSON body' }, 400); }
 
-  const { content, contentType, title, subjName, image } = body;
+  const { content, contentType, title, subjName, image, mode } = body;
+  const systemPrompt = mode === 'summary' ? SUMMARY_PROMPT : STUDY_PROMPT;
 
   // Build the user message in our internal shape (string vs multimodal).
   let userMsg;
@@ -158,12 +175,12 @@ export async function onRequestPost(context) {
   }
 
   try {
-    const text = await callAI(SYSTEM_PROMPT, userMsg, env);
+    const text = await callAI(systemPrompt, userMsg, env);
     let parsed;
     try {
       parsed = tryParse(text);
     } catch (firstErr) {
-      const stricter = SYSTEM_PROMPT + `
+      const stricter = systemPrompt + `
 
 ABSOLUTE OUTPUT REQUIREMENTS — your previous attempt produced invalid JSON.
 - Every string VALUE must be wrapped in matching " quotes.

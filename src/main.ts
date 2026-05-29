@@ -35,6 +35,11 @@ interface Doc {
   date:         number;
   storagePath?: string;          // Firebase Storage object path (for large files)
   downloadURL?: string;          // Cached signed URL for fetching from Storage
+  // Plain text the AI can read (extracted PDF/text, or a YouTube transcript).
+  // Persisted on AI-imported source docs so a summary can be generated later,
+  // after the import modal has been closed. Absent for images (vision uses the
+  // data URL in `content`) and for plain uploads with no extractable text.
+  aiText?:      string;
 }
 
 interface Subject {
@@ -1114,6 +1119,24 @@ function escapeHtml(s: unknown): string {
 // Short alias for inline use in templates
 const _e = escapeHtml;
 
+// Convert a small markdown subset (## / ### headings, * and - bullet lists,
+// **bold**, blank-line paragraphs) to HTML. The input is HTML-escaped FIRST so
+// any raw HTML/JS inside the content (AI output OR user-authored notes) is
+// inert — only our own generated tags survive. Used for AI summaries and the
+// in-app note viewer.
+function mdToHtml(md: string): string {
+  return _e(md)
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^### (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^\*\s+(.+)$/gm, '<li>$1</li>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/^(?!<[hup])/gm, '<p>')
+    .replace(/<p><\/p>/g, '');
+}
+
 // ── Icon registry (replaces Material Symbols font) ──────────────────────────
 // Lucide-style stroke icons (MIT). Keyed by the old Material Symbols names so
 // callers don't have to change. Path bodies only — the icon() helper wraps
@@ -1402,14 +1425,22 @@ document.addEventListener('keydown', e => {
 function renderHome() {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // First-run guided tour — only auto-show once, for users who haven't
-  // completed (or skipped) it. Wait for the enter animation + icon hydration
-  // to settle so target rects are accurate.
-  if (!S.tourSeen && !tourActive && S.sessions.length === 0) {
-    window.setTimeout(() => {
-      if (!S.tourSeen && currentView === 'home') startTour();
-    }, 700);
-  }
+  // Onboarding card shows until the user has completed all three setup steps
+  // (a subject, a doc, and a focus session). When the account is genuinely
+  // empty it also takes over the screen, hiding the wall-of-zeros metrics;
+  // once there's real data the card just sits above the live dashboard as a
+  // progress nudge.
+  const hasSubject     = S.subjects.length > 0;
+  const hasDoc         = S.subjects.some(s => (s.docs || 0) > 0);
+  const hasSession     = S.sessions.length > 0;
+  const onboardingDone = hasSubject && hasDoc && hasSession;
+  const isEmpty        = !hasSubject && !hasSession;
+  renderHomeOnboarding(!onboardingDone, isEmpty);
+
+  // The 3-step onboarding card is now the first-run experience, so the guided
+  // tour no longer auto-launches (its spotlight targets — stat cards, goal bar,
+  // focus chart — are hidden during the empty-state takeover anyway). The tour
+  // remains available on demand via window.startTour().
 
   // Greeting
   const hr = new Date().getHours();
@@ -1555,6 +1586,43 @@ function renderHome() {
   renderHomeTasks();
   renderHomeQuote();
   renderGoalProgress();
+}
+
+// Onboarding card lifecycle:
+//   showCard  — display the 3-step "Get Started" card (until all steps done).
+//   takeover  — also hide the metrics dashboard (only when truly empty, so a
+//               brand-new user isn't staring at a wall of zeros). Once there's
+//               real data the card just sits above the live dashboard.
+function renderHomeOnboarding(showCard: boolean, takeover: boolean): void {
+  const card  = el('homeOnboarding');
+  const stats = el('homeStatsGrid');
+  const goal  = el('homeGoalBar');
+  const main  = el('homeMainGrid');
+  if (!card) return;
+
+  card.style.display = showCard ? 'block' : 'none';
+  if (stats) stats.style.display = takeover ? 'none' : 'grid';
+  if (goal)  goal.style.display  = takeover ? 'none' : 'flex';
+  if (main)  main.style.display  = takeover ? 'none' : 'grid';
+
+  if (!showCard) return;
+
+  // Mark completed steps with a check so the card doubles as a progress tracker.
+  const hasSubject = S.subjects.length > 0;
+  const hasDoc     = S.subjects.some(s => (s.docs || 0) > 0);
+  const hasSession = S.sessions.length > 0;
+  el('onbStep1')?.classList.toggle('is-done', hasSubject);
+  el('onbStep2')?.classList.toggle('is-done', hasDoc);
+  el('onbStep3')?.classList.toggle('is-done', hasSession);
+
+  // Adapt the heading once they're partway through.
+  const heading = el('onbHeading');
+  if (heading) {
+    const remaining = [hasSubject, hasDoc, hasSession].filter(d => !d).length;
+    heading.textContent = remaining === 3
+      ? 'Three steps to your first study session'
+      : `Almost there — ${remaining} step${remaining === 1 ? '' : 's'} left to set up Brainfy`;
+  }
 }
 
 function renderGoalProgress() {
@@ -2246,6 +2314,12 @@ function renderLibrary() {
                   onmouseover="this.style.background='rgba(255,255,255,0.07)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
                   <span class="ms" style="font-size:15px;color:${s.color};flex-shrink:0;">${docIcon(d.type)}</span>
                   <span style="font-size:12px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_e(d.name)}</span>
+                  ${canSummarize(d) ? `
+                  <button onclick="event.stopPropagation();generateSummaryForDoc(${s.id},${d.id})" title="Generate AI summary"
+                    style="background:transparent;border:none;color:rgba(255,255,255,0.35);cursor:pointer;padding:2px;display:flex;align-items:center;flex-shrink:0;"
+                    onmouseover="this.style.color='var(--plight)'" onmouseout="this.style.color='rgba(255,255,255,0.35)'">
+                    <span class="ms" style="font-size:14px;${d.id === summarizingDocId ? 'animation:beamSpin 0.9s linear infinite;' : ''}">${d.id === summarizingDocId ? 'refresh' : 'auto_awesome'}</span>
+                  </button>` : ''}
                   <button onclick="event.stopPropagation();deleteDoc(${s.id},${d.id})"
                     style="background:transparent;border:none;color:rgba(255,255,255,0.2);cursor:pointer;padding:2px;display:flex;align-items:center;flex-shrink:0;"
                     onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(255,255,255,0.2)'">
@@ -2468,6 +2542,12 @@ function renderDocModal(): void {
                   <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_e(d.name)}</div>
                   <div style="font-size:10px;color:var(--muted);">${d.type.toUpperCase()}${d.size ? ' · ' + docSize(d.size) : ''} · ${timeAgo(d.date)}</div>
                 </div>
+                ${canSummarize(d) ? `
+                <button onclick="event.stopPropagation();generateSummaryForDoc(${docModalSubjId},${d.id})" title="Generate AI summary"
+                  style="background:transparent;border:none;color:rgba(255,255,255,0.4);cursor:pointer;padding:4px;display:flex;align-items:center;"
+                  onmouseover="this.style.color='var(--plight)'" onmouseout="this.style.color='rgba(255,255,255,0.4)'">
+                  <span class="ms" style="font-size:16px;${d.id === summarizingDocId ? 'animation:beamSpin 0.9s linear infinite;' : ''}">${d.id === summarizingDocId ? 'refresh' : 'auto_awesome'}</span>
+                </button>` : ''}
                 <button onclick="event.stopPropagation();deleteDoc(${docModalSubjId},${d.id});renderDocModal()"
                   style="background:transparent;border:none;color:rgba(255,255,255,0.2);cursor:pointer;padding:4px;display:flex;align-items:center;"
                   onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(255,255,255,0.2)'">
@@ -2688,6 +2768,68 @@ function addDocToSubject(doc: Doc, subjectIdOverride?: number): void {
   showToast(`"${doc.name}" added`, 'success');
 }
 
+// ── Generate a summary from an already-saved document ────────────────
+// Lets the user produce (or re-produce) the AI summary after the import
+// modal has been closed. We can only summarise docs that carry readable
+// content: AI-imported files/links keep their text in `aiText`, image files
+// are summarised via vision (the data URL in `content`), and notes are text
+// already. Generated "AI Summary" notes are excluded so they don't recurse.
+let summarizingDocId: number | null = null;
+
+function canSummarize(d: Doc): boolean {
+  if (d.name.startsWith('AI Summary')) return false;
+  if (d.type === 'note') return !!d.content;
+  if (d.type === 'link') return !!d.aiText;
+  if (d.type === 'file') return !!d.aiText || (d.mime || '').startsWith('image/');
+  return false;
+}
+
+async function generateSummaryForDoc(subjId: number, docId: number): Promise<void> {
+  if (summarizingDocId !== null) return;  // one at a time
+  const s = S.subjects.find(x => x.id === subjId);
+  const d = s?.documents?.find(x => x.id === docId);
+  if (!s || !d) return;
+
+  // Build the summary-mode payload from whatever the doc carries.
+  let payload: Record<string, unknown> | null = null;
+  const isImage = d.type === 'file' && (d.mime || '').startsWith('image/');
+  if (isImage && d.content) {
+    const b64 = d.content.replace(/^data:[^;]+;base64,/, '');
+    payload = { contentType: 'image', title: d.name, subjName: s.name, image: { b64, mime: d.mime || 'image/png' }, mode: 'summary' };
+  } else if (d.aiText) {
+    payload = { contentType: d.type === 'link' ? 'youtube' : 'file', title: d.name, subjName: s.name, content: d.aiText, mode: 'summary' };
+  } else if (d.type === 'note') {
+    payload = { contentType: 'file', title: d.name, subjName: s.name, content: d.content, mode: 'summary' };
+  }
+  if (!payload) { showToast('No readable text in this document to summarize', 'warning'); return; }
+
+  summarizingDocId = docId;
+  renderLibrary();
+  if (docModalSubjId === subjId) renderDocModal();
+  showToast('Generating summary…', 'info');
+  try {
+    const res = await fetch('/api/process-content', {
+      method: 'POST', headers: await aiHeaders(), body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || 'Summary generation failed');
+    const summary = (result.summary || '').trim();
+    if (!summary) throw new Error('Empty summary returned');
+    // Saved as a note doc — it then shows in the docs list and opens in the
+    // existing note viewer. addDocToSubject re-renders + toasts on its own.
+    const noteName = (`AI Summary — ${d.name}`).slice(0, 80);
+    addDocToSubject({ id: S.nextId++, name: noteName, type: 'note', content: summary, date: Date.now() }, subjId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    track('ai.summary.error', { message: msg });
+    showToast('Error: ' + msg, 'error');
+  } finally {
+    summarizingDocId = null;
+    renderLibrary();
+    if (docModalSubjId === subjId) renderDocModal();
+  }
+}
+
 function deleteDoc(subjId: number, docId: number): void {
   const s = S.subjects.find(x => x.id === subjId);
   if (!s) return;
@@ -2705,6 +2847,21 @@ function deleteDoc(subjId: number, docId: number): void {
   renderLibrary();
 }
 
+// Render a note (including AI-generated summaries) inline in the shared footer
+// modal instead of spawning a new browser tab. Content is markdown-rendered via
+// mdToHtml, which HTML-escapes first so note text can't inject markup/JS.
+function openNoteViewer(name: string, content: string): void {
+  const modal = el('footerModal');
+  const title = el('footerModalTitle');
+  const body  = el('footerModalBody');
+  if (!modal || !title || !body) return;
+  title.textContent = name;
+  body.innerHTML = `<div class="ai-summary">${mdToHtml(content)}</div>`;
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => modal.classList.add('open'));
+}
+
 function openDoc(subjId: number, docId: number): void {
   const s = S.subjects.find(x => x.id === subjId);
   const d = s?.documents?.find(x => x.id === docId);
@@ -2712,36 +2869,7 @@ function openDoc(subjId: number, docId: number): void {
   if (d.type === 'link') {
     window.open(d.content, '_blank', 'noopener');
   } else if (d.type === 'note') {
-    const w = window.open('', '_blank');
-    if (w) {
-      // Build the document via the DOM API instead of document.write(string).
-      // Any user content (note title + body) is set via textContent so HTML/JS
-      // inside the note cannot execute in the new window.
-      const doc = w.document;
-      doc.documentElement.lang = 'en';
-
-      const titleEl = doc.createElement('title');
-      titleEl.textContent = d.name;
-      doc.head.appendChild(titleEl);
-
-      const styleEl = doc.createElement('style');
-      styleEl.textContent =
-        'body{font-family:system-ui,sans-serif;max-width:700px;margin:40px auto;' +
-        'padding:20px;line-height:1.7;color:#1e293b;background:#fafafa;}' +
-        'h2{margin-bottom:18px;}' +
-        'pre{white-space:pre-wrap;font-family:inherit;font-size:15px;}';
-      doc.head.appendChild(styleEl);
-
-      const h2 = doc.createElement('h2');
-      h2.textContent = d.name;
-      doc.body.appendChild(h2);
-
-      const pre = doc.createElement('pre');
-      pre.textContent = d.content;
-      doc.body.appendChild(pre);
-
-      doc.close();
-    }
+    openNoteViewer(d.name, d.content);
   } else {
     // File — open in a new tab. Two cases:
     //   • Storage-backed (downloadURL set) → cross-origin URL, just navigate
@@ -2809,7 +2937,7 @@ async function deleteSubject(id: number): Promise<void> {
 
 interface AIImportResult {
   flashcards: { q: string; a: string }[];
-  summary:    string;
+  summary:    string;   // empty until the user generates it on the summary tab
   outline:    string[];
 }
 
@@ -2817,6 +2945,10 @@ let aiImportSubjId: number | null = null;
 let aiImportSource: 'file' | 'youtube' | null = null;
 let aiImportResult: AIImportResult | null = null;
 let aiImportResultTab: 'flashcards' | 'summary' | 'outline' = 'flashcards';
+// Source payload kept around after study-mode processing so the summary can be
+// generated lazily (same content, mode:'summary') when the user asks for it.
+let aiImportSourcePayload: Record<string, unknown> | null = null;
+let aiSummaryLoading = false;
 
 // ── Picker popup ─────────────────────────────────
 function openAIImportPicker(subjId: number, anchorEl: HTMLElement): void {
@@ -2861,6 +2993,8 @@ function startAIImport(source: 'file' | 'youtube'): void {
   closeAIImportPicker();
   aiImportSource = source;
   aiImportResult = null;
+  aiImportSourcePayload = null;
+  aiSummaryLoading = false;
   const s      = S.subjects.find(x => x.id === aiImportSubjId);
   const nameEl = el('aiImportSubjName');
   if (nameEl && s) nameEl.textContent = s.name;
@@ -2970,7 +3104,7 @@ function renderProcessing(): string {
       <div id="procStepSub" class="step-label" style="font-size:12px;color:var(--muted);">Hang tight — this takes about 10 seconds</div>
       <!-- Step dots -->
       <div style="display:flex;justify-content:center;gap:6px;margin-top:24px;">
-        ${['Reading','Analysing','Flashcards','Notes'].map((s,i) => `
+        ${['Reading','Analysing','Flashcards','Outline'].map((s,i) => `
           <div style="display:flex;flex-direction:column;align-items:center;gap:5px;">
             <div id="stepDot${i}" style="width:8px;height:8px;border-radius:50%;background:${i===0?'var(--primary)':'rgba(255,255,255,0.12)'};transition:background 0.3s ease;"></div>
             <div style="font-size:9px;color:var(--muted);font-family:'Space Grotesk';letter-spacing:0.04em;">${s.toUpperCase()}</div>
@@ -3003,17 +3137,26 @@ function renderResult(): string {
       `).join('')}
     </div>`;
   } else if (aiImportResultTab === 'summary') {
-    // Convert basic markdown to HTML
-    const html = r.summary
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^### (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^\*\s+(.+)$/gm, '<li>$1</li>')
-      .replace(/^- (.+)$/gm, '<li>$1</li>')
-      .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/^(?!<[hup])/gm, '<p>').replace(/<p><\/p>/g, '');
-    tabContent = `<div class="ai-summary" style="max-height:320px;overflow-y:auto;padding-right:4px;">${html}</div>`;
+    if (aiSummaryLoading) {
+      tabContent = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:48px 24px;text-align:center;">
+        <span class="ms" style="font-size:32px;color:var(--plight);animation:beamSpin 0.9s linear infinite;">refresh</span>
+        <div style="font-size:13px;font-weight:600;color:var(--text);">Writing your summary…</div>
+        <div style="font-size:11px;color:var(--muted);">This takes about 10 seconds</div>
+      </div>`;
+    } else if (!r.summary) {
+      tabContent = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:40px 24px;text-align:center;">
+        <div style="width:52px;height:52px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.25);border-radius:14px;display:flex;align-items:center;justify-content:center;">
+          <span class="ms" style="font-size:26px;color:var(--plight);">article</span>
+        </div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);">No summary yet</div>
+        <div style="font-size:12px;color:var(--muted);max-width:320px;line-height:1.5;">Generate a structured markdown summary of this content whenever you need it.</div>
+        <button onclick="generateSummary()" class="btn-primary" style="margin-top:4px;padding:10px 18px;font-size:13px;border-radius:10px;display:flex;align-items:center;gap:7px;">
+          <span class="ms" style="font-size:17px;">auto_awesome</span> Generate summary
+        </button>
+      </div>`;
+    } else {
+      tabContent = `<div class="ai-summary" style="max-height:320px;overflow-y:auto;padding-right:4px;">${mdToHtml(r.summary)}</div>`;
+    }
   } else {
     tabContent = `<div style="max-height:320px;overflow-y:auto;padding-right:4px;display:flex;flex-direction:column;gap:3px;">
       ${r.outline.map(line => {
@@ -3030,7 +3173,7 @@ function renderResult(): string {
         <span class="ms" style="font-size:22px;color:var(--green);">check_circle</span>
         <div>
           <div style="font-size:13px;font-weight:700;color:var(--green);">Study materials ready!</div>
-          <div style="font-size:11px;color:var(--muted);">${r.flashcards.length} flashcards · summary · outline generated</div>
+          <div style="font-size:11px;color:var(--muted);">${r.flashcards.length} flashcards · outline generated${r.summary ? ' · summary' : ''}</div>
         </div>
       </div>
       <!-- Tabs -->
@@ -3054,6 +3197,31 @@ function renderResult(): string {
 function setAIResultTab(tab: typeof aiImportResultTab): void {
   aiImportResultTab = tab;
   renderAIImportStep('result');
+}
+
+// Lazily generate the summary from the cached source content (summary mode).
+async function generateSummary(): Promise<void> {
+  if (!aiImportResult || !aiImportSourcePayload || aiSummaryLoading) return;
+  aiSummaryLoading = true;
+  aiImportResultTab = 'summary';
+  renderAIImportStep('result');
+  try {
+    const res = await fetch('/api/process-content', {
+      method: 'POST', headers: await aiHeaders(),
+      body: JSON.stringify({ ...aiImportSourcePayload, mode: 'summary' }),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || 'Summary generation failed');
+    aiImportResult.summary = result.summary || '';
+    if (!aiImportResult.summary) throw new Error('Empty summary returned');
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    track('ai.summary.error', { message: msg });
+    showToast('Error: ' + msg, 'error');
+  } finally {
+    aiSummaryLoading = false;
+    renderAIImportStep('result');
+  }
 }
 
 // ── File handling ────────────────────────────────
@@ -3275,22 +3443,29 @@ async function processYouTube(): Promise<void> {
     advanceProcStep(2, 'Generating flashcards…', 'AI is extracting key concepts');
 
     const s = S.subjects.find(x => x.id === aiImportSubjId);
+    const payload = { content: info.transcript, contentType: 'youtube', title: info.title, subjName: s?.name || '' };
+    aiImportSourcePayload = payload;
     const procRes = await fetch('/api/process-content', {
       method: 'POST', headers: await aiHeaders(),
-      body: JSON.stringify({ content: info.transcript, contentType: 'youtube', title: info.title, subjName: s?.name || '' }),
+      body: JSON.stringify({ ...payload, mode: 'study' }),
     });
     const result = await procRes.json();
     if (!procRes.ok) throw new Error(result.error || 'AI processing failed');
 
-    advanceProcStep(3, 'Preparing notes…', 'Almost done!');
+    advanceProcStep(3, 'Building outline…', 'Almost done!');
     await new Promise(r => setTimeout(r, 400));
 
-    aiImportResult = result;
+    aiImportResult = { flashcards: result.flashcards || [], outline: result.outline || [], summary: '' };
     aiImportResultTab = 'flashcards';
 
-    // Auto-save the YouTube video as a link doc
+    // Auto-save the YouTube video as a link doc. Pass aiImportSubjId
+    // explicitly (the import flow never opens the doc modal, so the
+    // docModalSubjId fallback would be null). Keep the transcript as aiText
+    // so a summary can be generated later from the saved doc.
     if (aiImportSubjId !== null) {
-      addDocToSubject({ id: S.nextId++, name: info.title, type: 'link', content: url, date: Date.now() });
+      const doc: Doc = { id: S.nextId++, name: info.title, type: 'link', content: url, date: Date.now() };
+      if (info.transcript) doc.aiText = String(info.transcript).slice(0, 12000);
+      addDocToSubject(doc, aiImportSubjId);
     }
 
     renderAIImportStep('result');
@@ -3344,27 +3519,32 @@ async function processFile(): Promise<void> {
       };
     }
 
+    aiImportSourcePayload = body;
     const procRes = await fetch('/api/process-content', {
       method: 'POST', headers: await aiHeaders(),
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, mode: 'study' }),
     });
 
     advanceProcStep(2, 'Generating flashcards…', 'AI is creating study cards');
     const result = await procRes.json();
     if (!procRes.ok) throw new Error(result.error || 'Processing failed');
 
-    advanceProcStep(3, 'Preparing notes…', 'Finishing up');
+    advanceProcStep(3, 'Building outline…', 'Finishing up');
     await new Promise(r => setTimeout(r, 400));
 
-    aiImportResult = result;
+    aiImportResult = { flashcards: result.flashcards || [], outline: result.outline || [], summary: '' };
     aiImportResultTab = 'flashcards';
 
     // Auto-save the original file as a doc. For text we save the text itself;
     // for PDFs/images we save the data URL so the user can re-open the file
-    // unchanged from the library.
+    // unchanged from the library. Pass aiImportSubjId explicitly — the import
+    // flow never opens the doc modal, so addDocToSubject's docModalSubjId
+    // fallback would be null and silently drop the doc.
     if (aiImportSubjId !== null) {
       const docContent = kind === 'text' ? (fd.text || '') : (fd.dataUrl || '');
-      addDocToSubject({ id: S.nextId++, name, type: 'file', content: docContent, mime, size, date: Date.now() });
+      const doc: Doc = { id: S.nextId++, name, type: 'file', content: docContent, mime, size, date: Date.now() };
+      if (kind !== 'image' && fd.text) doc.aiText = fd.text.slice(0, 12000);
+      addDocToSubject(doc, aiImportSubjId);
     }
 
     renderAIImportStep('result');
@@ -3402,7 +3582,8 @@ function saveAIResults(): void {
   save();
   renderLibrary();
   closeAIImport();
-  showToast(`${newCards.length} flashcards + summary saved to ${s.name}`, 'success');
+  const savedSummary = !!aiImportResult.summary;
+  showToast(`${newCards.length} flashcards${savedSummary ? ' + summary' : ''} saved to ${s.name}`, 'success');
 }
 
 // ── STATS ────────────────────────────────────────────────────────────────────
@@ -4115,6 +4296,13 @@ function initEvents() {
 
   // View all library
   el('viewAllBtn')?.addEventListener('click', () => goTo('library'));
+
+  // First-run onboarding step CTAs. Each step opens the natural entry point
+  // for that action; renderHomeOnboarding() flips the card off once the user
+  // has any subject + session, so these handlers only fire during first-run.
+  el('onbStep1')?.addEventListener('click', () => { void showAddSubject(); });
+  el('onbStep2')?.addEventListener('click', () => goTo('library'));
+  el('onbStep3')?.addEventListener('click', () => goTo('focus'));
 
   // Focus: preset buttons. The active style (.preset-btn.active-preset) is
   // defined in index.html — don't re-inject a style block here, it just

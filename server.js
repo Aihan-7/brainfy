@@ -97,11 +97,14 @@ async function callGroq(body) {
   if (body.system) messages.push({ role: 'system', content: body.system });
   messages.push(...(body.messages || []));
 
+  const payload = { model: body.model || MODEL, messages, max_tokens: body.max_tokens || 1024 };
+  if (body.response_format) payload.response_format = body.response_format;
+
   const result = await httpsPost(
     'api.groq.com',
     '/openai/v1/chat/completions',
     { Authorization: `Bearer ${GROQ_KEY}` },
-    { model: body.model || MODEL, messages, max_tokens: body.max_tokens || 1024 }
+    payload
   );
 
   if (result.status === 200) {
@@ -330,28 +333,45 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── POST /api/process-content ─────────────────
-  //  Body: { content, contentType, title, subjName, image? }
+  //  Body: { content, contentType, title, subjName, image?, mode? }
   //   contentType: 'file' | 'youtube' | 'image'
   //   image (only when contentType==='image'): { b64, mime }
-  //  Returns: { flashcards:[{q,a}], summary, outline }
+  //   mode: 'study' (default) → { flashcards, outline } | 'summary' → { summary }
   if (req.method === 'POST' && pathname === '/api/process-content') {
     if (!PROVIDER) { json(503, { error: 'AI not configured' }); return; }
     try {
-      const { content, contentType, title, subjName, image } = await readBody(req);
+      const { content, contentType, title, subjName, image, mode } = await readBody(req);
 
-      const systemPrompt = `You are an expert study assistant. Analyze the provided content and return a JSON object with exactly this structure:
+      // Study mode (default): flashcards + outline, auto-generated on the
+      // processing screen. Summary mode: just the summary, on demand.
+      const STUDY_PROMPT = `You are an expert study assistant. Analyze the provided content and return a JSON object with exactly this structure:
 {
   "flashcards": [{"q": "question", "a": "answer"}, ...],
-  "summary": "A well-structured markdown summary with headings, bullet points and key concepts. 300-500 words.",
   "outline": ["Topic 1", "  • Subtopic 1a", "  • Subtopic 1b", "Topic 2", ...]
 }
 
 Rules:
-- Generate 8-15 high-quality flashcards covering key concepts
+- Generate AT LEAST 15 high-quality flashcards covering key concepts (aim for 15-25). Never return fewer than 15.
 - Flashcard questions should test real understanding, not trivial facts
-- Summary should use ## headings and bullet points
 - Outline should be a flat string array representing hierarchy with indentation
+- Do NOT include a summary field
 - Return ONLY the JSON, no markdown fences`;
+
+      const SUMMARY_PROMPT = `You are an expert study assistant. Analyze the provided content and return a JSON object with exactly this structure:
+{
+  "summary": "A comprehensive, well-structured markdown study summary. 700-1000 words."
+}
+
+Rules:
+- Write a thorough, in-depth summary of 700-1000 words — never fewer than 700 words.
+- Organize it into MULTIPLE sections using ## headings (e.g. Overview, Key Concepts, Important Details, Examples, Takeaways). Use as many sections as the content needs.
+- Under each heading use bullet points (- ) for facts, lists, and steps, and short paragraphs for explanations.
+- Define every important term, explain the reasoning behind key ideas, and include concrete examples where relevant.
+- Bold the most important keywords with **double asterisks**.
+- Cover the material comprehensively — do not omit significant topics from the source content.
+- Return ONLY the JSON object, no markdown fences, no commentary.`;
+
+      const systemPrompt = mode === 'summary' ? SUMMARY_PROMPT : STUDY_PROMPT;
 
       const isImage = contentType === 'image';
       if (isImage && (!image || !image.b64)) {
@@ -381,20 +401,44 @@ Rules:
         userContent = userText;
       }
 
-      const aiBody = {
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userContent }],
-        max_tokens: 4096,
+      // Mirror the Cloudflare function: ask the model for one shot, and if the
+      // returned text isn't valid JSON (usually a markdown blob with unescaped
+      // newlines), retry once with a stricter prompt rather than failing.
+      const tryParse = (text) => {
+        const clean = text.replace(/^```(?:json)?\n?/,'').replace(/\n?```$/,'').trim();
+        return JSON.parse(clean);
       };
-      if (isImage) aiBody.model = VISION_MODEL;
+      const runAI = async (sys) => {
+        const aiBody = {
+          system: sys,
+          messages: [{ role: 'user', content: userContent }],
+          max_tokens: 4096,
+        };
+        if (isImage) aiBody.model = VISION_MODEL;
+        // Groq text models support server-enforced JSON mode; vision models
+        // reject response_format, so only set it on the text path.
+        else if (PROVIDER === 'groq') aiBody.response_format = { type: 'json_object' };
+        return callAI(aiBody);
+      };
 
-      const result = await callAI(aiBody);
+      const result = await runAI(systemPrompt);
       if (result.status !== 200) { json(result.status, result.body); return; }
 
-      const text = result.body.content?.[0]?.text || '';
-      // Strip potential markdown fences
-      const clean = text.replace(/^```(?:json)?\n?/,'').replace(/\n?```$/,'').trim();
-      const parsed = JSON.parse(clean);
+      let parsed;
+      try {
+        parsed = tryParse(result.body.content?.[0]?.text || '');
+      } catch (_) {
+        const stricter = systemPrompt + `
+
+ABSOLUTE OUTPUT REQUIREMENTS — your previous attempt produced invalid JSON.
+- Every string VALUE must be wrapped in matching " quotes.
+- Inside string values, escape newlines as \\n and quotes as \\".
+- Do not put bare markdown after a colon. Field values are STRINGS.
+- Output ONLY the JSON object. No prose, no fences, no commentary.`;
+        const retry = await runAI(stricter);
+        if (retry.status !== 200) { json(retry.status, retry.body); return; }
+        parsed = tryParse(retry.body.content?.[0]?.text || '');
+      }
       json(200, parsed);
     } catch(e) {
       json(500, { error: e.message });

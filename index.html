@@ -413,6 +413,16 @@
     .hd-stat:nth-child(4) { animation-delay: 0.26s; }
     .hd-stat:hover { transform: translateY(-3px) !important; box-shadow: 0 8px 28px rgba(0,0,0,0.3); border-color: rgba(255,255,255,0.12); transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; }
 
+    /* ══ Onboarding step cards ══ */
+    .onb-step:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.18) !important; background: rgba(255,255,255,0.05) !important; }
+    .onb-step.is-done { opacity: 0.55; }
+    .onb-step.is-done .onb-check { display: inline !important; }
+    .onb-step.is-done .onb-cta { color: var(--green) !important; }
+    @media (max-width: 768px) {
+      #homeOnboarding > div:last-child { grid-template-columns: 1fr !important; }
+      #homeOnboarding { padding: 22px 18px !important; }
+    }
+
     /* ══ Chart bar grow animation ══ */
     @keyframes barGrow {
       from { transform: scaleY(0); transform-origin: bottom; }
@@ -2232,8 +2242,61 @@
       </button>
     </div>
 
+    <!-- ── First-run onboarding (shown when user has no subjects and no sessions) ── -->
+    <div id="homeOnboarding" class="glass" style="display:none;padding:30px 32px;border-radius:18px;margin-bottom:22px;position:relative;overflow:hidden;">
+      <div style="position:absolute;top:-60px;right:-60px;width:240px;height:240px;background:radial-gradient(circle,rgba(124,58,237,0.14),transparent 70%);pointer-events:none;"></div>
+      <div style="position:absolute;bottom:-80px;left:-40px;width:220px;height:220px;background:radial-gradient(circle,rgba(76,215,246,0.10),transparent 70%);pointer-events:none;"></div>
+
+      <div style="position:relative;z-index:1;margin-bottom:22px;max-width:560px;">
+        <p style="font-size:11px;letter-spacing:0.16em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;margin-bottom:8px;">GET STARTED</p>
+        <h3 id="onbHeading" style="font-size:22px;font-weight:800;color:white;letter-spacing:-0.02em;margin-bottom:8px;line-height:1.2;">Three steps to your first study session</h3>
+        <p style="font-size:13px;color:var(--muted);line-height:1.55;">Brainfy turns your notes into flashcards, then helps you study them with focus timers, an AI tutor, and spaced-repetition review.</p>
+      </div>
+
+      <div style="position:relative;z-index:1;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+        <!-- Step 1 -->
+        <button id="onbStep1" class="onb-step" style="text-align:left;padding:20px;border-radius:14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);cursor:pointer;transition:transform .15s ease,border-color .18s ease,background .18s ease;display:flex;flex-direction:column;gap:10px;color:inherit;font-family:inherit;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,rgba(124,58,237,0.35),rgba(124,58,237,0.15));border:1px solid rgba(124,58,237,0.4);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:white;font-family:'Space Grotesk';">1</div>
+            <span class="onb-check ms" style="display:none;font-size:20px;color:var(--green);">check_circle</span>
+          </div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:white;margin-bottom:4px;">Add a subject</div>
+            <div style="font-size:12px;color:var(--muted);line-height:1.5;">Create a topic to study — like "Biology" or "Calculus".</div>
+          </div>
+          <div class="onb-cta" style="margin-top:auto;font-size:11px;letter-spacing:0.08em;font-family:'Space Grotesk';color:var(--plight);font-weight:700;">CREATE SUBJECT →</div>
+        </button>
+
+        <!-- Step 2 -->
+        <button id="onbStep2" class="onb-step" style="text-align:left;padding:20px;border-radius:14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);cursor:pointer;transition:transform .15s ease,border-color .18s ease,background .18s ease;display:flex;flex-direction:column;gap:10px;color:inherit;font-family:inherit;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,rgba(76,215,246,0.35),rgba(76,215,246,0.15));border:1px solid rgba(76,215,246,0.4);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:white;font-family:'Space Grotesk';">2</div>
+            <span class="onb-check ms" style="display:none;font-size:20px;color:var(--green);">check_circle</span>
+          </div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:white;margin-bottom:4px;">Add notes — get flashcards</div>
+            <div style="font-size:12px;color:var(--muted);line-height:1.5;">Drop in a PDF, paste notes, or link a YouTube lecture. AI builds flashcards from it.</div>
+          </div>
+          <div class="onb-cta" style="margin-top:auto;font-size:11px;letter-spacing:0.08em;font-family:'Space Grotesk';color:var(--cyan);font-weight:700;">OPEN LIBRARY →</div>
+        </button>
+
+        <!-- Step 3 -->
+        <button id="onbStep3" class="onb-step" style="text-align:left;padding:20px;border-radius:14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);cursor:pointer;transition:transform .15s ease,border-color .18s ease,background .18s ease;display:flex;flex-direction:column;gap:10px;color:inherit;font-family:inherit;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,rgba(78,222,163,0.35),rgba(78,222,163,0.15));border:1px solid rgba(78,222,163,0.4);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:white;font-family:'Space Grotesk';">3</div>
+            <span class="onb-check ms" style="display:none;font-size:20px;color:var(--green);">check_circle</span>
+          </div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:white;margin-bottom:4px;">Start a focus session</div>
+            <div style="font-size:12px;color:var(--muted);line-height:1.5;">25-minute Pomodoro timer with ambient sound. Your streak starts here.</div>
+          </div>
+          <div class="onb-cta" style="margin-top:auto;font-size:11px;letter-spacing:0.08em;font-family:'Space Grotesk';color:var(--green);font-weight:700;">START SESSION →</div>
+        </button>
+      </div>
+    </div>
+
     <!-- ── 4 Animated Stat Cards ── -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;">
+    <div id="homeStatsGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;">
 
       <!-- Focus Time -->
       <div class="glass hd-stat" style="padding:20px;border-radius:16px;position:relative;overflow:hidden;cursor:default;">
@@ -2304,7 +2367,7 @@
     </div>
 
     <!-- ── Daily Goal Progress ── -->
-    <div class="glass" style="padding:16px 20px;border-radius:14px;margin-bottom:20px;display:flex;align-items:center;gap:16px;">
+    <div id="homeGoalBar" class="glass" style="padding:16px 20px;border-radius:14px;margin-bottom:20px;display:flex;align-items:center;gap:16px;">
       <div style="width:38px;height:38px;background:rgba(124,58,237,0.12);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(124,58,237,0.2);">
         <span class="ms" style="color:var(--plight);font-size:20px;">flag</span>
       </div>
@@ -2324,7 +2387,7 @@
     </div>
 
     <!-- ── Main Content Grid ── -->
-    <div style="display:grid;grid-template-columns:1fr 292px;gap:18px;margin-bottom:18px;align-items:start;">
+    <div id="homeMainGrid" style="display:grid;grid-template-columns:1fr 292px;gap:18px;margin-bottom:18px;align-items:start;">
 
       <!-- Left column -->
       <div style="display:flex;flex-direction:column;gap:18px;">
