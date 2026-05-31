@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Free A-level Revision App | Brainfy</title>
   <meta name="description" content="A free A-level revision app: turn class notes and past-paper mark schemes into flashcards, drill with spaced repetition, and plan your weeks. AQA, Edexcel, OCR." />
-  <meta name="keywords" content="a level revision app, free a level revision, a level flashcards, a level spaced repetition, past paper flashcards" />
+  <meta name="author" content="Aihan Mifthas" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="theme-color" content="#0b1326" />
   <link rel="canonical" href="https://brainfy.online/a-level-revision-app.html" />
@@ -30,6 +30,51 @@
   "@context": "https://schema.org",
   "@graph": [
     {
+      "@type": "Organization",
+      "@id": "https://brainfy.online/#org",
+      "name": "Brainfy",
+      "url": "https://brainfy.online/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://brainfy.online/og-image.png",
+        "width": 1200,
+        "height": 630
+      },
+      "description": "A free AI-powered study app: AI flashcards, spaced repetition, an AI tutor, and a focus timer.",
+      "founder": {
+        "@id": "https://brainfy.online/#aihan"
+      },
+      "sameAs": [
+        "https://github.com/Aihan-7",
+        "https://www.instagram.com/stillaihantho_/",
+        "https://www.facebook.com/aihan.mifthas.16"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://brainfy.online/#website",
+      "url": "https://brainfy.online/",
+      "name": "Brainfy",
+      "publisher": {
+        "@id": "https://brainfy.online/#org"
+      },
+      "inLanguage": "en"
+    },
+    {
+      "@type": "Person",
+      "@id": "https://brainfy.online/#aihan",
+      "name": "Aihan Mifthas",
+      "url": "https://brainfy.online/founder.html",
+      "jobTitle": "Founder & CEO",
+      "worksFor": {
+        "@id": "https://brainfy.online/#org"
+      },
+      "sameAs": [
+        "https://github.com/Aihan-7",
+        "https://www.instagram.com/stillaihantho_/"
+      ]
+    },
+    {
       "@type": "SoftwareApplication",
       "@id": "https://brainfy.online/a-level-revision-app.html#app",
       "name": "Brainfy — A-level Revision App",
@@ -44,6 +89,9 @@
       },
       "publisher": {
         "@id": "https://brainfy.online/#org"
+      },
+      "isPartOf": {
+        "@id": "https://brainfy.online/#website"
       }
     },
     {
@@ -58,6 +106,12 @@
         {
           "@type": "ListItem",
           "position": 2,
+          "name": "Resources",
+          "item": "https://brainfy.online/resources.html"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
           "name": "A-level Revision App",
           "item": "https://brainfy.online/a-level-revision-app.html"
         }
@@ -159,6 +213,8 @@
     .crosslinks strong { display:block; color:#fff; font-weight:700; margin-bottom:4px; font-size:14px; }
     .crosslinks span { color:var(--muted); font-size:12px; }
     hr { border:none; border-top:1px solid var(--border); margin:44px 0 24px; }
+    .byline { font-size:13px; color:var(--muted); margin:-6px 0 26px; }
+    .byline a { color:var(--plight); }
     .foot { color:var(--muted); font-size:13px; }
   </style>
 </head>
@@ -171,6 +227,7 @@
 
     <p class="eyebrow">Revision · A-level</p>
     <h1>A Free A-level Revision App That Covers the Whole Workflow</h1>
+    
     <p class="lede">A-levels reward depth and consistency, not last-minute cramming. Brainfy helps you <strong>turn your class notes and past-paper mark schemes into flashcards</strong>, schedules them with spaced repetition, and plans your study weeks so two years of content stays in reach.</p>
 
     <div class="cta-row">

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>AI Flashcards for Medical School — Brainfy</title>
   <meta name="description" content="Turn lecture slides, first-aid notes, and PDFs into spaced-repetition flashcards for medical school. Free AI deck generation built for high-volume memorisation." />
-  <meta name="keywords" content="medical school flashcards, AI flashcards med school, anki alternative med school, USMLE flashcards, spaced repetition medicine" />
+  <meta name="author" content="Aihan Mifthas" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="theme-color" content="#0b1326" />
   <link rel="canonical" href="https://brainfy.online/ai-flashcards-for-medical-school.html" />
@@ -30,6 +30,51 @@
   "@context": "https://schema.org",
   "@graph": [
     {
+      "@type": "Organization",
+      "@id": "https://brainfy.online/#org",
+      "name": "Brainfy",
+      "url": "https://brainfy.online/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://brainfy.online/og-image.png",
+        "width": 1200,
+        "height": 630
+      },
+      "description": "A free AI-powered study app: AI flashcards, spaced repetition, an AI tutor, and a focus timer.",
+      "founder": {
+        "@id": "https://brainfy.online/#aihan"
+      },
+      "sameAs": [
+        "https://github.com/Aihan-7",
+        "https://www.instagram.com/stillaihantho_/",
+        "https://www.facebook.com/aihan.mifthas.16"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://brainfy.online/#website",
+      "url": "https://brainfy.online/",
+      "name": "Brainfy",
+      "publisher": {
+        "@id": "https://brainfy.online/#org"
+      },
+      "inLanguage": "en"
+    },
+    {
+      "@type": "Person",
+      "@id": "https://brainfy.online/#aihan",
+      "name": "Aihan Mifthas",
+      "url": "https://brainfy.online/founder.html",
+      "jobTitle": "Founder & CEO",
+      "worksFor": {
+        "@id": "https://brainfy.online/#org"
+      },
+      "sameAs": [
+        "https://github.com/Aihan-7",
+        "https://www.instagram.com/stillaihantho_/"
+      ]
+    },
+    {
       "@type": "SoftwareApplication",
       "@id": "https://brainfy.online/ai-flashcards-for-medical-school.html#app",
       "name": "Brainfy — AI Flashcards for Med School",
@@ -44,6 +89,9 @@
       },
       "publisher": {
         "@id": "https://brainfy.online/#org"
+      },
+      "isPartOf": {
+        "@id": "https://brainfy.online/#website"
       }
     },
     {
@@ -58,6 +106,12 @@
         {
           "@type": "ListItem",
           "position": 2,
+          "name": "Resources",
+          "item": "https://brainfy.online/resources.html"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
           "name": "AI Flashcards for Med School",
           "item": "https://brainfy.online/ai-flashcards-for-medical-school.html"
         }
@@ -151,6 +205,8 @@
     .crosslinks strong { display:block; color:#fff; font-weight:700; margin-bottom:4px; font-size:14px; }
     .crosslinks span { color:var(--muted); font-size:12px; }
     hr { border:none; border-top:1px solid var(--border); margin:44px 0 24px; }
+    .byline { font-size:13px; color:var(--muted); margin:-6px 0 26px; }
+    .byline a { color:var(--plight); }
     .foot { color:var(--muted); font-size:13px; }
   </style>
 </head>
@@ -163,6 +219,7 @@
 
     <p class="eyebrow">Use case · Medical school</p>
     <h1>AI Flashcards for Medical School</h1>
+    
     <p class="lede">Med school is a memory marathon — thousands of facts, fast. Brainfy turns your <strong>lecture slides, PDFs, and notes into spaced-repetition flashcards</strong> automatically, so you spend your hours recalling rather than retyping.</p>
 
     <div class="cta-row">

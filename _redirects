@@ -1,0 +1,5 @@
+# Cloudflare Pages redirects.
+# Force the apex (non-www) host so www and apex never serve duplicate content.
+# Canonicals already point to https://brainfy.online/ — this enforces it at the
+# server so link equity consolidates on one host.
+https://www.brainfy.online/* https://brainfy.online/:splat 301!

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>A Free Anki Alternative With AI Flashcards | Brainfy</title>
   <meta name="description" content="Brainfy is a free Anki alternative with the same spaced-repetition core, plus AI deck generation and a cleaner interface. Import and export decks — no lock-in." />
-  <meta name="keywords" content="anki alternative, free anki alternative, anki vs brainfy, spaced repetition app like anki, anki with AI" />
+  <meta name="author" content="Aihan Mifthas" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="theme-color" content="#0b1326" />
   <link rel="canonical" href="https://brainfy.online/free-anki-alternative.html" />
@@ -30,6 +30,51 @@
   "@context": "https://schema.org",
   "@graph": [
     {
+      "@type": "Organization",
+      "@id": "https://brainfy.online/#org",
+      "name": "Brainfy",
+      "url": "https://brainfy.online/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://brainfy.online/og-image.png",
+        "width": 1200,
+        "height": 630
+      },
+      "description": "A free AI-powered study app: AI flashcards, spaced repetition, an AI tutor, and a focus timer.",
+      "founder": {
+        "@id": "https://brainfy.online/#aihan"
+      },
+      "sameAs": [
+        "https://github.com/Aihan-7",
+        "https://www.instagram.com/stillaihantho_/",
+        "https://www.facebook.com/aihan.mifthas.16"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://brainfy.online/#website",
+      "url": "https://brainfy.online/",
+      "name": "Brainfy",
+      "publisher": {
+        "@id": "https://brainfy.online/#org"
+      },
+      "inLanguage": "en"
+    },
+    {
+      "@type": "Person",
+      "@id": "https://brainfy.online/#aihan",
+      "name": "Aihan Mifthas",
+      "url": "https://brainfy.online/founder.html",
+      "jobTitle": "Founder & CEO",
+      "worksFor": {
+        "@id": "https://brainfy.online/#org"
+      },
+      "sameAs": [
+        "https://github.com/Aihan-7",
+        "https://www.instagram.com/stillaihantho_/"
+      ]
+    },
+    {
       "@type": "SoftwareApplication",
       "@id": "https://brainfy.online/free-anki-alternative.html#app",
       "name": "Brainfy — Free Anki Alternative",
@@ -44,6 +89,9 @@
       },
       "publisher": {
         "@id": "https://brainfy.online/#org"
+      },
+      "isPartOf": {
+        "@id": "https://brainfy.online/#website"
       }
     },
     {
@@ -58,6 +106,12 @@
         {
           "@type": "ListItem",
           "position": 2,
+          "name": "Resources",
+          "item": "https://brainfy.online/resources.html"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
           "name": "Free Anki Alternative",
           "item": "https://brainfy.online/free-anki-alternative.html"
         }
@@ -151,6 +205,8 @@
     .crosslinks strong { display:block; color:#fff; font-weight:700; margin-bottom:4px; font-size:14px; }
     .crosslinks span { color:var(--muted); font-size:12px; }
     hr { border:none; border-top:1px solid var(--border); margin:44px 0 24px; }
+    .byline { font-size:13px; color:var(--muted); margin:-6px 0 26px; }
+    .byline a { color:var(--plight); }
     .foot { color:var(--muted); font-size:13px; }
   </style>
 </head>
@@ -163,6 +219,7 @@
 
     <p class="eyebrow">Comparison · Anki</p>
     <h1>A Free Anki Alternative — With AI Doing the Card-Building</h1>
+    
     <p class="lede">Love Anki’s spaced repetition, not the setup? Brainfy keeps the <strong>SM-2-style scheduling</strong> you rely on, adds <strong>AI that drafts cards from your notes</strong>, and wraps it in a calm interface — with full import/export so you’re never locked in.</p>
 
     <div class="cta-row">

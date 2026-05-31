@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>AP Biology Flashcards From Your Notes | Brainfy</title>
   <meta name="description" content="Build AP Biology flashcards unit by unit from your own notes, drill them with spaced repetition, and use Test mode to mirror the exam. Free, web-based." />
-  <meta name="keywords" content="ap biology flashcards, ap bio flashcards, ap biology spaced repetition, ap bio test prep, ap biology study app" />
+  <meta name="author" content="Aihan Mifthas" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="theme-color" content="#0b1326" />
   <link rel="canonical" href="https://brainfy.online/ap-biology-flashcards.html" />
@@ -30,6 +30,51 @@
   "@context": "https://schema.org",
   "@graph": [
     {
+      "@type": "Organization",
+      "@id": "https://brainfy.online/#org",
+      "name": "Brainfy",
+      "url": "https://brainfy.online/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://brainfy.online/og-image.png",
+        "width": 1200,
+        "height": 630
+      },
+      "description": "A free AI-powered study app: AI flashcards, spaced repetition, an AI tutor, and a focus timer.",
+      "founder": {
+        "@id": "https://brainfy.online/#aihan"
+      },
+      "sameAs": [
+        "https://github.com/Aihan-7",
+        "https://www.instagram.com/stillaihantho_/",
+        "https://www.facebook.com/aihan.mifthas.16"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://brainfy.online/#website",
+      "url": "https://brainfy.online/",
+      "name": "Brainfy",
+      "publisher": {
+        "@id": "https://brainfy.online/#org"
+      },
+      "inLanguage": "en"
+    },
+    {
+      "@type": "Person",
+      "@id": "https://brainfy.online/#aihan",
+      "name": "Aihan Mifthas",
+      "url": "https://brainfy.online/founder.html",
+      "jobTitle": "Founder & CEO",
+      "worksFor": {
+        "@id": "https://brainfy.online/#org"
+      },
+      "sameAs": [
+        "https://github.com/Aihan-7",
+        "https://www.instagram.com/stillaihantho_/"
+      ]
+    },
+    {
       "@type": "SoftwareApplication",
       "@id": "https://brainfy.online/ap-biology-flashcards.html#app",
       "name": "Brainfy — AP Biology Flashcards",
@@ -44,6 +89,9 @@
       },
       "publisher": {
         "@id": "https://brainfy.online/#org"
+      },
+      "isPartOf": {
+        "@id": "https://brainfy.online/#website"
       }
     },
     {
@@ -58,6 +106,12 @@
         {
           "@type": "ListItem",
           "position": 2,
+          "name": "Resources",
+          "item": "https://brainfy.online/resources.html"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
           "name": "AP Biology Flashcards",
           "item": "https://brainfy.online/ap-biology-flashcards.html"
         }
@@ -159,6 +213,8 @@
     .crosslinks strong { display:block; color:#fff; font-weight:700; margin-bottom:4px; font-size:14px; }
     .crosslinks span { color:var(--muted); font-size:12px; }
     hr { border:none; border-top:1px solid var(--border); margin:44px 0 24px; }
+    .byline { font-size:13px; color:var(--muted); margin:-6px 0 26px; }
+    .byline a { color:var(--plight); }
     .foot { color:var(--muted); font-size:13px; }
   </style>
 </head>
@@ -171,6 +227,7 @@
 
     <p class="eyebrow">AP · Biology</p>
     <h1>AP Biology Flashcards, Built Unit by Unit From Your Notes</h1>
+    
     <p class="lede">AP Biology is a lot of interlocking detail across eight units. Brainfy lets you <strong>build flashcards from your own notes and textbook</strong>, organise them unit by unit, drill them with spaced repetition, and use Test mode to rehearse under exam-style pressure.</p>
 
     <div class="cta-row">

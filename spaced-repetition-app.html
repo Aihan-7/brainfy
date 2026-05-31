@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Free Spaced Repetition App — Brainfy</title>
   <meta name="description" content="Brainfy is a free spaced-repetition app: it schedules flashcard reviews at the right moment so you remember more in less time. Build decks by hand or with AI." />
-  <meta name="keywords" content="spaced repetition app, free spaced repetition, SRS app, spaced repetition flashcards, study app spaced repetition" />
+  <meta name="author" content="Aihan Mifthas" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="theme-color" content="#0b1326" />
   <link rel="canonical" href="https://brainfy.online/spaced-repetition-app.html" />
@@ -30,6 +30,51 @@
   "@context": "https://schema.org",
   "@graph": [
     {
+      "@type": "Organization",
+      "@id": "https://brainfy.online/#org",
+      "name": "Brainfy",
+      "url": "https://brainfy.online/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://brainfy.online/og-image.png",
+        "width": 1200,
+        "height": 630
+      },
+      "description": "A free AI-powered study app: AI flashcards, spaced repetition, an AI tutor, and a focus timer.",
+      "founder": {
+        "@id": "https://brainfy.online/#aihan"
+      },
+      "sameAs": [
+        "https://github.com/Aihan-7",
+        "https://www.instagram.com/stillaihantho_/",
+        "https://www.facebook.com/aihan.mifthas.16"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://brainfy.online/#website",
+      "url": "https://brainfy.online/",
+      "name": "Brainfy",
+      "publisher": {
+        "@id": "https://brainfy.online/#org"
+      },
+      "inLanguage": "en"
+    },
+    {
+      "@type": "Person",
+      "@id": "https://brainfy.online/#aihan",
+      "name": "Aihan Mifthas",
+      "url": "https://brainfy.online/founder.html",
+      "jobTitle": "Founder & CEO",
+      "worksFor": {
+        "@id": "https://brainfy.online/#org"
+      },
+      "sameAs": [
+        "https://github.com/Aihan-7",
+        "https://www.instagram.com/stillaihantho_/"
+      ]
+    },
+    {
       "@type": "SoftwareApplication",
       "@id": "https://brainfy.online/spaced-repetition-app.html#app",
       "name": "Brainfy — Spaced Repetition App",
@@ -44,6 +89,9 @@
       },
       "publisher": {
         "@id": "https://brainfy.online/#org"
+      },
+      "isPartOf": {
+        "@id": "https://brainfy.online/#website"
       }
     },
     {
@@ -58,6 +106,12 @@
         {
           "@type": "ListItem",
           "position": 2,
+          "name": "Resources",
+          "item": "https://brainfy.online/resources.html"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
           "name": "Spaced Repetition App",
           "item": "https://brainfy.online/spaced-repetition-app.html"
         }
@@ -151,6 +205,8 @@
     .crosslinks strong { display:block; color:#fff; font-weight:700; margin-bottom:4px; font-size:14px; }
     .crosslinks span { color:var(--muted); font-size:12px; }
     hr { border:none; border-top:1px solid var(--border); margin:44px 0 24px; }
+    .byline { font-size:13px; color:var(--muted); margin:-6px 0 26px; }
+    .byline a { color:var(--plight); }
     .foot { color:var(--muted); font-size:13px; }
   </style>
 </head>
@@ -163,6 +219,7 @@
 
     <p class="eyebrow">Use case · Spaced repetition</p>
     <h1>A Free Spaced Repetition App That Actually Schedules Your Reviews</h1>
+    
     <p class="lede">Brainfy uses <strong>spaced repetition</strong> to show each flashcard at the moment you’re about to forget it — so cards you know fade into the background and the ones you miss come back sooner. Build decks by hand, import them, or let the AI draft them from your notes.</p>
 
     <div class="cta-row">

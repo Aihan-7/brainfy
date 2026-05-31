@@ -64,6 +64,8 @@ const CSS = `*, *::before, *::after { box-sizing: border-box; margin: 0; padding
     .crosslinks strong { display:block; color:#fff; font-weight:700; margin-bottom:4px; font-size:14px; }
     .crosslinks span { color:var(--muted); font-size:12px; }
     hr { border:none; border-top:1px solid var(--border); margin:44px 0 24px; }
+    .byline { font-size:13px; color:var(--muted); margin:-6px 0 26px; }
+    .byline a { color:var(--plight); }
     .foot { color:var(--muted); font-size:13px; }`;
 
 // slug → { title, blurb } for every linkable page (existing + generated), used
@@ -435,16 +437,41 @@ function crosslinks(slugs) {
   }).join('\n      ');
 }
 
+// Shared entity nodes — DEFINED on every page so author/publisher @id
+// references resolve on-page (Google doesn't reliably follow cross-page @id),
+// which is what makes the Organization/Person E-E-A-T signals count.
+const SAME_AS = ['https://github.com/Aihan-7', 'https://www.instagram.com/stillaihantho_/', 'https://www.facebook.com/aihan.mifthas.16'];
+const ORG = {
+  "@type": "Organization", "@id": `${ORIGIN}/#org`, name: "Brainfy", url: `${ORIGIN}/`,
+  logo: { "@type": "ImageObject", url: `${ORIGIN}/og-image.png`, width: 1200, height: 630 },
+  description: "A free AI-powered study app: AI flashcards, spaced repetition, an AI tutor, and a focus timer.",
+  founder: { "@id": `${ORIGIN}/#aihan` }, sameAs: SAME_AS,
+};
+const PERSON = {
+  "@type": "Person", "@id": `${ORIGIN}/#aihan`, name: "Aihan Mifthas", url: `${ORIGIN}/founder.html`,
+  jobTitle: "Founder & CEO", worksFor: { "@id": `${ORIGIN}/#org` },
+  sameAs: ['https://github.com/Aihan-7', 'https://www.instagram.com/stillaihantho_/'],
+};
+const WEBSITE = { "@type": "WebSite", "@id": `${ORIGIN}/#website`, url: `${ORIGIN}/`, name: "Brainfy", publisher: { "@id": `${ORIGIN}/#org` }, inLanguage: "en" };
+
 function jsonLd(p) {
   const url = `${ORIGIN}/${p.slug}.html`;
   const primary = p.cat === 'guide'
-    ? { "@type": "Article", "@id": `${url}#article`, headline: p.h1, description: p.desc, author: { "@id": `${ORIGIN}/#aihan` }, publisher: { "@id": `${ORIGIN}/#org` }, mainEntityOfPage: url }
-    : { "@type": "SoftwareApplication", "@id": `${url}#app`, name: `Brainfy — ${p.crumb}`, applicationCategory: "EducationalApplication", operatingSystem: "Web", url, description: p.desc, offers: { "@type": "Offer", price: "0", priceCurrency: "USD" }, publisher: { "@id": `${ORIGIN}/#org` } };
+    ? { "@type": "Article", "@id": `${url}#article`, headline: p.h1, description: p.desc,
+        author: { "@id": `${ORIGIN}/#aihan` }, publisher: { "@id": `${ORIGIN}/#org` },
+        isPartOf: { "@id": `${ORIGIN}/#website` }, image: `${ORIGIN}/og-image.png`,
+        datePublished: TODAY, dateModified: TODAY, inLanguage: "en", mainEntityOfPage: url }
+    : { "@type": "SoftwareApplication", "@id": `${url}#app`, name: `Brainfy — ${p.crumb}`,
+        applicationCategory: "EducationalApplication", operatingSystem: "Web", url, description: p.desc,
+        offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+        publisher: { "@id": `${ORIGIN}/#org` }, isPartOf: { "@id": `${ORIGIN}/#website` } };
   const graph = [
+    ORG, WEBSITE, PERSON,
     primary,
     { "@type": "BreadcrumbList", itemListElement: [
       { "@type": "ListItem", position: 1, name: "Home", item: `${ORIGIN}/` },
-      { "@type": "ListItem", position: 2, name: p.crumb, item: url },
+      { "@type": "ListItem", position: 2, name: "Resources", item: `${ORIGIN}/resources.html` },
+      { "@type": "ListItem", position: 3, name: p.crumb, item: url },
     ] },
   ];
   if (p.faq?.length) {
@@ -463,7 +490,7 @@ function render(p) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>${esc(p.title)}</title>
   <meta name="description" content="${esc(p.desc)}" />
-  <meta name="keywords" content="${esc(p.keywords)}" />
+  <meta name="author" content="Aihan Mifthas" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="theme-color" content="#0b1326" />
   <link rel="canonical" href="${url}" />
@@ -501,6 +528,7 @@ ${jsonLd(p)}
 
     <p class="eyebrow">${esc(p.eyebrow)}</p>
     <h1>${esc(p.h1)}</h1>
+    ${p.cat === 'guide' ? `<p class="byline">By <a href="/founder.html">Aihan Mifthas</a>, founder of Brainfy · Updated ${TODAY}</p>` : ''}
     <p class="lede">${p.lede}</p>
 
     <div class="cta-row">
@@ -559,6 +587,18 @@ function renderHub() {
   <meta property="og:image:type" content="image/png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="${ORIGIN}/og-image.png" />
+
+  <script type="application/ld+json">
+${JSON.stringify({ "@context": "https://schema.org", "@graph": [
+  ORG, WEBSITE,
+  { "@type": "CollectionPage", "@id": `${ORIGIN}/resources.html#page`, url: `${ORIGIN}/resources.html`, name: "Study Resources & Guides", description: "Feature guides, app comparisons, and evidence-based study techniques.", isPartOf: { "@id": `${ORIGIN}/#website` }, about: { "@id": `${ORIGIN}/#org` }, inLanguage: "en" },
+  { "@type": "BreadcrumbList", itemListElement: [
+    { "@type": "ListItem", position: 1, name: "Home", item: `${ORIGIN}/` },
+    { "@type": "ListItem", position: 2, name: "Resources", item: `${ORIGIN}/resources.html` },
+  ] },
+] }, null, 2)}
+  </script>
+
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet"/>
   <style>
     ${CSS}
