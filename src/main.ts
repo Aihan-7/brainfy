@@ -944,24 +944,154 @@ function load() {
 }
 
 // Load state from Firestore (called once after sign-in / on auth restoration)
-async function loadFromCloud(): Promise<void> {
-  const ref = userDoc();
-  if (!ref) return;
-  try {
-    const snap = await ref.get();
-    if (snap.exists) {
-      const data  = snap.data();
-      const state = data && data.state;
-      if (state) {
-        S = { ...DEFAULT_STATE, ...state };
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch(_) {}
-      }
+// ── Cloud state resolution ────────────────────────────────────────────────
+// Reconcile cloud state with whatever is local after Firebase auth resolves —
+// WITHOUT silently destroying work. Three cases:
+//   • cloud empty                  → keep local (a guest who just signed up
+//                                    keeps everything; save() pushes it up).
+//   • cloud has data, no guest work → load cloud (normal returning user).
+//   • cloud has data AND guest work → ASK: merge the guest work in, or use the
+//                                    account's data only. Never overwrite silently.
+
+let authResolution: Promise<void> | null = null;  // resolve once; concurrent callers share it
+let pendingAuthName: string | null = null;         // name captured at signup time
+
+function hasUserData(st: AppState | null | undefined): boolean {
+  if (!st) return false;
+  return (st.subjects?.length  || 0) > 0
+      || (st.sessions?.length  || 0) > 0
+      || (st.tasks?.length     || 0) > 0
+      || (st.timetable?.length || 0) > 0;
+}
+
+function describeGuestData(st: AppState): string {
+  const parts: string[] = [];
+  if (st.subjects?.length) parts.push(`${st.subjects.length} subject${st.subjects.length > 1 ? 's' : ''}`);
+  const cards = (st.subjects || []).reduce((n, s) => n + (s.cards?.length || 0), 0);
+  if (cards)               parts.push(`${cards} flashcard${cards > 1 ? 's' : ''}`);
+  if (st.sessions?.length) parts.push(`${st.sessions.length} focus session${st.sessions.length > 1 ? 's' : ''}`);
+  if (st.tasks?.length)    parts.push(`${st.tasks.length} task${st.tasks.length > 1 ? 's' : ''}`);
+  if (!parts.length) return 'work';
+  if (parts.length === 1) return parts[0]!;
+  return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+}
+
+// Merge guest state INTO a copy of the cloud state without losing either side.
+// Account-level settings (durations, goal, ambient, milestones, tourSeen) stay
+// from the cloud; the guest's subjects/cards/documents/sessions/tasks/timetable
+// are merged in, with fresh ids allocated to avoid collisions.
+function mergeStates(base: AppState, incoming: AppState): AppState {
+  const merged: AppState = { ...DEFAULT_STATE, ...base } as AppState;
+  let nextId = Math.max(base.nextId || 1, incoming.nextId || 1);
+  const alloc = () => nextId++;
+
+  const cardKey = (c: FlashCard) => `${c.q} ${c.a}`;
+  const docKey  = (d: Doc)       => `${d.type} ${d.name} ${d.date || ''}`;
+
+  const subjects: Subject[] = (base.subjects || []).map(s => ({ ...s }));
+  for (const gs of (incoming.subjects || [])) {
+    const match = subjects.find(s => (s.name || '').trim().toLowerCase() === (gs.name || '').trim().toLowerCase());
+    if (match) {
+      const seenC = new Set((match.cards || []).map(cardKey));
+      match.cards = [...(match.cards || [])];
+      for (const c of (gs.cards || [])) if (!seenC.has(cardKey(c))) { seenC.add(cardKey(c)); match.cards.push({ ...c }); }
+      const seenD = new Set((match.documents || []).map(docKey));
+      match.documents = [...(match.documents || [])];
+      for (const d of (gs.documents || [])) if (!seenD.has(docKey(d))) { seenD.add(docKey(d)); match.documents!.push({ ...d, id: alloc() }); }
+      match.docs = match.documents!.length;
+    } else {
+      const copy: Subject = { ...gs, id: alloc() };
+      if (copy.documents) copy.documents = copy.documents.map(d => ({ ...d, id: alloc() }));
+      copy.docs = copy.documents?.length || 0;
+      subjects.push(copy);
     }
-  } catch(err: any) {
-    console.error('[sync] load failed', err?.code, err?.message, err);
-    track('sync.load.error', { code: err?.code, message: err?.message });
-    // Network or rules-denied — keep local state, sync chip will surface error on next save
   }
+  merged.subjects = subjects;
+
+  const seenS = new Set<string>();
+  merged.sessions = [...(base.sessions || []), ...(incoming.sessions || [])].filter(s => {
+    const k = `${s.date} ${s.duration}`; if (seenS.has(k)) return false; seenS.add(k); return true;
+  });
+
+  const seenT = new Set<string>();
+  merged.tasks = [...(base.tasks || []), ...(incoming.tasks || [])].filter((t: any) => {
+    const k = t && t.text != null ? String(t.text) : JSON.stringify(t);
+    if (seenT.has(k)) return false; seenT.add(k); return true;
+  });
+
+  const seenB = new Set<string>();
+  merged.timetable = [...(base.timetable || []), ...(incoming.timetable || [])].filter((b: any) => {
+    const k = JSON.stringify([b?.day, b?.start, b?.startMin, b?.title, b?.subjectId]);
+    if (seenB.has(k)) return false; seenB.add(k); return true;
+  });
+
+  merged.streak     = Math.max(base.streak     || 0, incoming.streak     || 0);
+  merged.bestStreak = Math.max(base.bestStreak || 0, incoming.bestStreak || 0);
+  merged.nextId     = nextId;
+  return merged;
+}
+
+// Single entry point for "auth just resolved — decide what S should be." Both
+// the auth observer and the explicit sign-in handlers call this; the memoized
+// promise guarantees the reconcile (and any merge prompt) runs exactly once,
+// and late callers await the same result before navigating.
+function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
+  if (authResolution) {
+    // Already resolving/resolved this session (observer re-fired, or the other
+    // caller started it). Just keep the token fresh, then share the result.
+    return authResolution.then(async () => { try { idToken = await user.getIdToken(); } catch (_) {} });
+  }
+  authResolution = (async () => {
+    firebaseUser = user;
+    try { idToken = await user.getIdToken(); } catch (_) {}
+    // Refresh the token before it expires (every 55 min).
+    setInterval(async () => { if (firebaseUser) idToken = await firebaseUser.getIdToken(true); }, 55 * 60 * 1000);
+    setSyncState('syncing');
+
+    const wasGuest     = sessionStorage.getItem('brainfyGuest') === '1';
+    const localState   = S;
+    const localHasData = hasUserData(localState);
+
+    // Peek the cloud doc.
+    let cloudState: AppState | null = null;
+    try {
+      const ref  = userDoc();
+      const snap = ref && await ref.get();
+      if (snap && snap.exists) cloudState = (snap.data() || {}).state || null;
+    } catch (err: any) {
+      console.error('[sync] load failed', err?.code, err?.message);
+      track('sync.load.error', { code: err?.code, message: err?.message });
+      // Network/rules error — keep local; chip surfaces the error on next save.
+    }
+    const cloudHasData = hasUserData(cloudState);
+
+    if (cloudHasData && wasGuest && localHasData) {
+      const merge = await showConfirm({
+        title:        'Bring your guest work along?',
+        message:      `This account already has saved data. Merge in the ${describeGuestData(localState)} you created as a guest, or use only your account's data?`,
+        confirmLabel: 'Merge guest work',
+        cancelLabel:  'Use account only',
+      });
+      S = merge ? mergeStates(cloudState as AppState, localState) : { ...DEFAULT_STATE, ...(cloudState as AppState) };
+    } else if (cloudHasData) {
+      S = { ...DEFAULT_STATE, ...(cloudState as AppState) };
+    } else {
+      // Cloud empty → keep local (guest keeps their work; brand-new user starts clean).
+      S = localHasData ? localState : { ...DEFAULT_STATE, ...(cloudState || {}) };
+    }
+
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch (_) {}
+    sessionStorage.removeItem('brainfyGuest');   // authed now, no longer a guest
+
+    const realName = displayName || pendingAuthName || user.displayName || user.email?.split('@')[0] || 'Student';
+    pendingAuthName = null;
+    S.userName = realName;
+    setSigninHint(realName);
+
+    save();                 // push the resolved state to the cloud
+    setSyncState('synced');
+  })();
+  return authResolution;
 }
 
 // ── Splash personalisation ──────────────────────────────────────────────────
@@ -2080,7 +2210,12 @@ function logSession() {
   S.sessions.push({ date: new Date().toISOString(), duration: dur, subjectId: timer.subjectId });
   if (timer.subjectId) {
     const s = S.subjects.find(x => x.id === timer.subjectId);
-    if (s) { s.accessed = Date.now(); s.docs++; }
+    // Mark the subject recently-accessed. Do NOT touch s.docs here — it tracks
+    // document count (derived from s.documents.length in addDocToSubject/
+    // deleteDoc/saveAIResults). Bumping it per session inflated the Library doc
+    // counts + the stats donut and falsely completed the onboarding
+    // "add a document" step (which checks s.docs > 0).
+    if (s) s.accessed = Date.now();
   }
 
   // ── Update streak ──────────────────────────────
@@ -4108,26 +4243,11 @@ function friendlyAuthError(code: string): string {
   }
 }
 
-// Called after successful Firebase sign-in — syncs cloud state then navigates
+// Called after successful Firebase sign-in — reconciles cloud state (merging
+// any guest work) then navigates. The reconcile is memoized in
+// resolveStateAfterAuth, so the auth observer firing in parallel is harmless.
 async function onFirebaseSignIn(user: any, displayName?: string): Promise<void> {
-  firebaseUser = user;
-  idToken = await user.getIdToken();
-
-  // Refresh token automatically before it expires (every 55 min)
-  setInterval(async () => {
-    if (firebaseUser) idToken = await firebaseUser.getIdToken(true);
-  }, 55 * 60 * 1000);
-
-  // Load cloud state; if none, seed with local or default
-  await loadFromCloud();
-
-  // Always sync name from the real Firebase user — overrides any stale cloud value
-  const realName = displayName || user.displayName || user.email?.split('@')[0] || 'Student';
-  S.userName = realName;
-  // Stash the name for next-tab personalisation (see applySigninHint).
-  setSigninHint(realName);
-
-  save();
+  await resolveStateAfterAuth(user, displayName);
   goTo('home');
 }
 
@@ -4159,6 +4279,10 @@ function handleSignup(): void {
   if (!pw || pw.length < 8)           { showAuthError('signupError', 'Password must be at least 8 characters.'); return; }
 
   setAuthLoading('signupSubmitBtn', true);
+  // Capture the name synchronously: the auth observer can fire and resolve
+  // state before this .then() runs, and a brand-new user object has no
+  // displayName yet (updateProfile below is async), so the resolver reads this.
+  pendingAuthName = name || null;
   firebase.auth().createUserWithEmailAndPassword(email, pw)
     .then((cred: any) => {
       // Save display name in Firebase profile (non-blocking)
@@ -4186,6 +4310,7 @@ function handleSignOut(): void {
   firebase.auth().signOut().then(() => {
     firebaseUser = null;
     idToken      = null;
+    authResolution = null;       // allow a fresh cloud-reconcile on the next sign-in
     S = structuredClone(DEFAULT_STATE);
     try { localStorage.removeItem(STORAGE_KEY); } catch(_) {}
     clearSigninHint();           // forget "Continue as X" — next tab opens generic splash
@@ -5009,18 +5134,20 @@ function importAIFlashcards(text: string): void {
   }
   if (!pairs.length) { showToast('No flashcard pairs found in response', 'warning'); return; }
 
-  // Store in a special "AI Generated" flashcard set
-  const aiSet = pairs.map(p => ({ q: p.q, a: p.a }));
-  FLASHCARD_SETS['ai_generated'] = aiSet;
-
-  // Create or reuse an AI subject
+  // Create or reuse an "AI Generated" subject and persist the cards ONTO it.
+  // Previously these were written to the in-memory FLASHCARD_SETS map, which
+  // save() never serializes and the deck never reads (decks read subj.cards) —
+  // so the imported cards showed the starter deck instead and vanished on
+  // reload. Persist to subj.cards + save(), mirroring saveAIResults().
   let aiSubj = S.subjects.find(s => s.name === 'AI Generated');
   if (!aiSubj) {
     aiSubj = { id: S.nextId++, name: 'AI Generated', desc: 'Flashcards created by AI', docs: 0, color: '#7c3aed', accessed: Date.now() };
     S.subjects.push(aiSubj);
-    save();
   }
-  FLASHCARD_SETS[aiSubj.id] = aiSet;
+  if (!aiSubj.cards) aiSubj.cards = [];
+  aiSubj.cards.push(...pairs.map(p => ({ q: p.q, a: p.a })));
+  save();
+  renderLibrary();
 
   showToast(`${pairs.length} flashcards imported! Find them in Library → AI Generated`, 'success');
   appendAIMsg('assistant', `✅ **${pairs.length} flashcards imported** into your Library! Open the **AI Generated** subject in Library to review them.`);
@@ -5110,15 +5237,9 @@ function init() {
   // load their cloud state. If not, show splash as normal.
   firebase.auth().onAuthStateChanged(async (user: any) => {
     if (user) {
-      firebaseUser = user;
-      idToken = await user.getIdToken();
-      setSyncState('syncing');
-      await loadFromCloud();
-      setSyncState('synced');
-      // Always use real Firebase identity — never let stale Firestore data override the name
-      S.userName = user.displayName || user.email?.split('@')[0] || 'Student';
-      // Re-set the splash hint so it's in sync if displayName changed.
-      setSigninHint(S.userName);
+      // Reconcile cloud state (merging any guest work). Memoized, so if an
+      // explicit sign-in handler is also resolving, we await the same result.
+      await resolveStateAfterAuth(user);
       // Auto-navigate ONLY from active auth flows (signin/signup) — NOT from
       // splash. Splash exists so returning users can click their personalised
       // "Continue as <name>" button intentionally; auto-redirecting them
@@ -5152,12 +5273,41 @@ function init() {
 
 // Expose a quick guest-mode toggle so users can also enter from the console
 // or from a button on the splash. Once activated it persists for the session.
+// Seed a single demo subject (with the starter deck + a welcome note) so a
+// brand-new guest lands on a populated Library/Flashcards instead of empty
+// screens — the fastest path to the "aha". Only runs when there's no data yet,
+// so it never clobbers a returning guest's work.
+function seedDemoData(): void {
+  if (S.subjects.length) return;
+  const docId = S.nextId + 1;
+  const demo: Subject = {
+    id:       S.nextId,
+    name:     'Study Science (demo)',
+    desc:     'A sample deck to explore — add your own subjects anytime.',
+    docs:     1,
+    color:    SUBJECT_COLORS[0]!,
+    accessed: Date.now(),
+    cards:    (FLASHCARD_SETS.default || []).map(c => ({ q: c.q, a: c.a })),
+    documents: [{
+      id:      docId,
+      name:    'Welcome to Brainfy',
+      type:    'note',
+      content: '## Welcome 👋\n\nThis is a demo subject so you can look around.\n\n- Open **Flashcards** to review this deck with spaced repetition\n- Start a **Focus session** from Home\n- Add your own subject from the **Library** — drop in a PDF, paste notes, or link a lecture and the AI builds flashcards for you\n\nWhen you sign up, everything you create here comes with you.',
+      date:    Date.now(),
+    }],
+  };
+  S.subjects.push(demo);
+  S.nextId = docId + 1;
+}
+
 function enterGuestMode(): void {
   sessionStorage.setItem('brainfyGuest', '1');
   if (!S.userName) S.userName = 'Guest';
+  seedDemoData();
+  save();                 // persist the demo so it survives a reload
   setSyncState('idle');
   goTo('home');
-  showToast('Demo mode — data stays on this device', 'info');
+  showToast('Demo mode — data stays on this device. Sign up to back it up.', 'info');
 }
 (window as any).enterGuestMode = enterGuestMode;
 

@@ -7,6 +7,11 @@
 // tokens — unauthenticated traffic here is direct billing pain.
 
 import { requireAuth } from './_lib/auth.js';
+import { tooLarge, rateLimit, tooMany } from './_lib/guard.js';
+
+// Hard ceilings — content + base64 images can be large, but not unbounded.
+const MAX_BODY_BYTES = 6 * 1024 * 1024;   // ~6MB (room for a ~4MB base64 image)
+const MAX_IMAGE_B64  = 7_000_000;         // ~5.25MB decoded
 
 // Default text models. Vision-capable counterparts are picked when the
 // request carries an image; both can be overridden via env vars.
@@ -141,6 +146,12 @@ export async function onRequestPost(context) {
   const auth = await requireAuth(request, env);
   if (auth instanceof Response) return auth;
 
+  // Cost-abuse guards: cap body size + per-user request rate (see _lib/guard.js).
+  const big = tooLarge(request, MAX_BODY_BYTES);
+  if (big) return big;
+  const rl = await rateLimit(env, auth.sub, { limit: 20, windowSec: 60, prefix: 'proc' });
+  if (!rl.ok) return tooMany(rl.retryAfter);
+
   const provider = env.GROQ_API_KEY ? 'groq' : env.ANTHROPIC_API_KEY ? 'anthropic' : null;
   if (!provider) return jsonResponse({ error: 'AI not configured' }, 503);
 
@@ -149,6 +160,11 @@ export async function onRequestPost(context) {
   catch (_) { return jsonResponse({ error: 'Invalid JSON body' }, 400); }
 
   const { content, contentType, title, subjName, image, mode } = body;
+
+  // Reject oversized base64 images (the priciest input path).
+  if (contentType === 'image' && image && typeof image.b64 === 'string' && image.b64.length > MAX_IMAGE_B64) {
+    return jsonResponse({ error: 'Image too large — please use a smaller image.' }, 413);
+  }
   const systemPrompt = mode === 'summary' ? SUMMARY_PROMPT : STUDY_PROMPT;
 
   // Build the user message in our internal shape (string vs multimodal).

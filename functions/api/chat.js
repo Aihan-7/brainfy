@@ -12,11 +12,16 @@
 // internet can hit our endpoint and bill our Groq / Anthropic accounts.
 
 import { requireAuth } from './_lib/auth.js';
+import { tooLarge, clampMaxTokens, rateLimit, tooMany } from './_lib/guard.js';
 
 const DEFAULT_MODELS = {
   groq:      'llama-3.3-70b-versatile',
   anthropic: 'claude-3-5-haiku-20241022',
 };
+
+// Hard ceilings — clients cannot exceed these regardless of what they send.
+const MAX_BODY_BYTES = 512 * 1024;  // chat history is text; 512KB is generous
+const MAX_TOKENS     = 2048;        // per-reply output cap
 
 function jsonResponse(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -41,7 +46,7 @@ async function callGroq(body, env) {
     body: JSON.stringify({
       model:      env.AI_MODEL || DEFAULT_MODELS.groq,
       messages,
-      max_tokens: body.max_tokens || 1024,
+      max_tokens: clampMaxTokens(body.max_tokens, MAX_TOKENS),
     }),
   });
   const data = await res.json();
@@ -66,7 +71,14 @@ async function callAnthropic(body, env) {
       'anthropic-version': '2023-06-01',
       'Content-Type':      'application/json',
     },
-    body: JSON.stringify({ ...body, model: env.AI_MODEL || DEFAULT_MODELS.anthropic }),
+    // Whitelist forwarded fields — never spread the raw client body (it could
+    // override max_tokens, inject extra messages, or set unexpected params).
+    body: JSON.stringify({
+      model:      env.AI_MODEL || DEFAULT_MODELS.anthropic,
+      max_tokens: clampMaxTokens(body.max_tokens, MAX_TOKENS),
+      system:     body.system,
+      messages:   body.messages || [],
+    }),
   });
   const data = await res.json();
   return jsonResponse(data, res.status);
@@ -138,15 +150,18 @@ async function streamProvider(provider, body, env) {
     upstreamBody = JSON.stringify({
       model:      env.AI_MODEL || DEFAULT_MODELS.groq,
       messages,
-      max_tokens: body.max_tokens || 1024,
+      max_tokens: clampMaxTokens(body.max_tokens, MAX_TOKENS),
       stream:     true,
     });
   } else {
     upstreamUrl  = 'https://api.anthropic.com/v1/messages';
+    // Whitelist forwarded fields — never spread the raw client body.
     upstreamBody = JSON.stringify({
-      ...body,
-      model:  env.AI_MODEL || DEFAULT_MODELS.anthropic,
-      stream: true,
+      model:      env.AI_MODEL || DEFAULT_MODELS.anthropic,
+      max_tokens: clampMaxTokens(body.max_tokens, MAX_TOKENS),
+      system:     body.system,
+      messages:   body.messages || [],
+      stream:     true,
     });
   }
 
@@ -193,6 +208,12 @@ export async function onRequestPost(context) {
 
   const auth = await requireAuth(request, env);
   if (auth instanceof Response) return auth;
+
+  // Cost-abuse guards: cap body size + per-user request rate (see _lib/guard.js).
+  const big = tooLarge(request, MAX_BODY_BYTES);
+  if (big) return big;
+  const rl = await rateLimit(env, auth.sub, { limit: 30, windowSec: 60, prefix: 'chat' });
+  if (!rl.ok) return tooMany(rl.retryAfter);
 
   const provider = env.GROQ_API_KEY ? 'groq' : env.ANTHROPIC_API_KEY ? 'anthropic' : null;
   if (!provider) {
