@@ -2563,7 +2563,7 @@ function renderLibrary() {
 
 // ── Doc modal state ──────────────────────────────
 let docModalSubjId: number | null = null;
-let docModalTab: 'file' | 'note' | 'link' = 'file';
+let docModalTab: 'file' | 'note' | 'link' | 'cards' = 'file';
 
 function openDocModal(subjId: number): void {
   docModalSubjId = subjId;
@@ -2669,7 +2669,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
   if (e.key === 'Escape') closeFooterModal();
 });
 
-function setDocTab(tab: 'file' | 'note' | 'link'): void {
+function setDocTab(tab: 'file' | 'note' | 'link' | 'cards'): void {
   docModalTab = tab;
   renderDocModal();
 }
@@ -2678,10 +2678,13 @@ function renderDocModal(): void {
   const body = el('docModalBody');
   if (!body) return;
 
-  const tabs: { key: 'file' | 'note' | 'link'; label: string; icon: string }[] = [
-    { key: 'file', label: 'File', icon: 'upload_file' },
-    { key: 'note', label: 'Note', icon: 'sticky_note_2' },
-    { key: 'link', label: 'Link', icon: 'link' },
+  const cardCount = (S.subjects.find(x => x.id === docModalSubjId)?.cards?.length) || 0;
+
+  const tabs: { key: 'file' | 'note' | 'link' | 'cards'; label: string; icon: string }[] = [
+    { key: 'file',  label: 'File',  icon: 'upload_file' },
+    { key: 'note',  label: 'Note',  icon: 'sticky_note_2' },
+    { key: 'link',  label: 'Link',  icon: 'link' },
+    { key: 'cards', label: 'Cards', icon: 'style' },
   ];
 
   body.innerHTML = `
@@ -2713,6 +2716,29 @@ function renderDocModal(): void {
       </div>
       <input type="file" id="docFileInput" style="display:none;" multiple accept="*/*" onchange="handleDocFileSelect(this)">
       <div id="docFilePreview" style="margin-top:12px;display:flex;flex-direction:column;gap:6px;"></div>
+    ` : docModalTab === 'cards' ? `
+      <!-- Cards: import / export -->
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0.06em;display:block;margin-bottom:6px;">IMPORT FLASHCARDS</label>
+          <textarea id="deckImportText" placeholder="Paste cards — one per line:&#10;What is the powerhouse of the cell?, The mitochondria&#10;&#10;Works with CSV, tab-separated, and Anki / Quizlet exports." class="auth-input" style="height:120px;resize:vertical;background:rgba(255,255,255,0.05);font-family:'Space Grotesk',monospace;font-size:12px;line-height:1.5;"></textarea>
+          <div style="font-size:11px;color:var(--muted2);margin-top:6px;line-height:1.5;">One card per line: <strong>question</strong> then <strong>answer</strong>, separated by a comma or tab. Paste straight from Anki (Notes in Plain Text), Quizlet (Export), or a spreadsheet. HTML is stripped automatically.</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="el('deckFileInput').click()" class="btn-ghost" style="flex:1;padding:10px;font-size:13px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:6px;border-color:rgba(255,255,255,0.12);">
+            <span class="ms" style="font-size:16px;">cloud_upload</span> Upload .csv / .txt
+          </button>
+          <button onclick="importDeckText()" class="btn-primary" style="flex:1;padding:10px;font-size:13px;border-radius:10px;">Import cards</button>
+        </div>
+        <input type="file" id="deckFileInput" style="display:none;" accept=".csv,.txt,.tsv,text/csv,text/plain" onchange="handleDeckFileSelect(this)">
+
+        <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div style="font-size:12px;color:var(--muted);">This subject has <strong style="color:var(--text);">${cardCount}</strong> flashcard${cardCount === 1 ? '' : 's'}.</div>
+          <button onclick="exportSubjectCSV(${docModalSubjId})" class="btn-ghost" ${cardCount ? '' : 'disabled'} style="padding:9px 14px;font-size:13px;border-radius:10px;display:flex;align-items:center;gap:6px;border-color:rgba(255,255,255,0.12);${cardCount ? '' : 'opacity:0.45;cursor:not-allowed;'}">
+            <span class="ms" style="font-size:16px;">description</span> Export CSV
+          </button>
+        </div>
+      </div>
     ` : docModalTab === 'note' ? `
       <!-- Note -->
       <div style="display:flex;flex-direction:column;gap:12px;">
@@ -2965,6 +2991,140 @@ function saveDocLink(): void {
   if (!label || !url) { showToast('Please enter both a label and URL', 'warning'); return; }
   const name = label || url;
   addDocToSubject({ id: S.nextId++, name, type: 'link', content: url, date: Date.now() });
+}
+
+// ── Flashcard import / export ─────────────────────────────────────────────
+// Dependency-free delimited-text import covering the formats students actually
+// have: CSV, tab-separated, Anki "Notes in Plain Text" (.txt), and Quizlet
+// "Export" output. .apkg (zipped SQLite) is intentionally out of scope.
+
+// Tokenize delimited text into rows, honouring "quoted fields" (which may
+// contain the delimiter or newlines) and "" escaped quotes. Works for both
+// comma and tab delimiters.
+function parseDelimited(text: string, delim: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [], field = '', inQ = false, i = 0;
+  while (i < text.length) {
+    const c = text[i]!;
+    if (inQ) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+        inQ = false; i++; continue;
+      }
+      field += c; i++; continue;
+    }
+    if (c === '"')        { inQ = true; i++; continue; }
+    if (c === delim)      { row.push(field); field = ''; i++; continue; }
+    if (c === '\r')       { i++; continue; }
+    if (c === '\n')       { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+    field += c; i++;
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+// Strip HTML (Anki/Quizlet fields are often HTML) and decode common entities.
+function cleanCardField(s: string): string {
+  return String(s ?? '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?[a-z][^>]*>/gi, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"').replace(/&#39;/gi, "'")
+    .trim();
+}
+
+function parseDelimitedCards(text: string): FlashCard[] {
+  text = text.replace(/^﻿/, '');   // strip BOM
+  // Anki may prefix metadata lines: "#separator:tab", "#html:true", etc.
+  let delim: string | null = null;
+  const sep = text.match(/^#separator:\s*(tab|comma|semicolon|\t|,|;)/im);
+  if (sep) {
+    const v = sep[1]!.toLowerCase();
+    delim = (v === 'tab' || v === '\t') ? '\t' : (v === 'semicolon' || v === ';') ? ';' : ',';
+  }
+  // Drop comment/metadata lines before parsing.
+  const cleaned = text.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
+  // Auto-detect delimiter when there's no header: pick the MOST FREQUENT of
+  // tab/comma/semicolon across a sample. Frequency beats "first one present"
+  // so a stray tab inside a CSV answer (or a comma inside a tab-export) doesn't
+  // flip the whole parse to the wrong delimiter.
+  if (!delim) {
+    const sample = cleaned.split('\n').slice(0, 50).join('\n');
+    const tabs   = (sample.match(/\t/g) || []).length;
+    const commas = (sample.match(/,/g)  || []).length;
+    const semis  = (sample.match(/;/g)  || []).length;
+    delim = (tabs >= commas && tabs >= semis && tabs > 0) ? '\t'
+          : (commas >= semis && commas > 0)               ? ','
+          : (semis > 0)                                   ? ';'
+          : '\t';
+  }
+  const out: FlashCard[] = [];
+  for (const r of parseDelimited(cleaned, delim)) {
+    if (!r.length) continue;
+    const q = cleanCardField(r[0] || '');
+    const a = cleanCardField(r[1] || '');   // extra fields (tags etc.) ignored
+    if (q && a) out.push({ q, a });
+  }
+  return out;
+}
+
+function importDeckText(): void {
+  if (docModalSubjId == null) return;
+  const ta = document.getElementById('deckImportText') as HTMLTextAreaElement | null;
+  const text = ta?.value ?? '';
+  if (!text.trim()) { showToast('Paste some cards first, or upload a file', 'warning'); return; }
+  const cards = parseDelimitedCards(text);
+  if (!cards.length) {
+    showToast('No cards found — expected "question, answer" per line (CSV, tab, or an Anki/Quizlet export)', 'warning');
+    return;
+  }
+  const s = S.subjects.find(x => x.id === docModalSubjId);
+  if (!s) return;
+  if (!s.cards) s.cards = [];
+  s.cards.push(...cards);
+  save();
+  renderLibrary();
+  renderDocModal();
+  showToast(`Imported ${cards.length} card${cards.length > 1 ? 's' : ''} into ${s.name}`, 'success');
+}
+
+function handleDeckFileSelect(input: HTMLInputElement): void {
+  const file = input.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const ta = document.getElementById('deckImportText') as HTMLTextAreaElement | null;
+    if (ta) ta.value = String(reader.result || '');
+    importDeckText();
+  };
+  reader.onerror = () => showToast('Could not read that file', 'error');
+  reader.readAsText(file);
+  input.value = '';   // allow re-selecting the same file
+}
+
+// Export a subject's cards as CSV (comma-delimited, RFC-4180 quoting). No header
+// row, so it imports straight back into Anki / Quizlet / a spreadsheet.
+function exportSubjectCSV(subjId: number): void {
+  const s = S.subjects.find(x => x.id === subjId);
+  if (!s) return;
+  const cards = s.cards || [];
+  if (!cards.length) { showToast('No cards to export', 'warning'); return; }
+  const esc = (v: string) => {
+    const t = String(v ?? '');
+    return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const csv = cards.map(c => `${esc(c.q)},${esc(c.a)}`).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `${(s.name || 'deck').replace(/[^\w-]+/g, '_')}_flashcards.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast(`Exported ${cards.length} card${cards.length > 1 ? 's' : ''} as CSV`, 'success');
 }
 
 // Add a Doc to a subject. If subjectIdOverride is omitted, uses the currently-
