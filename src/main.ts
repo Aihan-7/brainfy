@@ -2315,12 +2315,12 @@ function renderLibrary() {
                   <span class="ms" style="font-size:15px;color:${s.color};flex-shrink:0;">${docIcon(d.type)}</span>
                   <span style="font-size:12px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_e(d.name)}</span>
                   ${canSummarize(d) ? `
-                  <button onclick="event.stopPropagation();generateSummaryForDoc(${s.id},${d.id})" title="Generate AI summary"
+                  <button onclick="event.stopPropagation();generateSummaryForDoc(${s.id},${d.id})" title="Generate AI summary" aria-label="Generate AI summary"
                     style="background:transparent;border:none;color:rgba(255,255,255,0.35);cursor:pointer;padding:2px;display:flex;align-items:center;flex-shrink:0;"
                     onmouseover="this.style.color='var(--plight)'" onmouseout="this.style.color='rgba(255,255,255,0.35)'">
                     <span class="ms" style="font-size:14px;${d.id === summarizingDocId ? 'animation:beamSpin 0.9s linear infinite;' : ''}">${d.id === summarizingDocId ? 'refresh' : 'auto_awesome'}</span>
                   </button>` : ''}
-                  <button onclick="event.stopPropagation();deleteDoc(${s.id},${d.id})"
+                  <button onclick="event.stopPropagation();deleteDoc(${s.id},${d.id})" aria-label="Delete document"
                     style="background:transparent;border:none;color:rgba(255,255,255,0.2);cursor:pointer;padding:2px;display:flex;align-items:center;flex-shrink:0;"
                     onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(255,255,255,0.2)'">
                     <span class="ms" style="font-size:13px;">close</span>
@@ -2543,12 +2543,12 @@ function renderDocModal(): void {
                   <div style="font-size:10px;color:var(--muted);">${d.type.toUpperCase()}${d.size ? ' · ' + docSize(d.size) : ''} · ${timeAgo(d.date)}</div>
                 </div>
                 ${canSummarize(d) ? `
-                <button onclick="event.stopPropagation();generateSummaryForDoc(${docModalSubjId},${d.id})" title="Generate AI summary"
+                <button onclick="event.stopPropagation();generateSummaryForDoc(${docModalSubjId},${d.id})" title="Generate AI summary" aria-label="Generate AI summary"
                   style="background:transparent;border:none;color:rgba(255,255,255,0.4);cursor:pointer;padding:4px;display:flex;align-items:center;"
                   onmouseover="this.style.color='var(--plight)'" onmouseout="this.style.color='rgba(255,255,255,0.4)'">
                   <span class="ms" style="font-size:16px;${d.id === summarizingDocId ? 'animation:beamSpin 0.9s linear infinite;' : ''}">${d.id === summarizingDocId ? 'refresh' : 'auto_awesome'}</span>
                 </button>` : ''}
-                <button onclick="event.stopPropagation();deleteDoc(${docModalSubjId},${d.id});renderDocModal()"
+                <button onclick="event.stopPropagation();deleteDoc(${docModalSubjId},${d.id});renderDocModal()" aria-label="Delete document"
                   style="background:transparent;border:none;color:rgba(255,255,255,0.2);cursor:pointer;padding:4px;display:flex;align-items:center;"
                   onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(255,255,255,0.2)'">
                   <span class="ms" style="font-size:15px;">delete</span>
@@ -4633,10 +4633,23 @@ async function callClaude(userText: string): Promise<void> {
     });
 
     if (!res.ok || !res.body) {
-      // Server rejected before the stream started (e.g. 401, 503). Try to
-      // surface its error JSON; fall back to a generic message.
-      let errMsg = `Server error ${res.status}`;
-      try { const j = await res.json(); errMsg = j.error || errMsg; } catch (_) {}
+      // Server rejected before the stream started. Map common statuses to a
+      // calm, human message instead of leaking a raw "Server error 503" — that
+      // number reads as "the app is broken" at a core trust moment. Genuine
+      // validation errors (400) keep the server's own explanation.
+      let errMsg: string;
+      switch (res.status) {
+        case 401:
+        case 403: errMsg = 'Your session expired. Refresh the page and sign back in to keep chatting.'; break;
+        case 429: errMsg = 'Too many messages too fast — give it a few seconds and try again.'; break;
+        case 500:
+        case 502:
+        case 503: errMsg = "The tutor's a bit busy right now. Give it a few seconds and try again."; break;
+        default:  errMsg = 'Something interrupted that reply. Try again — your messages are safe.';
+      }
+      if (res.status === 400) {
+        try { const j = await res.json(); if (j && typeof j.error === 'string' && j.error) errMsg = j.error; } catch (_) {}
+      }
       throw new Error(errMsg);
     }
 
@@ -4675,7 +4688,7 @@ async function callClaude(userText: string): Promise<void> {
     // leave the bubble blank — surface as an error so the user knows.
     if (!stream) {
       hideAITyping();
-      throw new Error('Empty response from AI');
+      throw new Error('Hmm, no answer came through. Try rephrasing or send it again.');
     }
 
     stream.finalize();
@@ -4689,9 +4702,15 @@ async function callClaude(userText: string): Promise<void> {
   } catch(e) {
     hideAITyping();
     stream?.cancel();
-    const msg = e instanceof Error ? e.message : String(e);
-    track('ai.chat.error', { message: msg });
-    appendAIMsg('error', `**Something went wrong:** ${msg}`);
+    const raw = e instanceof Error ? e.message : String(e);
+    track('ai.chat.error', { message: raw });
+    // Network failures surface as a TypeError ("Failed to fetch"). Show an
+    // offline-friendly line; otherwise the thrown message is already
+    // human-readable (mapped above), so render it as-is.
+    const isNetwork = e instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(raw);
+    appendAIMsg('error', isNetwork
+      ? "Couldn't reach the tutor — check your connection and try again."
+      : raw);
   }
 }
 

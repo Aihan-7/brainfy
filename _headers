@@ -96,3 +96,19 @@
   Cache-Control: no-cache, no-store, must-revalidate
 /index.html
   Cache-Control: no-cache, no-store, must-revalidate
+
+# ── Keep internal design prototypes out of the index ──────────────────────
+# /stitch/* are Tailwind-CDN design mockups, not real pages. A robots.txt
+# Disallow alone can't deindex a URL Google has already crawled, so emit a
+# hard noindex on the whole folder. Belt-and-suspenders with robots.txt.
+/stitch/*
+  X-Robots-Tag: noindex, nofollow
+
+# ── Static assets without ?v= cache-busting — moderate cache ──────────────
+# These are referenced by stable paths (no version query), so use a 1-day
+# cache rather than immutable: long enough to help repeat visits, short
+# enough that a re-export propagates within a day.
+/og-image.png
+  Cache-Control: public, max-age=86400
+/icon.svg
+  Cache-Control: public, max-age=86400

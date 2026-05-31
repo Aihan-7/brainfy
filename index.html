@@ -20,7 +20,8 @@
   <meta property="og:url" content="https://brainfy.online/" />
   <meta property="og:title" content="Brainfy — AI Study App with Focus Timer &amp; Flashcards" />
   <meta property="og:description" content="A free AI-powered study app: Pomodoro focus timer, auto-generated flashcards, smart library and honest analytics. Study deeper, distraction-free." />
-  <meta property="og:image" content="https://brainfy.online/og-image.svg" />
+  <meta property="og:image" content="https://brainfy.online/og-image.png" />
+  <meta property="og:image:type" content="image/png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="Brainfy — Focus deeply. Study calmly." />
@@ -29,7 +30,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Brainfy — AI Study App with Focus Timer &amp; Flashcards" />
   <meta name="twitter:description" content="A free AI-powered study app: focus timer, AI flashcards, smart library and honest analytics for serious students." />
-  <meta name="twitter:image" content="https://brainfy.online/og-image.svg" />
+  <meta name="twitter:image" content="https://brainfy.online/og-image.png" />
   <meta name="twitter:image:alt" content="Brainfy — Focus deeply. Study calmly." />
 
   <!-- ── Structured data (JSON-LD) ── -->
@@ -66,7 +67,7 @@
         "@id": "https://brainfy.online/#org",
         "name": "Brainfy",
         "url": "https://brainfy.online/",
-        "logo": "https://brainfy.online/og-image.svg",
+        "logo": "https://brainfy.online/og-image.png",
         "email": "help@brainfy.online",
         "founder": { "@id": "https://brainfy.online/#aihan" }
       },
@@ -962,9 +963,20 @@
     /* ── Scrollbar: smoother ── */
     * { scroll-behavior: smooth; }
 
-    /* ── Focus ring input in forms ── */
-    input:focus, textarea:focus, select:focus {
+    /* ── Focus ring ──────────────────────────────────────────────────────
+       Mouse clicks shouldn't show a ring (the old `outline:none` intent),
+       but KEYBOARD focus must always be visible (WCAG 2.4.7). :focus-visible
+       only matches keyboard/programmatic focus, so this gives every
+       interactive element a clear ring for keyboard users while staying
+       quiet for pointer users. */
+    input:focus:not(:focus-visible),
+    textarea:focus:not(:focus-visible),
+    select:focus:not(:focus-visible) {
       outline: none;
+    }
+    :focus-visible {
+      outline: 2px solid var(--plight);
+      outline-offset: 2px;
     }
 
     /* ── Heatmap cells: spring scale on hover ── */
@@ -1504,7 +1516,7 @@
           <div>
             <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">
               <span class="live-dot"></span>
-              <p style="font-size:10px;letter-spacing:0.12em;color:var(--muted);font-family:'Space Grotesk';">AI-POWERED ANALYTICS</p>
+              <p style="font-size:10px;letter-spacing:0.12em;color:var(--muted);font-family:'Space Grotesk';">AI-POWERED ANALYTICS · EXAMPLE</p>
             </div>
             <h3 style="font-size:20px;font-weight:800;color:white;letter-spacing:-0.015em;">Cognitive Performance</h3>
             <p style="font-size:13px;color:var(--muted);margin-top:4px;line-height:1.5;">Visualize cognitive load and focus peaks in real-time.</p>
@@ -2003,7 +2015,7 @@
           </div>
           <div style="position:relative;">
             <input id="signinPassword" type="password" placeholder="••••••••" class="auth-input" autocomplete="current-password" style="padding-right:44px;"/>
-            <button id="signinTogglePw" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;">
+            <button id="signinTogglePw" aria-label="Show password" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;">
               <span class="ms" id="signinPwIcon" style="font-size:20px;">visibility_off</span>
             </button>
           </div>
@@ -2076,7 +2088,7 @@
           <label style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0.06em;display:block;margin-bottom:7px;">PASSWORD</label>
           <div style="position:relative;">
             <input id="signupPassword" type="password" placeholder="Min. 8 characters" class="auth-input" autocomplete="new-password" style="padding-right:44px;"/>
-            <button id="signupTogglePw" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;">
+            <button id="signupTogglePw" aria-label="Show password" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;">
               <span class="ms" id="signupPwIcon" style="font-size:20px;">visibility_off</span>
             </button>
           </div>
@@ -3415,7 +3427,7 @@
       </div>
       <div style="display:flex;align-items:center;gap:12px;">
         <span id="fcProgressLabel" style="font-size:13px;color:var(--muted);font-family:'Space Grotesk';">1 / 6</span>
-        <button onclick="closeFlashcards()" style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;line-height:1;font-family:sans-serif;" onmouseover="this.style.background='rgba(239,68,68,0.12)';this.style.color='#f87171'" onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='var(--muted)'">×</button>
+        <button onclick="closeFlashcards()" aria-label="Close" style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;line-height:1;font-family:sans-serif;" onmouseover="this.style.background='rgba(239,68,68,0.12)';this.style.color='#f87171'" onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='var(--muted)'">×</button>
       </div>
     </div>
 
@@ -3633,7 +3645,7 @@
   <div style="background:rgba(15,22,41,0.98);border:1px solid rgba(255,255,255,0.08);border-radius:18px;width:min(580px,92vw);max-height:78vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6),0 0 0 1px rgba(124,58,237,0.12);transform:translateY(16px) scale(0.97);transition:transform 0.28s cubic-bezier(0.34,1.56,0.64,1);">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 0;">
       <h2 id="footerModalTitle" style="font-size:18px;font-weight:800;color:var(--text);margin:0;"></h2>
-      <button onclick="closeFooterModal()" style="background:rgba(255,255,255,0.06);border:none;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
+      <button onclick="closeFooterModal()" aria-label="Close" style="background:rgba(255,255,255,0.06);border:none;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
         <span class="ms" style="font-size:18px;">close</span>
       </button>
     </div>
@@ -3672,7 +3684,7 @@
         <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:3px;">AI STUDY GENERATOR</div>
         <div id="aiImportSubjName" style="font-size:16px;font-weight:700;color:var(--text);"></div>
       </div>
-      <button onclick="closeAIImport()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--muted);cursor:pointer;padding:6px;display:flex;align-items:center;transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
+      <button onclick="closeAIImport()" aria-label="Close" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--muted);cursor:pointer;padding:6px;display:flex;align-items:center;transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
         <span class="ms" style="font-size:18px;">close</span>
       </button>
     </div>
@@ -3690,7 +3702,7 @@
         <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:3px;">DOCUMENTS</div>
         <div id="docModalTitle" style="font-size:16px;font-weight:700;color:var(--text);"></div>
       </div>
-      <button onclick="closeDocModal()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--muted);cursor:pointer;padding:6px;display:flex;align-items:center;transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
+      <button onclick="closeDocModal()" aria-label="Close" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--muted);cursor:pointer;padding:6px;display:flex;align-items:center;transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
         <span class="ms" style="font-size:18px;">close</span>
       </button>
     </div>

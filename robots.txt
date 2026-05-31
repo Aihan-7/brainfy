@@ -7,5 +7,8 @@ Allow: /
 # Keep crawlers out of the JSON API (no useful indexable content there)
 Disallow: /api/
 
+# Internal design-prototype mockups — not real pages (also noindex'd via _headers)
+Disallow: /stitch/
+
 # Sitemap location
 Sitemap: https://brainfy.online/sitemap.xml
