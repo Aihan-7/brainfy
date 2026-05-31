@@ -563,7 +563,7 @@ ${jsonLd(p)}
 </head>
 <body>
   <div class="page">
-    <a class="back" href="/">Back to Brainfy</a>
+    ${siteHeader()}
     <nav class="crumbs" aria-label="Breadcrumb">
       <a href="/">Home</a> &nbsp;›&nbsp; <a href="/resources.html">Resources</a> &nbsp;›&nbsp; <span>${esc(p.crumb)}</span>
     </nav>
@@ -596,16 +596,32 @@ ${faqHtml}
 `;
 }
 
+// ── Shared site header (portable, inline-styled so it works on any page) ────
+function siteHeader() {
+  return `<header style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding-bottom:18px;margin-bottom:30px;border-bottom:1px solid rgba(255,255,255,0.08);">
+      <a href="/" aria-label="Brainfy home" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;">
+        <span style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#7c3aed,#6d28d9);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-family:'Space Grotesk',sans-serif;font-size:16px;">B</span>
+        <span style="font-weight:800;font-size:18px;color:#fff;letter-spacing:-0.01em;font-family:'Space Grotesk',sans-serif;">Brainfy</span>
+      </a>
+      <nav aria-label="Primary" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-size:14px;font-weight:600;">
+        <a href="/resources.html" style="color:#c8d4ec;text-decoration:none;">Resources</a>
+        <a href="/resources.html#guides" style="color:#c8d4ec;text-decoration:none;">Guides</a>
+        <a href="/decks" style="color:#c8d4ec;text-decoration:none;">Decks</a>
+        <a href="/" style="color:#fff;background:linear-gradient(135deg,#7c3aed,#6d28d9);padding:9px 15px;border-radius:10px;text-decoration:none;box-shadow:0 8px 22px rgba(124,58,237,.28);">Open Brainfy →</a>
+      </nav>
+    </header>`;
+}
+
 // ── Resources hub ─────────────────────────────────────────────────────────
 function renderHub() {
   const groups = [
-    { title: 'Features', slugs: ['ai-flashcards', 'pdf-to-flashcards', 'ai-tutor', 'pomodoro-timer', 'study-planner'] },
-    { title: 'Free tools', slugs: PAGES.filter(p => p.cat === 'tool').map(p => p.slug) },
-    { title: 'Use cases', slugs: PAGES.filter(p => p.cat === 'app' || p.cat === 'subject').map(p => p.slug) },
-    { title: 'Compare', slugs: PAGES.filter(p => p.cat === 'compare').map(p => p.slug) },
-    { title: 'Study guides', slugs: PAGES.filter(p => p.cat === 'guide').map(p => p.slug) },
+    { id: 'features', title: 'Features', slugs: ['ai-flashcards', 'pdf-to-flashcards', 'ai-tutor', 'pomodoro-timer', 'study-planner'] },
+    { id: 'tools', title: 'Free tools', slugs: PAGES.filter(p => p.cat === 'tool').map(p => p.slug) },
+    { id: 'use-cases', title: 'Use cases', slugs: PAGES.filter(p => p.cat === 'app' || p.cat === 'subject').map(p => p.slug) },
+    { id: 'compare', title: 'Compare', slugs: PAGES.filter(p => p.cat === 'compare').map(p => p.slug) },
+    { id: 'guides', title: 'Study guides', slugs: PAGES.filter(p => p.cat === 'guide').map(p => p.slug) },
   ].filter(g => g.slugs.length);
-  const sections = groups.map(g => `    <h2>${g.title}</h2>
+  const sections = groups.map(g => `    <h2 id="${g.id}" style="scroll-margin-top:24px;">${g.title}</h2>
     <div class="crosslinks">
       ${crosslinks(g.slugs)}
     </div>`).join('\n');
@@ -652,7 +668,7 @@ ${JSON.stringify({ "@context": "https://schema.org", "@graph": [
 </head>
 <body>
   <div class="page">
-    <a class="back" href="/">Back to Brainfy</a>
+    ${siteHeader()}
     <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> &nbsp;›&nbsp; <span>Resources</span></nav>
     <p class="eyebrow">Brainfy Resources</p>
     <h1>Study Resources &amp; Guides</h1>

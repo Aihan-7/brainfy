@@ -92,6 +92,22 @@ function head(title, desc, canonical, robots, jsonLd) {
 <style>${CSS}</style></head><body>`;
 }
 
+// Shared site header — portable inline-styled top nav (matches static pages).
+function siteHeader() {
+  return `<header style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding-bottom:18px;margin-bottom:30px;border-bottom:1px solid rgba(255,255,255,0.08);">
+      <a href="/" aria-label="Brainfy home" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;">
+        <span style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#7c3aed,#6d28d9);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-family:'Space Grotesk',sans-serif;font-size:16px;">B</span>
+        <span style="font-weight:800;font-size:18px;color:#fff;letter-spacing:-0.01em;font-family:'Space Grotesk',sans-serif;">Brainfy</span>
+      </a>
+      <nav aria-label="Primary" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-size:14px;font-weight:600;">
+        <a href="/resources.html" style="color:#c8d4ec;text-decoration:none;">Resources</a>
+        <a href="/resources.html#guides" style="color:#c8d4ec;text-decoration:none;">Guides</a>
+        <a href="/decks" style="color:#c8d4ec;text-decoration:none;">Decks</a>
+        <a href="/" style="color:#fff;background:linear-gradient(135deg,#7c3aed,#6d28d9);padding:9px 15px;border-radius:10px;text-decoration:none;box-shadow:0 8px 22px rgba(124,58,237,.28);">Open Brainfy →</a>
+      </nav>
+    </header>`;
+}
+
 const ORG = { "@type": "Organization", "@id": `${ORIGIN}/#org`, name: "Brainfy", url: `${ORIGIN}/`, logo: { "@type": "ImageObject", url: `${ORIGIN}/og-image.png`, width: 1200, height: 630 } };
 const WEBSITE = { "@type": "WebSite", "@id": `${ORIGIN}/#website`, url: `${ORIGIN}/`, name: "Brainfy", publisher: { "@id": `${ORIGIN}/#org` }, inLanguage: "en" };
 
@@ -116,7 +132,7 @@ export function renderDeckPage(id, deck) {
     `<div class="fc"><div class="q">${esc(c.q)}</div><div class="a">${esc(c.a)}</div></div>`).join('\n');
   return head(title, desc, url, robots, jsonLd) + `
   <div class="page">
-    <a class="back" href="/decks">All shared decks</a>
+    ${siteHeader()}
     <nav class="crumbs"><a href="/">Home</a> &nbsp;›&nbsp; <a href="/decks">Shared decks</a> &nbsp;›&nbsp; <span>${esc(deck.name)}</span></nav>
     <p class="eyebrow">Community deck</p>
     <h1>${esc(deck.name)}</h1>
@@ -148,7 +164,7 @@ export function renderDecksIndex(decks) {
     : `<div class="empty"><div style="font-size:14px;color:var(--text);font-weight:600;margin-bottom:6px;">No public decks yet</div><div style="font-size:12px;color:var(--muted);max-width:380px;margin:0 auto;line-height:1.55;">Be the first — open a deck's <strong>Cards</strong> tab in Brainfy and tap <strong>Share publicly</strong>.</div></div>`;
   return head(title, desc, url, 'index, follow, max-image-preview:large', jsonLd) + `
   <div class="page">
-    <a class="back" href="/resources.html">Back to resources</a>
+    ${siteHeader()}
     <nav class="crumbs"><a href="/">Home</a> &nbsp;›&nbsp; <span>Shared decks</span></nav>
     <p class="eyebrow">Community</p>
     <h1>Free Community Flashcard Decks</h1>
