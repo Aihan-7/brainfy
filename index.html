@@ -4297,6 +4297,9 @@
     var enterBtn = document.getElementById('enterBrainBtn');
     if (enterBtn && hintName) {
       enterBtn.textContent = 'Continue as ' + hintName + ' →';
+      // Returning user → "Try it free, no signup" is irrelevant; hide it.
+      var guestBtn = document.getElementById('tryGuestBtn');
+      if (guestBtn) guestBtn.style.display = 'none';
     }
 
     function wire(id, action) {

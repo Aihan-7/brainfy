@@ -1492,6 +1492,11 @@ function applySigninHint(): void {
   const fresh = btn.cloneNode(true) as HTMLElement;
   btn.parentNode?.replaceChild(fresh, btn);
 
+  // A returning user (has a hint / "Continue as <name>") doesn't need the
+  // "Try it free — no signup" guest CTA; hide it for them, show it otherwise.
+  const guestBtn = el('tryGuestBtn');
+  if (guestBtn) guestBtn.style.display = hint?.name ? 'none' : '';
+
   if (hint?.name) {
     fresh.textContent = `Continue as ${hint.name} →`;
     fresh.addEventListener('click', () => goTo('home'));
