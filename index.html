@@ -4127,6 +4127,10 @@
     return new Promise(function (resolve, reject) {
       var s = document.createElement('script');
       s.src = src; s.async = false; // preserve order
+      // Request cross-origin scripts (the gstatic Firebase SDK) with CORS so
+      // the service worker gets a cacheable response (not opaque) and the app
+      // can boot offline. gstatic serves these with Access-Control-Allow-Origin.
+      if (/^https?:\/\//i.test(src)) s.crossOrigin = 'anonymous';
       s.onload = resolve; s.onerror = reject;
       document.head.appendChild(s);
     });
@@ -4136,14 +4140,31 @@
   // Cached as a single promise so multiple callers share one download.
   window.loadApp = function loadApp() {
     if (appPromise) return appPromise;
-    appPromise = loadScript(FB_BASE + 'firebase-app-compat.js')
-      .then(function () { return loadScript(FB_BASE + 'firebase-auth-compat.js'); })
-      .then(function () { return loadScript(FB_BASE + 'firebase-storage-compat.js'); })
-      .then(function () { return loadScript(FB_BASE + 'firebase-firestore-compat.js'); })
+    // Download the 4 Firebase compat SDKs in PARALLEL instead of serially.
+    // Each is appended with async=false, so they download concurrently but
+    // still EXECUTE in insertion order — app-compat (which defines the global
+    // `firebase`) runs before auth/storage/firestore augment it. Then init +
+    // the app bundle. Saves the ~3x serial round-trips (~300-600ms on mobile).
+    appPromise = Promise.all([
+      loadScript(FB_BASE + 'firebase-app-compat.js'),
+      loadScript(FB_BASE + 'firebase-auth-compat.js'),
+      loadScript(FB_BASE + 'firebase-storage-compat.js'),
+      loadScript(FB_BASE + 'firebase-firestore-compat.js'),
+    ])
       .then(function () { firebase.initializeApp(FB_CONFIG); })
       .then(function () { return loadScript('/script.js?v=' + APP_VERSION); });
     return appPromise;
   };
+
+  // Register the service worker (offline shell + faster repeat loads). Deferred
+  // to window 'load' so it never competes with critical first-paint resources.
+  // Network-first navigations in sw.js mean a stale cache can't pin an old
+  // build — online users always get fresh HTML.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js').catch(function () { /* SW optional */ });
+    });
+  }
 
   // Stub functions so existing inline onclick="enterGuestMode()" etc.
   // don't crash before app.js loads. Each stub starts the lazy load

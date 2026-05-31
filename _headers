@@ -112,3 +112,11 @@
   Cache-Control: public, max-age=86400
 /icon.svg
   Cache-Control: public, max-age=86400
+/site.webmanifest
+  Cache-Control: public, max-age=86400
+
+# ── Service worker — never long-cache the SW script itself ────────────────
+# The browser must always revalidate /sw.js so a new deploy's worker is picked
+# up promptly. no-cache forces a conditional request every time.
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
