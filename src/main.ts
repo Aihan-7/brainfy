@@ -3437,6 +3437,7 @@ function renderDocModal(): void {
             : 'Share this deck so other students can study it.'
           }</div>
           <div style="display:flex;gap:8px;flex-shrink:0;">
+            ${firebaseUser && deckShared ? `<button onclick="shareDeckById(${docModalSubjId})" class="btn-ghost" style="padding:9px 12px;font-size:13px;border-radius:10px;border-color:rgba(124,58,237,0.4);color:var(--plight);display:flex;align-items:center;gap:6px;"><span class="ms" style="font-size:16px;">ios_share</span> Share</button>` : ''}
             ${firebaseUser && deckShared ? `<button onclick="publishDeck(${docModalSubjId})" class="btn-ghost" style="padding:9px 12px;font-size:13px;border-radius:10px;border-color:rgba(255,255,255,0.12);">Update</button>` : ''}
             <button onclick="toggleShareDeck(${docModalSubjId})" ${(firebaseUser && cardCount) ? '' : 'disabled'} class="btn-ghost" style="padding:9px 14px;font-size:13px;border-radius:10px;display:flex;align-items:center;gap:6px;${deckShared ? 'border-color:rgba(239,68,68,0.4);color:#f87171;' : 'border-color:rgba(124,58,237,0.4);color:var(--plight);'}${(firebaseUser && cardCount) ? '' : 'opacity:0.45;cursor:not-allowed;'}">
               <span class="ms" style="font-size:16px;">${deckShared ? 'close' : 'auto_awesome'}</span> ${deckShared ? 'Stop sharing' : 'Share publicly'}
@@ -3869,9 +3870,12 @@ async function publishDeck(subjectId: number): Promise<void> {
       save();
     }
     const link = `${location.origin}/decks/${s.publicDeckId}`;   // indexable SSR page (has a Study CTA → /?deck=)
+    track('share.deck.published');
     try { await navigator.clipboard?.writeText(link); } catch (_) {}
-    showToast('Deck shared — link copied to clipboard', 'success');
+    showToast('Deck is live! Send it to classmates →', 'success');
     renderDocModal();
+    // Surface the share options right away — this is the moment a deck spreads.
+    openShareSheet(link, s.name || 'My deck', `Study "${s.name || 'this deck'}" — ${s.cards.length} free flashcards on Brainfy`);
   } catch (err: unknown) {
     const code = (err as { code?: string })?.code;
     console.error('[share] publish failed', code, err);
@@ -3897,6 +3901,81 @@ async function unpublishDeck(subjectId: number): Promise<void> {
 function toggleShareDeck(subjectId: number): void {
   if (deckIsShared(subjectId)) unpublishDeck(subjectId);
   else                         publishDeck(subjectId);
+}
+
+// ── Sharing & invites (the viral loop) ──────────────────────────────────────
+// Spread a deck or the app itself. On mobile we use the OS share sheet (best
+// UX — WhatsApp/Messages/etc.); on desktop we fall back to a copy+socials sheet.
+function shareLink(url: string, title: string, text: string, ev?: string): void {
+  if (ev) track(ev);
+  const n = navigator as Navigator & { share?: (d: { title?: string; text?: string; url?: string }) => Promise<void> };
+  if (typeof n.share === 'function') { n.share({ title, text, url }).catch(() => {}); return; }
+  openShareSheet(url, title, text);
+}
+
+function closeShareSheet(): void { el('shareSheet')?.remove(); }
+
+function openShareSheet(url: string, title: string, text: string): void {
+  closeShareSheet();
+  const eU = encodeURIComponent(url), eT = encodeURIComponent(text),
+        eTU = encodeURIComponent(text + ' ' + url), eN = encodeURIComponent(title);
+  const opt = (label: string, href: string) =>
+    `<a href="${href}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border-radius:11px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);text-decoration:none;font-size:13px;font-weight:700;" onmouseover="this.style.borderColor='rgba(124,58,237,0.45)';this.style.background='rgba(255,255,255,0.07)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='rgba(255,255,255,0.04)'">${label}</a>`;
+  const safeVal = String(url).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  const wrap = document.createElement('div');
+  wrap.id = 'shareSheet';
+  wrap.setAttribute('role', 'dialog');
+  wrap.setAttribute('aria-modal', 'true');
+  wrap.setAttribute('aria-label', 'Share');
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:400;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.66);backdrop-filter:blur(8px);padding:20px;';
+  wrap.addEventListener('click', e => { if (e.target === wrap) closeShareSheet(); });
+  wrap.innerHTML = `
+    <div style="background:#131a30;border:1px solid var(--border);border-radius:18px;max-width:380px;width:100%;padding:22px 22px 20px;box-shadow:0 30px 80px rgba(0,0,0,0.55);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 style="font-size:16px;font-weight:800;color:var(--text);margin:0;">Share</h2>
+        <button onclick="closeShareSheet()" aria-label="Close" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:22px;line-height:1;padding:2px 6px;">&times;</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <input id="shareUrlInput" readonly value="${safeVal}" style="flex:1;min-width:0;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);font-size:12px;font-family:'Space Grotesk',monospace;" />
+        <button onclick="copyShareUrl(this)" class="btn-primary" style="padding:10px 16px;font-size:13px;border-radius:10px;white-space:nowrap;">Copy</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        ${opt('WhatsApp', 'https://wa.me/?text=' + eTU)}
+        ${opt('Post to X', 'https://twitter.com/intent/tweet?text=' + eT + '&url=' + eU)}
+        ${opt('Reddit', 'https://www.reddit.com/submit?url=' + eU + '&title=' + eN)}
+        ${opt('Email', 'mailto:?subject=' + eN + '&body=' + eTU)}
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { closeShareSheet(); document.removeEventListener('keydown', onKey, true); } };
+  document.addEventListener('keydown', onKey, true);
+  setTimeout(() => (el('shareUrlInput') as HTMLInputElement | null)?.focus(), 40);
+}
+
+function copyShareUrl(btn: HTMLElement): void {
+  const inp = el('shareUrlInput') as HTMLInputElement | null;
+  const url = inp?.value || '';
+  const done = () => { const o = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = o; }, 1500); };
+  const fallback = () => { try { inp?.select(); document.execCommand('copy'); done(); } catch (_) { /* noop */ } };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done).catch(fallback);
+  else fallback();
+}
+
+// Share an already-published deck (from the deck settings modal).
+function shareDeckById(subjectId: number): void {
+  const s = S.subjects.find(x => x.id === subjectId);
+  if (!s || !s.publicDeckId) { showToast('Publish the deck first to get a share link', 'warning'); return; }
+  const name = s.name || 'My deck';
+  shareLink(`${location.origin}/decks/${s.publicDeckId}`, name,
+    `Study "${name}" — ${s.cards?.length || 0} free flashcards on Brainfy`, 'share.deck.click');
+}
+
+// Invite a friend to Brainfy (carries a ?ref= tag for attribution).
+function inviteFriends(): void {
+  document.body.classList.remove('sidebar-open');
+  const ref = firebaseUser?.uid ? `?ref=${encodeURIComponent(firebaseUser.uid)}` : '';
+  shareLink(`${location.origin}/${ref}`, 'Brainfy',
+    'Brainfy turns your notes & PDFs into flashcards and keeps you focused while you study — free, no ads. Join me:', 'invite.click');
 }
 
 async function fetchPublicDecks(): Promise<PublicDeck[]> {
@@ -5420,6 +5499,9 @@ function handleSignup(): void {
     .then((cred: any) => {
       // Save display name in Firebase profile (non-blocking)
       cred.user.updateProfile({ displayName: name }).catch(() => {});
+      let referred = false;
+      try { referred = !!localStorage.getItem('brainfy_ref'); } catch (_) { /* ignore */ }
+      track('signup', { referred });
       return onFirebaseSignIn(cred.user, name);
     })
     .catch((err: any) => {
@@ -6372,6 +6454,18 @@ function init() {
   window.setTimeout(nudgeIfDue, 2500);
   // Handle a /?deck=<id> share link once Firestore is ready.
   window.setTimeout(() => { void maybeOpenSharedDeck(); }, 1800);
+
+  // Capture an invite ?ref= once (attribution for the referral loop), then
+  // strip it from the URL so it doesn't linger or re-fire on reload.
+  try {
+    const u = new URL(location.href);
+    const ref = u.searchParams.get('ref');
+    if (ref) {
+      if (!localStorage.getItem('brainfy_ref')) { localStorage.setItem('brainfy_ref', ref.slice(0, 64)); track('referral.land'); }
+      u.searchParams.delete('ref');
+      history.replaceState(null, '', u.pathname + u.search + u.hash);
+    }
+  } catch (_) { /* ignore */ }
 
   // ── Firebase auth observer ────────────────────
   // Fires once on load: if user was already signed in, skip splash and

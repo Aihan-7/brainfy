@@ -58,7 +58,12 @@ h2{font-size:1.3rem;font-weight:800;color:#fff;margin:40px 0 16px}
 .grid span{color:var(--muted);font-size:12px}
 hr{border:none;border-top:1px solid var(--border);margin:44px 0 24px}
 .foot{color:var(--muted);font-size:13px}
-.empty{text-align:center;padding:48px 24px;background:rgba(7,15,31,0.4);border:1px dashed var(--border);border-radius:16px}`;
+.empty{text-align:center;padding:48px 24px;background:rgba(7,15,31,0.4);border:1px dashed var(--border);border-radius:16px}
+.share{margin:0 0 40px;padding:16px 18px;background:rgba(124,58,237,0.06);border:1px solid rgba(124,58,237,0.18);border-radius:14px}
+.share-label{display:block;font-size:11px;font-weight:700;color:#c8b3ff;letter-spacing:.08em;text-transform:uppercase;margin-bottom:11px}
+.share-btns{display:flex;flex-wrap:wrap;gap:8px}
+.sbtn{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;cursor:pointer;background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text);font-family:'Manrope',sans-serif}
+.sbtn:hover{border-color:rgba(124,58,237,0.45);background:rgba(255,255,255,0.09)}`;
 
 // Escape a JSON string for safe embedding inside a <script> tag. Without this,
 // user-controlled deck text containing "</script>" would break out of the
@@ -130,6 +135,11 @@ export function renderDeckPage(id, deck) {
   ] });
   const cards = deck.cards.slice(0, 200).map(c =>
     `<div class="fc"><div class="q">${esc(c.q)}</div><div class="a">${esc(c.a)}</div></div>`).join('\n');
+  // Share row — lets any visitor spread the deck (the viral loop). Social
+  // intents work without JS; copy + native share are progressive enhancement.
+  const shareText = `Study "${deck.name}" — ${deck.cardCount} free flashcards on Brainfy`;
+  const eU = encodeURIComponent(url), eT = encodeURIComponent(shareText),
+        eTU = encodeURIComponent(shareText + ' ' + url), eN = encodeURIComponent(deck.name);
   return head(title, desc, url, robots, jsonLd) + `
   <div class="page">
     ${siteHeader()}
@@ -142,6 +152,26 @@ export function renderDeckPage(id, deck) {
       <a class="btn" href="/?deck=${esc(id)}">Study this deck free →</a>
       <a class="btn btn-ghost" href="/">Make your own deck</a>
     </div>
+    <div class="share">
+      <span class="share-label">Share this deck</span>
+      <div class="share-btns">
+        <button type="button" class="sbtn" onclick="bfCopy(this)">Copy link</button>
+        <a class="sbtn" href="https://wa.me/?text=${eTU}" target="_blank" rel="noopener">WhatsApp</a>
+        <a class="sbtn" href="https://twitter.com/intent/tweet?text=${eT}&url=${eU}" target="_blank" rel="noopener">X</a>
+        <a class="sbtn" href="https://www.reddit.com/submit?url=${eU}&title=${eN}" target="_blank" rel="noopener">Reddit</a>
+        <button type="button" class="sbtn" id="nativeShareBtn" style="display:none" onclick="bfShare()">Share…</button>
+      </div>
+    </div>
+    <script>
+    (function(){
+      var u=${jsonForScript(JSON.stringify(url))}, t=${jsonForScript(JSON.stringify(shareText))}, n=${jsonForScript(JSON.stringify(deck.name))};
+      if(navigator.share){var b=document.getElementById('nativeShareBtn'); if(b){b.style.display='';}}
+      window.bfShare=function(){ if(navigator.share){ navigator.share({title:n,text:t,url:u}).catch(function(){}); } };
+      window.bfCopy=function(el){ function done(){ var o=el.textContent; el.textContent='Copied!'; setTimeout(function(){el.textContent=o;},1500); }
+        if(navigator.clipboard){ navigator.clipboard.writeText(u).then(done).catch(function(){ window.prompt('Copy this link:',u); }); }
+        else { window.prompt('Copy this link:',u); } };
+    })();
+    </script>
     <h2>What's in this deck</h2>
     ${cards}
     <hr><p class="foot">Add this deck to your library and study it with spaced repetition, free on <a href="/">Brainfy</a>.</p>
