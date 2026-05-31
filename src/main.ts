@@ -121,6 +121,8 @@ interface AppState {
   reminderHour?: number;        // preferred reminder hour (0-23, local)
   lastNudgeDay?: string;        // toDateString() of the last reminder shown (dedupe per day)
   pushSub?:      unknown;       // Web Push PushSubscription JSON (synced for a future cron sender)
+  plan?:         'free' | 'plus';   // billing tier (a billing webhook sets 'plus')
+  usage?: { day: string; month: string; imports: number; tutor: number };  // AI usage meter
 }
 
 interface Quote {
@@ -2913,6 +2915,91 @@ function nudgeIfDue(): void {
   } catch (_) { /* ignore */ }
 }
 
+// ── Freemium scaffold (Brainfy Plus) ──────────────────────────────────────
+// Client-side AI usage metering + a "Brainfy Plus" paywall. SOFT BY DEFAULT:
+// ENFORCE_LIMITS=false means usage is tracked and shown but NEVER blocked — the
+// current free experience is unchanged. To turn monetization on:
+//   1. Set ENFORCE_LIMITS = true and tune FREE_LIMITS / PLUS_PRICE.
+//   2. Set CHECKOUT_URL to your Stripe / Lemon Squeezy checkout link.
+//   3. Have your billing webhook set the user's Firestore state.plan = 'plus',
+//      and add a SERVER-SIDE quota check in functions/api (the existing
+//      RATE_LIMIT_KV guard is the place) — client limits are UX-only and
+//      bypassable, so the server is the real gate.
+const ENFORCE_LIMITS = false;
+const PLUS_PRICE      = '$6/mo';
+const CHECKOUT_URL    = '';                                   // ← paste checkout link to enable Upgrade
+const FREE_LIMITS     = { importsPerMonth: 20, tutorMsgsPerDay: 30 };
+
+function isPlus(): boolean { return S.plan === 'plus'; }
+function _monthKey(): string { const d = new Date(); return `${d.getFullYear()}-${d.getMonth()}`; }
+
+// Lazily init + roll over the usage counters (monthly for AI generations,
+// daily for tutor messages).
+function usage(): { day: string; month: string; imports: number; tutor: number } {
+  if (!S.usage) S.usage = { day: todayStr(), month: _monthKey(), imports: 0, tutor: 0 };
+  if (S.usage.month !== _monthKey()) { S.usage.month = _monthKey(); S.usage.imports = 0; }
+  if (S.usage.day   !== todayStr())  { S.usage.day   = todayStr();  S.usage.tutor   = 0; }
+  return S.usage;
+}
+function aiRemaining(kind: 'import' | 'tutor'): number {
+  const u = usage();
+  return kind === 'import'
+    ? Math.max(0, FREE_LIMITS.importsPerMonth - u.imports)
+    : Math.max(0, FREE_LIMITS.tutorMsgsPerDay - u.tutor);
+}
+// Gate an AI action. Plus users + soft mode always pass; free users at their
+// limit are blocked (and shown the paywall) only when ENFORCE_LIMITS is on.
+function gateAI(kind: 'import' | 'tutor'): boolean {
+  if (isPlus()) return true;
+  const u = usage();
+  const over = kind === 'import' ? u.imports >= FREE_LIMITS.importsPerMonth
+                                 : u.tutor   >= FREE_LIMITS.tutorMsgsPerDay;
+  if (over && ENFORCE_LIMITS) { showUpgradeModal(kind); return false; }
+  return true;
+}
+function recordAI(kind: 'import' | 'tutor'): void {
+  const u = usage();
+  if (kind === 'import') u.imports++; else u.tutor++;
+  save();
+}
+
+function startCheckout(): void {
+  if (CHECKOUT_URL) { window.open(CHECKOUT_URL, '_blank', 'noopener'); return; }
+  showToast('Upgrades aren’t live yet — coming soon!', 'info');
+}
+
+function showUpgradeModal(reason?: 'import' | 'tutor'): void {
+  const modal = el('footerModal'); const title = el('footerModalTitle'); const body = el('footerModalBody');
+  if (!modal || !title || !body) return;
+  title.textContent = 'Brainfy Plus';
+  const why = reason === 'import' ? `You've used all ${FREE_LIMITS.importsPerMonth} free AI generations this month.`
+            : reason === 'tutor'  ? `You've used all ${FREE_LIMITS.tutorMsgsPerDay} free tutor messages today.`
+            : 'Get more out of Brainfy.';
+  const perks = [
+    'Unlimited AI flashcard & summary generation',
+    'Unlimited AI tutor messages',
+    'Priority AI model + image (OCR) imports',
+    'Everything in Free, forever — timer, SRS, import/export, sync',
+  ];
+  body.innerHTML = `
+    <div style="text-align:center;padding:4px 0 14px;">
+      <div style="font-size:13px;color:var(--muted);">${_e(why)}</div>
+      <div style="margin-top:14px;display:inline-flex;align-items:baseline;gap:4px;">
+        <span style="font-size:38px;font-weight:900;color:var(--plight);letter-spacing:-0.02em;">${_e(PLUS_PRICE)}</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted2);">Student-friendly pricing · cancel anytime</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin:8px 0 18px;">
+      ${perks.map(p => `<div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--text);"><span class="ms" style="font-size:18px;color:var(--green);flex-shrink:0;">check_circle</span><span style="line-height:1.4;">${_e(p)}</span></div>`).join('')}
+    </div>
+    <button onclick="startCheckout()" class="btn-primary" style="width:100%;padding:13px;font-size:15px;font-weight:700;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;"><span class="ms" style="font-size:18px;">auto_awesome</span> Upgrade to Plus</button>
+    <p style="font-size:11px;color:var(--muted2);text-align:center;margin-top:12px;line-height:1.5;">Free includes ${FREE_LIMITS.importsPerMonth} AI generations / month and ${FREE_LIMITS.tutorMsgsPerDay} tutor messages / day.</p>
+  `;
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => modal.classList.add('open'));
+}
+
 function beginFocusSession(): void {
   const intentEl = el('focusIntentInput') as HTMLInputElement | null;
   const subjEl   = el('focusSubjectSelect') as HTMLSelectElement | null;
@@ -3956,6 +4043,7 @@ async function generateSummaryForDoc(subjId: number, docId: number): Promise<voi
   const s = S.subjects.find(x => x.id === subjId);
   const d = s?.documents?.find(x => x.id === docId);
   if (!s || !d) return;
+  if (!gateAI('import')) return; recordAI('import');
 
   // Build the summary-mode payload from whatever the doc carries.
   let payload: Record<string, unknown> | null = null;
@@ -4369,6 +4457,7 @@ function setAIResultTab(tab: typeof aiImportResultTab): void {
 // Lazily generate the summary from the cached source content (summary mode).
 async function generateSummary(): Promise<void> {
   if (!aiImportResult || !aiImportSourcePayload || aiSummaryLoading) return;
+  if (!gateAI('import')) return; recordAI('import');
   aiSummaryLoading = true;
   aiImportResultTab = 'summary';
   renderAIImportStep('result');
@@ -4595,6 +4684,7 @@ function advanceProcStep(step: number, label: string, sub: string): void {
 async function processYouTube(): Promise<void> {
   const url = (elInput('ytUrlInput')?.value ?? '').trim();
   if (!url) { showToast('Please enter a YouTube URL', 'warning'); return; }
+  if (!gateAI('import')) return; recordAI('import');
 
   renderAIImportStep('processing');
   advanceProcStep(0, 'Fetching video info…', 'Getting transcript from YouTube');
@@ -4646,6 +4736,7 @@ async function processYouTube(): Promise<void> {
 
 async function processFile(): Promise<void> {
   if (!aiImportFileData) return;
+  if (!gateAI('import')) return; recordAI('import');
   const fd = aiImportFileData;
   const { name, size, mime, kind } = fd;
 
@@ -5774,6 +5865,7 @@ function buildSystemPrompt() {
 // at most once per animation frame to keep markdown formatting cheap.
 async function callClaude(userText: string): Promise<void> {
   if (!aiAvailable) { showAIOffline(); return; }
+  if (!gateAI('tutor')) return; recordAI('tutor');
 
   aiHistory.push({ role: 'user', content: userText });
   appendAIMsg('user', userText);
@@ -6727,6 +6819,27 @@ function renderSettings(): void {
   if (fd) fd.value = String(Math.round(S.focusDuration / 60));
   if (bd) bd.value = String(Math.round(S.breakDuration / 60));
   if (dg) dg.value = String(S.dailyGoal);
+
+  // Plan / usage
+  const planCard = el('setPlanCard');
+  if (planCard) {
+    if (isPlus()) {
+      planCard.innerHTML = `<div style="display:flex;align-items:center;gap:12px;">
+        <span class="ms" style="font-size:24px;color:var(--green);">auto_awesome</span>
+        <div><div style="font-size:14px;font-weight:700;color:var(--text);">Brainfy Plus</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Unlimited AI — thanks for supporting Brainfy 💜</div></div>
+      </div>`;
+    } else {
+      const u = usage();
+      planCard.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);">Free plan</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;line-height:1.5;">${u.imports}/${FREE_LIMITS.importsPerMonth} AI generations this month · ${u.tutor}/${FREE_LIMITS.tutorMsgsPerDay} tutor messages today</div>
+        </div>
+        <button onclick="showUpgradeModal()" class="btn-primary" style="padding:9px 16px;font-size:13px;border-radius:10px;display:flex;align-items:center;gap:6px;white-space:nowrap;"><span class="ms" style="font-size:16px;">auto_awesome</span> Upgrade to Plus</button>
+      </div>`;
+    }
+  }
 
   // Reminders toggle state
   const remBtn  = el('setReminderToggle') as HTMLButtonElement | null;
