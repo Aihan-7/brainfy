@@ -2156,6 +2156,7 @@ function renderHome() {
 
   renderFocusTimeChart();
   renderHomeDueCards();
+  renderHomeCoach();        // after due-cards so it can subsume the due tile
   renderHomeSubjects();
   renderHomeTasks();
   renderHomeQuote();
@@ -2296,6 +2297,89 @@ function renderHomeDueCards() {
   const plr = el('homeDuePlural');
   if (num) num.textContent = String(count);
   if (plr) plr.textContent = count === 1 ? '' : 's';
+}
+
+// ── Focus-aware study coach ───────────────────────────────────────────────
+// Turns the data Brainfy uniquely holds — focus-session telemetry (when/how
+// long/which subject) + SRS retention state — into one proactive recommendation
+// plus a few at-a-glance insights. All client-side, instant, offline.
+
+function fmtHour(h: number): string {
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${h < 12 ? 'am' : 'pm'}`;
+}
+// The hour-of-day where the user has logged the most focus time (needs a few
+// sessions before it's meaningful).
+function bestFocusHour(): number | null {
+  if (S.sessions.length < 3) return null;
+  const buckets: Record<number, number> = {};
+  for (const s of S.sessions) { const h = new Date(s.date).getHours(); buckets[h] = (buckets[h] || 0) + s.duration; }
+  let best = -1, bestVal = 0;
+  for (const h of Object.keys(buckets)) { if (buckets[+h]! > bestVal) { bestVal = buckets[+h]!; best = +h; } }
+  return best >= 0 ? best : null;
+}
+// The subject with the most cards due right now (the "weak spot" to drill).
+function weakestSubject(): { subj: Subject; due: number } | null {
+  let best: { subj: Subject; due: number } | null = null;
+  for (const s of S.subjects) {
+    if (!s.cards?.length) continue;
+    const due = s.cards.filter(c => srsIsDue(c)).length;
+    if (due > 0 && (!best || due > best.due)) best = { subj: s, due };
+  }
+  return best;
+}
+
+function renderHomeCoach(): void {
+  const card = el('homeCoach');
+  if (!card) return;
+  const hasSignal = S.sessions.length > 0 || S.subjects.some(s => !!s.cards?.length);
+  if (!hasSignal) { card.style.display = 'none'; return; }
+
+  const due       = srsSessionQueue().length;
+  const weak      = weakestSubject();
+  const todayMins = Math.round(todayFocusSec() / 60);
+  const goal      = S.dailyGoal || 120;
+  const bestHr    = bestFocusHour();
+
+  // Primary recommendation — highest-priority actionable thing right now.
+  let rec: { icon: string; text: string; cta: string; onclick: string };
+  if (streakAtRisk()) {
+    rec = { icon: 'local_fire_department', text: `Keep your <strong>${S.streak}-day streak</strong> alive — get a focus session in today.`, cta: 'Start session', onclick: `goTo('focus')` };
+  } else if (due > 0 && weak) {
+    rec = { icon: 'style', text: `${due} card${due > 1 ? 's' : ''} due — <strong>${_e(weak.subj.name)}</strong> needs the most attention.`, cta: 'Review now', onclick: `openReviewSession()` };
+  } else if (due > 0) {
+    rec = { icon: 'style', text: `You have <strong>${due} card${due > 1 ? 's' : ''}</strong> due for review.`, cta: 'Review now', onclick: `openReviewSession()` };
+  } else if (todayMins < goal) {
+    rec = { icon: 'timer', text: `<strong>${goal - todayMins} min</strong> to hit today's focus goal.`, cta: 'Start session', onclick: `goTo('focus')` };
+  } else {
+    rec = { icon: 'check_circle', text: `On track today — ${todayMins} min focused and nothing due. Study ahead to get further?`, cta: 'Study ahead', onclick: `goTo('library')` };
+  }
+
+  // At-a-glance insight chips.
+  const chips: string[] = [];
+  if (bestHr !== null) chips.push(`🕘 You focus best around ${fmtHour(bestHr)}`);
+  if (weak)            chips.push(`📉 ${_e(weak.subj.name)}: ${weak.due} to review`);
+  const weekCut = Date.now() - 7 * 86400000;
+  const weekMin = Math.round(S.sessions.filter(s => new Date(s.date).getTime() >= weekCut).reduce((n, s) => n + s.duration, 0) / 60);
+  if (weekMin > 0)     chips.push(`⏱ ${weekMin} min this week`);
+  if ((S.streak || 0) > 0) chips.push(`🔥 ${S.streak}-day streak`);
+
+  card.style.display = 'block';
+  card.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <span class="ms" style="font-size:18px;color:var(--plight);">psychology</span>
+      <p style="font-size:11px;letter-spacing:0.1em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;">STUDY COACH</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:200px;font-size:14px;color:var(--text);line-height:1.5;">${rec.text}</div>
+      <button onclick="${rec.onclick}" class="btn-primary" style="padding:10px 18px;font-size:13px;border-radius:10px;white-space:nowrap;display:flex;align-items:center;gap:6px;"><span class="ms" style="font-size:16px;">${rec.icon}</span>${rec.cta}</button>
+    </div>
+    ${chips.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">${chips.map(c => `<span style="font-size:11px;color:var(--muted);background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:999px;padding:5px 11px;">${c}</span>`).join('')}</div>` : ''}
+  `;
+
+  // The coach subsumes the standalone "N cards due" tile — avoid showing both.
+  const dueTile = el('homeDueCard');
+  if (dueTile) dueTile.style.display = 'none';
 }
 
 function renderHomeSubjects() {
