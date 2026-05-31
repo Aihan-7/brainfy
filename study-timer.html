@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Free Online Study Timer (Pomodoro) | Brainfy</title>
+  <meta name="description" content="A free online Pomodoro study timer with ambient sound and session logging that feeds your analytics and study coach. No ads, no signup needed to try." />
+  <meta name="keywords" content="study timer, online study timer, pomodoro study timer, free focus timer, study timer with sound" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="theme-color" content="#0b1326" />
+  <link rel="canonical" href="https://brainfy.online/study-timer.html" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Brainfy" />
+  <meta property="og:url" content="https://brainfy.online/study-timer.html" />
+  <meta property="og:title" content="Free Online Study Timer (Pomodoro) | Brainfy" />
+  <meta property="og:description" content="A free online Pomodoro study timer with ambient sound and session logging that feeds your analytics and study coach. No ads, no signup needed to try." />
+  <meta property="og:image" content="https://brainfy.online/og-image.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Free Online Study Timer (Pomodoro) | Brainfy" />
+  <meta name="twitter:description" content="A free online Pomodoro study timer with ambient sound and session logging that feeds your analytics and study coach. No ads, no signup needed to try." />
+  <meta name="twitter:image" content="https://brainfy.online/og-image.png" />
+
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://brainfy.online/study-timer.html#app",
+      "name": "Brainfy — Study Timer",
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "Web",
+      "url": "https://brainfy.online/study-timer.html",
+      "description": "A free online Pomodoro study timer with ambient sound and session logging that feeds your analytics and study coach. No ads, no signup needed to try.",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "publisher": {
+        "@id": "https://brainfy.online/#org"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://brainfy.online/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Study Timer",
+          "item": "https://brainfy.online/study-timer.html"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is the study timer free?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes — the Pomodoro timer, ambient sound, and session logging are free during beta, with no ads and no signup needed to try."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I change the block length?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes — 25 minutes is the default, but you can tune the focus and break lengths to whatever rhythm suits you."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What does session logging do?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Every finished focus block is recorded, so Brainfy can show your focus trends and the coach can highlight when you focus best and what to prioritise."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does it work with my flashcards?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes — a focus block spent clearing due cards pairs focus with active recall, and both feed the same analytics and coach."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is there ambient sound?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes — optional ambient sound is built in to help you settle into a session."
+          }
+        }
+      ]
+    }
+  ]
+}
+  </script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg:#0b1326; --card:rgba(255,255,255,0.04); --border:rgba(255,255,255,0.08); --primary:#7c3aed; --plight:#a78bfa; --cyan:#4cd7f6; --text:#dae2fd; --muted:#94a3b8; --green:#4ede9a; }
+    body { background:var(--bg); color:var(--text); font-family:'Manrope',sans-serif; line-height:1.7; -webkit-font-smoothing:antialiased; }
+    .page { max-width:780px; margin:0 auto; padding:56px 24px 96px; }
+    .back { display:inline-flex; align-items:center; gap:6px; color:var(--plight); text-decoration:none; font-size:14px; font-weight:600; margin-bottom:32px; opacity:.85; }
+    .back:hover { opacity:1; } .back::before { content:'\2190'; font-size:16px; }
+    nav.crumbs { font-size:12px; color:var(--muted); margin-bottom:14px; font-family:'Space Grotesk',sans-serif; letter-spacing:0.04em; }
+    nav.crumbs a { color:var(--plight); text-decoration:none; } nav.crumbs a:hover { text-decoration:underline; }
+    .eyebrow { font-family:'Space Grotesk',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.18em; color:var(--plight); margin-bottom:14px; text-transform:uppercase; }
+    h1 { font-size:clamp(2rem,4.5vw,2.8rem); font-weight:900; letter-spacing:-0.025em; line-height:1.12; color:#fff; margin-bottom:18px; }
+    .lede { font-size:1.08rem; color:#c8d4ec; margin-bottom:32px; }
+    .cta-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:48px; }
+    .btn { padding:13px 22px; border-radius:12px; font-family:'Manrope',sans-serif; font-size:14px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:8px; transition:transform 0.12s, box-shadow 0.18s; }
+    .btn-primary { background:linear-gradient(135deg,var(--primary),#6d28d9); color:#fff; box-shadow:0 10px 30px rgba(124,58,237,0.32); }
+    .btn-primary:hover { transform:translateY(-1px); box-shadow:0 14px 34px rgba(124,58,237,0.42); }
+    .btn-ghost { background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text); }
+    .btn-ghost:hover { background:rgba(255,255,255,0.08); }
+    h2 { font-size:1.45rem; font-weight:800; color:#fff; letter-spacing:-0.015em; margin:48px 0 16px; }
+    h3 { font-size:1.05rem; font-weight:700; color:var(--plight); margin:24px 0 8px; }
+    p { color:#b8c5dd; margin-bottom:16px; }
+    p strong { color:#fff; font-weight:700; }
+    ul { color:#b8c5dd; padding-left:22px; margin-bottom:18px; }
+    ul li { margin-bottom:8px; }
+    a { color:var(--plight); }
+    table.cmp { width:100%; border-collapse:collapse; margin:18px 0 24px; font-size:14px; }
+    table.cmp th, table.cmp td { text-align:left; padding:11px 14px; border-bottom:1px solid var(--border); color:#b8c5dd; }
+    table.cmp th { color:#fff; font-family:'Space Grotesk',sans-serif; font-size:12px; letter-spacing:0.04em; }
+    table.cmp td:first-child { color:#fff; font-weight:600; }
+    .steps { display:grid; gap:14px; margin:18px 0 24px; }
+    .step { display:grid; grid-template-columns:auto 1fr; gap:16px; padding:18px 20px; border-radius:14px; background:var(--card); border:1px solid var(--border); }
+    .step-n { width:34px; height:34px; border-radius:50%; background:rgba(124,58,237,0.18); border:1px solid rgba(124,58,237,0.35); color:var(--plight); font-family:'Space Grotesk',sans-serif; font-weight:800; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+    .step h3 { color:#fff; margin:0 0 4px; font-size:15px; }
+    .step p { color:#a8b6d0; margin:0; font-size:14px; }
+    .faq details { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 18px; margin-bottom:10px; }
+    .faq summary { cursor:pointer; font-weight:700; color:#fff; font-size:15px; list-style:none; outline:none; }
+    .faq summary::-webkit-details-marker { display:none; }
+    .faq summary::after { content:'+'; float:right; color:var(--plight); font-weight:700; transition:transform 0.2s; }
+    .faq details[open] summary::after { transform:rotate(45deg); display:inline-block; }
+    .faq details p { margin:12px 0 4px; font-size:14px; }
+    .crosslinks { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:18px 0 24px; }
+    .crosslinks a { display:block; padding:16px 18px; border-radius:12px; background:var(--card); border:1px solid var(--border); color:var(--text); text-decoration:none; transition:border-color 0.15s, transform 0.12s; }
+    .crosslinks a:hover { border-color:rgba(124,58,237,0.35); transform:translateY(-2px); }
+    .crosslinks strong { display:block; color:#fff; font-weight:700; margin-bottom:4px; font-size:14px; }
+    .crosslinks span { color:var(--muted); font-size:12px; }
+    hr { border:none; border-top:1px solid var(--border); margin:44px 0 24px; }
+    .foot { color:var(--muted); font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <a class="back" href="/">Back to Brainfy</a>
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/">Home</a> &nbsp;›&nbsp; <a href="/resources.html">Resources</a> &nbsp;›&nbsp; <span>Study Timer</span>
+    </nav>
+
+    <p class="eyebrow">Free tool · Focus</p>
+    <h1>A Free Online Study Timer That Remembers Your Sessions</h1>
+    <p class="lede">A clean <strong>Pomodoro study timer</strong> with optional ambient sound — and unlike a kitchen timer, it <strong>logs every session</strong> so your focus history feeds your analytics and study coach.</p>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" href="/">Open Brainfy →</a>
+      <a class="btn btn-ghost" href="/resources.html">All study resources</a>
+    </div>
+
+      <h2>More than a countdown</h2>
+      <p>A timer that forgets the moment it rings cannot help you improve. Brainfy logs each focus session, so over time you can see when you actually focus best and which subjects are getting your hours — the same data the built-in coach uses to nudge you.</p>
+      <h2>How it works</h2>
+      <div class="steps">
+        <div class="step"><div class="step-n">1</div><div><h3>Set a focus block</h3><p>Start a Pomodoro-style block (25 minutes by default) on one task. No signup needed to try.</p></div></div>
+        <div class="step"><div class="step-n">2</div><div><h3>Focus with ambient sound</h3><p>Turn on optional ambient sound to settle in, and let the running timer make distractions feel expensive.</p></div></div>
+        <div class="step"><div class="step-n">3</div><div><h3>Sessions feed your analytics</h3><p>Each finished block is logged, so your focus trends and study coach get smarter the more you use it.</p></div></div>
+      </div>
+      <h2>Why pair it with flashcards</h2>
+      <ul>
+        <li><strong>Focus plus recall.</strong> Spend a block clearing your due flashcards — focused attention and active recall at once.</li>
+        <li><strong>Shared signal.</strong> Your focus history and your review data live in the same app, so the coach can see the full picture.</li>
+        <li><strong>Honest analytics.</strong> Real focus trends, not vanity stats.</li>
+        <li><strong>Free during beta.</strong> No ads, no paywall on the timer.</li>
+      </ul>
+    <h2>Frequently asked questions</h2>
+    <div class="faq">
+      <details><summary>Is the study timer free?</summary>
+        <p>Yes — the Pomodoro timer, ambient sound, and session logging are free during beta, with no ads and no signup needed to try.</p>
+      </details>
+      <details><summary>Can I change the block length?</summary>
+        <p>Yes — 25 minutes is the default, but you can tune the focus and break lengths to whatever rhythm suits you.</p>
+      </details>
+      <details><summary>What does session logging do?</summary>
+        <p>Every finished focus block is recorded, so Brainfy can show your focus trends and the coach can highlight when you focus best and what to prioritise.</p>
+      </details>
+      <details><summary>Does it work with my flashcards?</summary>
+        <p>Yes — a focus block spent clearing due cards pairs focus with active recall, and both feed the same analytics and coach.</p>
+      </details>
+      <details><summary>Is there ambient sound?</summary>
+        <p>Yes — optional ambient sound is built in to help you settle into a session.</p>
+      </details>
+    </div>
+
+    <h2>Explore more of Brainfy</h2>
+    <div class="crosslinks">
+      <a href="/pomodoro-timer.html"><strong>Pomodoro Timer →</strong><span>A free, distraction-free focus timer with honest analytics.</span></a>
+      <a href="/study-planner.html"><strong>Study Planner →</strong><span>A weekly timetable that plans the focus, not just the work.</span></a>
+      <a href="/how-to-study-for-exams.html"><strong>How to Study for Exams →</strong><span>A simple, evidence-based system for exam prep: active recall, spaced repetition, focused…</span></a>
+      <a href="/active-recall.html"><strong>Active Recall →</strong><span>Active recall is the most effective study technique there is. Learn what it is, why it w…</span></a>
+    </div>
+
+    <hr>
+    <p class="foot">Brainfy is built by <a href="/founder.html">Aihan Mifthas</a>. <a href="/">Open Brainfy →</a></p>
+  </div>
+</body>
+</html>

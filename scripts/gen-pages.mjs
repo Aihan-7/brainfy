@@ -11,8 +11,8 @@
 // study-planner) are left untouched; they're listed in META + SITEMAP only so
 // the new pages can link to them and the sitemap stays complete.
 
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { writeFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -530,10 +530,11 @@ ${faqHtml}
 function renderHub() {
   const groups = [
     { title: 'Features', slugs: ['ai-flashcards', 'pdf-to-flashcards', 'ai-tutor', 'pomodoro-timer', 'study-planner'] },
+    { title: 'Free tools', slugs: PAGES.filter(p => p.cat === 'tool').map(p => p.slug) },
     { title: 'Use cases', slugs: PAGES.filter(p => p.cat === 'app' || p.cat === 'subject').map(p => p.slug) },
     { title: 'Compare', slugs: PAGES.filter(p => p.cat === 'compare').map(p => p.slug) },
     { title: 'Study guides', slugs: PAGES.filter(p => p.cat === 'guide').map(p => p.slug) },
-  ];
+  ].filter(g => g.slugs.length);
   const sections = groups.map(g => `    <h2>${g.title}</h2>
     <div class="crosslinks">
       ${crosslinks(g.slugs)}
@@ -599,10 +600,45 @@ function renderSitemap() {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
 }
 
+// ── Load extra page modules ───────────────────────────────────────────────
+// Pages can also live in scripts/pages/*.mjs (each `export default [ ...page
+// objects... ]`), so large batches can be authored/added independently. A
+// broken or malformed module is skipped (logged), never breaks the whole build.
+const extraDir = join(ROOT, 'scripts', 'pages');
+if (existsSync(extraDir)) {
+  for (const f of readdirSync(extraDir).filter(f => f.endsWith('.mjs')).sort()) {
+    try {
+      const mod = await import(pathToFileURL(join(extraDir, f)).href);
+      const arr = Array.isArray(mod.default) ? mod.default : [];
+      let added = 0;
+      for (const p of arr) {
+        if (!p || !p.slug || !p.h1) continue;
+        // Fill sensible defaults so a slightly-incomplete page still renders.
+        p.cat     = p.cat || 'guide';
+        p.eyebrow = p.eyebrow || 'Brainfy';
+        p.crumb   = p.crumb || p.slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        p.title   = p.title || `${p.crumb} | Brainfy`;
+        p.desc    = p.desc || '';
+        p.keywords = p.keywords || '';
+        p.lede    = p.lede || '';
+        p.body    = p.body || '';
+        p.faq     = Array.isArray(p.faq) ? p.faq : [];
+        p.related = Array.isArray(p.related) ? p.related : [];
+        if (PAGES.some(x => x.slug === p.slug)) continue;   // de-dupe
+        PAGES.push(p);
+        added++;
+      }
+      console.log(`  loaded ${added} pages from scripts/pages/${f}`);
+    } catch (e) {
+      console.warn(`  SKIPPED scripts/pages/${f}: ${e.message}`);
+    }
+  }
+}
+
 // ── Build ─────────────────────────────────────────────────────────────────
 // Register generated pages in META so they can cross-link each other.
 for (const p of PAGES) {
-  META[p.slug] = META[p.slug] || { title: p.crumb, blurb: p.desc.length > 90 ? p.desc.slice(0, 88) + '…' : p.desc };
+  META[p.slug] = META[p.slug] || { title: p.crumb, blurb: (p.desc || p.crumb).length > 90 ? (p.desc || p.crumb).slice(0, 88) + '…' : (p.desc || p.crumb) };
 }
 
 let count = 0;
