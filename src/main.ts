@@ -3863,7 +3863,7 @@ async function publishDeck(subjectId: number): Promise<void> {
       s.publicDeckId = ref.id;
       save();
     }
-    const link = `${location.origin}/?deck=${s.publicDeckId}`;
+    const link = `${location.origin}/decks/${s.publicDeckId}`;   // indexable SSR page (has a Study CTA → /?deck=)
     try { await navigator.clipboard?.writeText(link); } catch (_) {}
     showToast('Deck shared — link copied to clipboard', 'success');
     renderDocModal();

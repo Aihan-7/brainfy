@@ -612,7 +612,7 @@ ${JSON.stringify({ "@context": "https://schema.org", "@graph": [
     <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> &nbsp;›&nbsp; <span>Resources</span></nav>
     <p class="eyebrow">Brainfy Resources</p>
     <h1>Study Resources &amp; Guides</h1>
-    <p class="lede">Everything Brainfy can do, plus the study science behind it — feature walkthroughs, honest comparisons, and evidence-based techniques to help you remember more in less time.</p>
+    <p class="lede">Everything Brainfy can do, plus the study science behind it — feature walkthroughs, honest comparisons, and evidence-based techniques to help you remember more in less time. Or <a href="/decks">browse free community flashcard decks →</a></p>
 ${sections}
     <hr>
     <p class="foot">Brainfy is built by <a href="/founder.html">Aihan Mifthas</a>. <a href="/">Open Brainfy →</a></p>
@@ -627,6 +627,7 @@ function renderSitemap() {
   const staticPages = [
     { loc: '/', priority: '1.0', freq: 'weekly' },
     { loc: '/resources.html', priority: '0.8', freq: 'weekly' },
+    { loc: '/decks', priority: '0.7', freq: 'daily' },
     { loc: '/founder.html', priority: '0.7', freq: 'monthly' },
     { loc: '/ai-flashcards.html', priority: '0.9', freq: 'monthly' },
     { loc: '/pdf-to-flashcards.html', priority: '0.9', freq: 'monthly' },
