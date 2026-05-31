@@ -103,6 +103,11 @@ interface AppState {
   nextId:        number;
   timetable:     TimetableBlock[];
   tourSeen?:     boolean;        // first-run guided tour completion flag
+  freezes?:      number;        // streak-freezes held (0-2), earned every 5-day streak
+  reminderOn?:   boolean;       // daily study reminder enabled
+  reminderHour?: number;        // preferred reminder hour (0-23, local)
+  lastNudgeDay?: string;        // toDateString() of the last reminder shown (dedupe per day)
+  pushSub?:      unknown;       // Web Push PushSubscription JSON (synced for a future cron sender)
 }
 
 interface Quote {
@@ -196,6 +201,9 @@ const DEFAULT_STATE = {
   nextId: 1,
   timetable: [] as TimetableBlock[],
   tourSeen: false,
+  freezes: 0,
+  reminderOn: false,
+  reminderHour: 19,
 };
 
 // ── Runtime state ───────────────────────────────────────────────────────────
@@ -1985,6 +1993,9 @@ document.addEventListener('keydown', e => {
 function renderHome() {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // Keep the streak honest after missed days before anything reads it.
+  reconcileStreak();
+
   // Onboarding card shows until the user has completed all three setup steps
   // (a subject, a doc, and a focus session). When the account is genuinely
   // empty it also takes over the screen, hiding the wall-of-zeros metrics;
@@ -2008,10 +2019,10 @@ function renderHome() {
   const g = el('homeGreeting');
   if (g) g.textContent = greet + ', ' + S.userName;
 
-  // Streak label
+  // Streak label (+ held freezes)
   const sl = el('homeStreakLabel');
   const streak = S.streak || 0;
-  if (sl) sl.textContent = streak + ' DAY STREAK';
+  if (sl) sl.textContent = streak + ' DAY STREAK' + ((S.freezes || 0) > 0 ? ` · 🧊${S.freezes}` : '');
 
   // Dynamic subtitle
   const sub = el('homeSubtitle');
@@ -2019,7 +2030,10 @@ function renderHome() {
     const todayMins = Math.round(todayFocusSec() / 60);
     const goal      = S.dailyGoal || 120;
     const pct       = Math.round((todayMins / goal) * 100);
-    if (todayMins === 0) {
+    if (todayMins === 0 && streakAtRisk()) {
+      const fr = (S.freezes || 0) > 0 ? ` (or a 🧊 freeze saves it)` : '';
+      sub.textContent = `🔥 Study today to keep your ${S.streak}-day streak alive${fr}.`;
+    } else if (todayMins === 0) {
       sub.textContent = 'Ready for a deep focus session? Your first session starts the streak.';
     } else if (pct >= 100) {
       sub.textContent = `Goal crushed! ${todayMins} min of deep focus today — exceptional work.`;
@@ -2648,22 +2662,158 @@ function logSession() {
     if (s) s.accessed = Date.now();
   }
 
-  // ── Update streak ──────────────────────────────
+  // ── Update streak (with streak-freeze) ─────────
   const today = new Date().toDateString();
-  const yesterday = new Date(Date.now() - 86400000).toDateString();
   // Sessions before the one we just added
   const prev = S.sessions.slice(0, -1);
-  const hadToday     = prev.some(s => new Date(s.date).toDateString() === today);
-  const hadYesterday = prev.some(s => new Date(s.date).toDateString() === yesterday);
+  const hadToday = prev.some(s => new Date(s.date).toDateString() === today);
 
   if (!hadToday) {
-    // First session of this day
-    S.streak = hadYesterday ? (S.streak || 0) + 1 : 1;
+    // Days since the most recent PRIOR study day.
+    const gap = prev.length ? daysBetween(Math.max(...prev.map(s => new Date(s.date).getTime())), Date.now()) : Infinity;
+    if (gap === 1) {
+      // Consecutive day — streak grows.
+      S.streak = (S.streak || 0) + 1;
+    } else if (gap === 2 && (S.freezes || 0) > 0) {
+      // Missed exactly one day, but a freeze covers it. Consume it, keep going.
+      S.freezes = (S.freezes || 0) - 1;
+      S.streak = (S.streak || 0) + 1;
+      showToast(`🧊 Streak freeze used — your ${S.streak}-day streak is safe`, 'info');
+    } else {
+      // First ever session, or too big a gap — start fresh.
+      S.streak = 1;
+    }
     S.bestStreak = Math.max(S.bestStreak || 0, S.streak);
+    // Earn a freeze at every 5-day milestone (capped at 2).
+    if (S.streak > 0 && S.streak % 5 === 0 && (S.freezes || 0) < 2) {
+      S.freezes = (S.freezes || 0) + 1;
+      showToast(`🧊 You earned a streak freeze (${S.freezes}/2) — it protects one missed day`, 'success');
+    }
   }
 
   save();
   if (currentView === 'home') renderGoalProgress();
+}
+
+// Calendar days between two timestamps (by local midnight).
+function daysBetween(aMs: number, bMs: number): number {
+  const a = new Date(aMs); a.setHours(0, 0, 0, 0);
+  const b = new Date(bMs); b.setHours(0, 0, 0, 0);
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
+}
+
+// The stored streak is only mutated when a session is logged, so it can be
+// stale after missed days. Reconcile it honestly on app open: a streak stays
+// alive if you studied today or yesterday, or two days ago WITH a freeze held
+// (the freeze is actually consumed when you return, in logSession). Anything
+// longer resets to 0.
+function reconcileStreak(): void {
+  if (!S.sessions.length) { if (S.streak) { S.streak = 0; save(); } return; }
+  const gap = daysBetween(Math.max(...S.sessions.map(s => new Date(s.date).getTime())), Date.now());
+  if (gap <= 1) return;
+  if (gap === 2 && (S.freezes || 0) > 0) return;
+  if (S.streak !== 0) { S.streak = 0; save(); }
+}
+
+// True when there's a live streak the user hasn't yet protected today.
+function streakAtRisk(): boolean {
+  if (!(S.streak > 0) || !S.sessions.length) return false;
+  return daysBetween(Math.max(...S.sessions.map(s => new Date(s.date).getTime())), Date.now()) >= 1;
+}
+
+// ── Daily study reminders ─────────────────────────────────────────────────
+// Web Push needs a VAPID keypair + a backend cron sender (see SETUP note in
+// enableReminders). Until that's configured we still: (a) request notification
+// permission, (b) store the user's preference, and (c) fire an on-open
+// notification when they have cards due / a streak at risk. Setting
+// VAPID_PUBLIC_KEY + wiring the sender lights up true scheduled push with no
+// further client changes — the subscription is already captured + synced.
+const VAPID_PUBLIC_KEY = '';   // ← paste the VAPID public key to enable push
+
+function remindersSupported(): boolean {
+  return typeof Notification !== 'undefined' && 'serviceWorker' in navigator;
+}
+
+function urlBase64ToUint8Array(base64: string): Uint8Array {
+  const padding = '='.repeat((4 - base64.length % 4) % 4);
+  const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+async function maybeSubscribePush(): Promise<void> {
+  if (!VAPID_PUBLIC_KEY || !('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+    const sub = existing || await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as unknown as BufferSource,
+    });
+    S.pushSub = sub.toJSON();   // synced via save() → a backend cron can read + send
+  } catch (err) {
+    console.error('[push] subscribe failed', err);
+  }
+}
+
+async function enableReminders(): Promise<void> {
+  if (!remindersSupported()) { showToast('Reminders aren’t supported in this browser', 'warning'); return; }
+  let perm = Notification.permission;
+  if (perm === 'default') perm = await Notification.requestPermission();
+  if (perm !== 'granted') {
+    showToast('Notifications are blocked — enable them in your browser settings', 'warning');
+    return;
+  }
+  S.reminderOn = true;
+  await maybeSubscribePush();
+  save();
+  renderSettings();
+  showToast('Study reminders on. We’ll nudge you when cards are due.', 'success');
+}
+
+function toggleReminders(): void {
+  if (S.reminderOn) disableReminders(); else enableReminders();
+}
+
+async function disableReminders(): Promise<void> {
+  S.reminderOn = false;
+  try {
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.ready : null;
+    const sub = reg && await reg.pushManager.getSubscription();
+    if (sub) await sub.unsubscribe();
+  } catch (_) { /* ignore */ }
+  S.pushSub = undefined;
+  save();
+  renderSettings();
+  showToast('Study reminders off', 'info');
+}
+
+// On-open nudge: fire a single notification per day when the user has work due
+// or a streak to protect. Works without any backend (fires whenever the
+// app/PWA is opened); push adds true scheduled delivery once configured.
+function nudgeIfDue(): void {
+  if (!S.reminderOn || !remindersSupported() || Notification.permission !== 'granted') return;
+  const today = new Date().toDateString();
+  if (S.lastNudgeDay === today) return;
+  const due = srsSessionQueue().length;
+  const atRisk = streakAtRisk();
+  if (due === 0 && !atRisk) return;
+  S.lastNudgeDay = today;
+  save();
+  const body = due > 0
+    ? `You have ${due} card${due > 1 ? 's' : ''} due${atRisk ? ` — study now to keep your ${S.streak}-day streak` : ''}.`
+    : `Study today to keep your ${S.streak}-day streak alive 🔥`;
+  try {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => reg.showNotification('Brainfy — time to study', {
+        body, icon: '/icon.svg', badge: '/icon.svg', tag: 'brainfy-due',
+      })).catch(() => { new Notification('Brainfy — time to study', { body, icon: '/icon.svg' }); });
+    } else {
+      new Notification('Brainfy — time to study', { body, icon: '/icon.svg' });
+    }
+  } catch (_) { /* ignore */ }
 }
 
 function beginFocusSession(): void {
@@ -5827,6 +5977,9 @@ function init() {
   initSearch();
   checkAIStatus();
 
+  // Fire the daily on-open study nudge once state has settled.
+  window.setTimeout(nudgeIfDue, 2500);
+
   // ── Firebase auth observer ────────────────────
   // Fires once on load: if user was already signed in, skip splash and
   // load their cloud state. If not, show splash as normal.
@@ -6278,6 +6431,28 @@ function renderSettings(): void {
   if (fd) fd.value = String(Math.round(S.focusDuration / 60));
   if (bd) bd.value = String(Math.round(S.breakDuration / 60));
   if (dg) dg.value = String(S.dailyGoal);
+
+  // Reminders toggle state
+  const remBtn  = el('setReminderToggle') as HTMLButtonElement | null;
+  const remDesc = el('setReminderDesc');
+  if (remBtn) {
+    const granted = remindersSupported() && Notification.permission === 'granted';
+    if (!remindersSupported()) {
+      remBtn.textContent = 'Unavailable'; remBtn.disabled = true;
+      remBtn.style.opacity = '0.5'; remBtn.style.cursor = 'not-allowed';
+      if (remDesc) remDesc.textContent = 'Your browser doesn’t support notifications.';
+    } else if (S.reminderOn && granted) {
+      remBtn.textContent = 'On'; remBtn.disabled = false;
+      remBtn.style.background = 'rgba(78,222,163,0.16)'; remBtn.style.borderColor = 'rgba(78,222,163,0.45)'; remBtn.style.color = 'var(--green)';
+      if (remDesc) remDesc.textContent = VAPID_PUBLIC_KEY
+        ? 'On — we’ll remind you daily, even when Brainfy is closed.'
+        : 'On — you’ll be nudged when you open Brainfy and have work due.';
+    } else {
+      remBtn.textContent = 'Enable'; remBtn.disabled = false;
+      remBtn.style.background = 'rgba(124,58,237,0.16)'; remBtn.style.borderColor = 'rgba(124,58,237,0.4)'; remBtn.style.color = 'var(--plight)';
+      if (remDesc) remDesc.textContent = 'Get a nudge when cards are due or your streak is at risk.';
+    }
+  }
 }
 
 let _settingsDirtyTimer: number | undefined;

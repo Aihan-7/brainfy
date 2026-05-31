@@ -88,3 +88,29 @@ self.addEventListener('fetch', (event) => {
     )
   );
 });
+
+// ── Web Push (study reminders) ────────────────────────────────────────────
+// Inert until a backend cron sender + VAPID keypair are configured (see
+// enableReminders in main.ts). When a push arrives, show the notification;
+// clicking it focuses an open Brainfy tab or opens one.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (_) { data = { body: event.data && event.data.text() }; }
+  const title = data.title || 'Brainfy — time to study';
+  const body  = data.body  || 'You have cards due. Keep your streak alive 🔥';
+  event.waitUntil(self.registration.showNotification(title, {
+    body, icon: '/icon.svg', badge: '/icon.svg', tag: 'brainfy-due',
+    data: { url: data.url || '/' },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+      for (const w of wins) { if ('focus' in w) return w.focus(); }
+      return self.clients.openWindow(url);
+    })
+  );
+});
