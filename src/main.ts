@@ -821,7 +821,7 @@ function smRenderMatch(): void {
       <span style="font-size:13px;color:var(--muted);">Tap a term, then its match</span>
       <span id="smTimer" style="font-size:16px;font-weight:800;color:var(--cyan);font-family:'Space Grotesk';">0.0s</span>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">${tiles}</div>
+    <div class="sm-match-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">${tiles}</div>
   `);
 }
 function smMatchTick(): void {

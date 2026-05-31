@@ -992,6 +992,15 @@
     }
     .skip-link:focus { transform: translateY(0); outline: 2px solid #fff; }
 
+    /* ── Extra-narrow phones: give dense grids room to breathe ── */
+    @media (max-width: 480px) {
+      #homeSubjectCards { grid-template-columns: 1fr !important; }
+      .sm-match-grid    { grid-template-columns: repeat(2, 1fr) !important; }
+      /* Reminders row wraps (flex-wrap); force the toggle onto its own full-
+         width line below the label instead of crowding the text. */
+      #setReminderToggle { flex-basis: 100%; margin-top: 4px; }
+    }
+
     /* ── Heatmap cells: spring scale on hover ── */
     #homeHeatmap > div > div:hover,
     #heatmapGrid > div:hover {
@@ -3162,9 +3171,9 @@
     <!-- ── Reminders ── -->
     <section style="margin-bottom:22px;">
       <p style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:10px;">REMINDERS</p>
-      <div style="border-radius:18px;border:1px solid rgba(255,255,255,0.06);background:rgba(7,15,31,0.6);backdrop-filter:blur(20px);padding:16px 22px;display:flex;align-items:center;gap:14px;">
+      <div style="border-radius:18px;border:1px solid rgba(255,255,255,0.06);background:rgba(7,15,31,0.6);backdrop-filter:blur(20px);padding:16px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <div style="width:38px;height:38px;border-radius:10px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span class="ms" style="color:var(--plight);font-size:20px;">schedule</span></div>
-        <div style="flex:1;min-width:0;">
+        <div style="flex:1;min-width:150px;">
           <div style="font-size:14px;font-weight:600;color:var(--text);letter-spacing:-0.005em;">Daily study reminder</div>
           <div id="setReminderDesc" style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.45;">Get a nudge when cards are due or your streak is at risk.</div>
         </div>
