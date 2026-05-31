@@ -480,6 +480,46 @@ function jsonLd(p) {
   return JSON.stringify({ "@context": "https://schema.org", "@graph": graph }, null, 2);
 }
 
+// Contextual internal linking: link the FIRST mention of each key term to its
+// "money" feature page with a descriptive anchor (the linked text itself). Only
+// touches plain body text — skips headings, existing links, and <summary> — and
+// never self-links. Distributes authority + signals topical relevance.
+const LINK_TARGETS = [
+  [/\bAI[\s-]flashcards?\b/i,        'ai-flashcards'],
+  [/\bflashcard (?:generator|maker)\b/i, 'free-flashcard-maker'],
+  [/\bspaced[\s-]repetition\b/i,     'spaced-repetition-app'],
+  [/\bPomodoro(?:\s+timer)?\b/i,     'pomodoro-timer'],
+  [/\bAI tutor\b/i,                  'ai-tutor'],
+  [/\bstudy planner\b/i,             'study-planner'],
+  [/\bactive recall\b/i,            'active-recall'],
+  [/\bPDF\b/,                        'pdf-to-flashcards'],
+];
+function autolink(htmlBody, selfSlug) {
+  const targets = LINK_TARGETS.filter(([, slug]) => slug !== selfSlug);
+  const used = new Set();
+  const openProt = /^<(a|h1|h2|h3|summary)\b/i;
+  const closeProt = /^<\/(a|h1|h2|h3|summary)\s*>/i;
+  let prot = 0;
+  return htmlBody.split(/(<[^>]+>)/).map(tok => {
+    if (tok.startsWith('<')) {
+      if (closeProt.test(tok)) prot = Math.max(0, prot - 1);
+      else if (openProt.test(tok) && !tok.endsWith('/>')) prot++;
+      return tok;
+    }
+    if (prot > 0 || !tok.trim()) return tok;
+    let text = tok;
+    for (const [re, slug] of targets) {
+      if (used.has(slug)) continue;
+      const m = text.match(re);
+      if (m && m.index != null) {
+        text = text.slice(0, m.index) + `<a href="/${slug}.html">${m[0]}</a>` + text.slice(m.index + m[0].length);
+        used.add(slug);
+      }
+    }
+    return text;
+  }).join('');
+}
+
 function render(p) {
   const url = `${ORIGIN}/${p.slug}.html`;
   const faqHtml = (p.faq || []).map(f => `      <details><summary>${esc(f.q)}</summary>\n        <p>${esc(f.a)}</p>\n      </details>`).join('\n');
@@ -535,7 +575,7 @@ ${jsonLd(p)}
       <a class="btn btn-primary" href="/">Open Brainfy →</a>
       <a class="btn btn-ghost" href="/resources.html">All study resources</a>
     </div>
-${p.body}
+${autolink(p.body, p.slug)}
     <h2>Frequently asked questions</h2>
     <div class="faq">
 ${faqHtml}
@@ -547,7 +587,7 @@ ${faqHtml}
     </div>
 
     <hr>
-    <p class="foot">Brainfy is built by <a href="/founder.html">Aihan Mifthas</a>. <a href="/">Open Brainfy →</a></p>
+    <p class="foot">Brainfy is built by <a href="/founder.html">Aihan Mifthas</a> · Last updated ${TODAY}. <a href="/">Open Brainfy →</a></p>
   </div>
 </body>
 </html>
@@ -615,7 +655,7 @@ ${JSON.stringify({ "@context": "https://schema.org", "@graph": [
     <p class="lede">Everything Brainfy can do, plus the study science behind it — feature walkthroughs, honest comparisons, and evidence-based techniques to help you remember more in less time. Or <a href="/decks">browse free community flashcard decks →</a></p>
 ${sections}
     <hr>
-    <p class="foot">Brainfy is built by <a href="/founder.html">Aihan Mifthas</a>. <a href="/">Open Brainfy →</a></p>
+    <p class="foot">Brainfy is built by <a href="/founder.html">Aihan Mifthas</a> · Last updated ${TODAY}. <a href="/">Open Brainfy →</a></p>
   </div>
 </body>
 </html>
