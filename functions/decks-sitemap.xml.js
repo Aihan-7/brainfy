@@ -33,8 +33,15 @@ export async function onRequestGet(context) {
     }
   } catch (_) { /* emit whatever we have (possibly empty) */ }
 
+  // Always lead with the /decks index so this sitemap is never empty — an empty
+  // <urlset> reads as broken in a browser and trips "Sitemap is empty" warnings
+  // in Search Console. Individual deck URLs (once any are published) follow.
+  const entries = [
+    `  <url><loc>${ORIGIN}/decks</loc><changefreq>daily</changefreq><priority>0.7</priority></url>`,
+    ...urls,
+  ];
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
+    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join('\n')}\n</urlset>\n`;
   return new Response(xml, {
     headers: {
       'Content-Type': 'application/xml; charset=utf-8',
