@@ -518,6 +518,33 @@ const fc: {
   subjectId: null,
 };
 
+// ── Multi-mode study (Learn / Match / Test / Cloze) ───────────────────────
+// These run inside the flashcard modal by replacing its innerHTML (restored on
+// close). State is kept separate from `fc` (which owns the flip + SRS flow).
+type SmMode = 'learn' | 'match' | 'test' | 'cloze';
+interface SmTile      { id: number; text: string; side: 'q' | 'a'; key: number; matched: boolean; }
+interface SmTestItem  { q: string; a: string; user: string; ok: boolean | null; }
+interface SmClozeItem { q: string; pre: string; answer: string; post: string; user: string; ok: boolean | null; }
+const sm: {
+  subjectId: number;
+  cards:   FlashCard[];
+  idx:     number;
+  correct: number;
+  answered: boolean;
+  options: { text: string; ok: boolean }[];
+  tiles:   SmTile[];
+  sel:     number | null;
+  matched: number;
+  start:   number;
+  timer:   ReturnType<typeof setInterval> | null;
+  test:    SmTestItem[];
+  cloze:   SmClozeItem[];
+} = {
+  subjectId: -1, cards: [], idx: 0, correct: 0, answered: false,
+  options: [], tiles: [], sel: null, matched: 0, start: 0, timer: null,
+  test: [], cloze: [],
+};
+
 function openFlashcards(subjectId: number, mode: FcMode = 'review'): void {
   const subj = S.subjects.find(s => s.id === subjectId);
   const hasOwn = !!subj?.cards?.length;
@@ -591,6 +618,7 @@ function showFlashcardModal(title: string): void {
 }
 
 function closeFlashcards(): void {
+  if (sm.timer) { clearInterval(sm.timer); sm.timer = null; }   // stop Match timer if running
   const modal = document.getElementById('flashcardModal');
   if (modal && fcModalHTML) modal.innerHTML = fcModalHTML;
   modal?.classList.remove('open');
@@ -598,6 +626,325 @@ function closeFlashcards(): void {
   // Home shows the "Due now" tile based on srsAllDue() — refresh if we're
   // looking at it so the count updates after a review session.
   if (currentView === 'home') renderHome();
+}
+
+// ── Study-mode helpers ────────────────────────────────────────────────────
+function smGetCards(subjectId: number): FlashCard[] {
+  if (subjectId === -1) return (FLASHCARD_SETS.default || []).slice();
+  return (S.subjects.find(s => s.id === subjectId)?.cards || []).slice();
+}
+function smDeckName(subjectId: number): string {
+  if (subjectId === -1) return 'Study Science Starter';
+  return S.subjects.find(s => s.id === subjectId)?.name || 'Deck';
+}
+function smShuffle<T>(a: T[]): T[] {
+  const r = a.slice();
+  for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = r[i]!; r[i] = r[j]!; r[j] = t; }
+  return r;
+}
+// Normalize a typed answer for comparison: lowercase, strip tags/punctuation,
+// collapse whitespace. Unicode-aware so accents survive.
+function smNorm(s: string): string {
+  return String(s || '').toLowerCase().replace(/<[^>]+>/g, '').replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
+}
+// Replace the flashcard modal's body with custom study-mode HTML.
+function smRender(inner: string): void {
+  const modal = document.getElementById('flashcardModal');
+  if (!modal) return;
+  if (sm.timer) { clearInterval(sm.timer); sm.timer = null; }
+  if (!fcModalHTML) fcModalHTML = modal.innerHTML;   // capture the ORIGINAL flip UI before first replace
+  modal.innerHTML = `<div style="max-width:660px;margin:0 auto;">${inner}</div>`;
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function smHeader(subjectId: number, title: string, showBack = true): string {
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
+      <div>
+        <div style="font-size:10px;letter-spacing:0.14em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;margin-bottom:6px;">${_e(smDeckName(subjectId).toUpperCase())}</div>
+        <h2 style="font-size:22px;font-weight:900;color:white;letter-spacing:-0.015em;">${_e(title)}</h2>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        ${showBack ? `<button onclick="openDeckStudy(${subjectId})" class="btn-ghost" style="padding:8px 12px;font-size:12px;border-radius:9px;display:flex;align-items:center;gap:5px;border-color:rgba(255,255,255,0.12);">${icon('arrow_back', { size: 15 })} Modes</button>` : ''}
+        <button onclick="closeFlashcards()" aria-label="Close" style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;line-height:1;">×</button>
+      </div>
+    </div>`;
+}
+function smProgress(idx: number, total: number): string {
+  const pct = total ? Math.round(idx / total * 100) : 0;
+  return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+    <div style="flex:1;height:4px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--primary),var(--cyan));border-radius:2px;transition:width .3s;"></div></div>
+    <span style="font-size:12px;color:var(--muted);font-family:'Space Grotesk';">${Math.min(idx + 1, total)} / ${total}</span>
+  </div>`;
+}
+
+// Mode picker — opened when a deck is tapped on the Flashcards view.
+function openDeckStudy(subjectId: number): void {
+  const cards = smGetCards(subjectId);
+  if (!cards.length) { showToast('This deck has no cards yet', 'warning'); return; }
+  sm.subjectId = subjectId; sm.cards = cards;
+  const n = cards.length;
+  const tile = (label: string, desc: string, ic: string, onclick: string, disabled = false) => `
+    <button ${disabled ? 'disabled' : `onclick="${onclick}"`}
+      style="text-align:left;padding:18px;border-radius:14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);cursor:${disabled ? 'not-allowed' : 'pointer'};display:flex;flex-direction:column;gap:8px;${disabled ? 'opacity:0.4;' : ''}transition:transform .12s,border-color .15s,background .15s;"
+      ${disabled ? '' : `onmouseover="this.style.transform='translateY(-2px)';this.style.borderColor='rgba(124,58,237,0.4)';this.style.background='rgba(124,58,237,0.06)'" onmouseout="this.style.transform='';this.style.borderColor='var(--border)';this.style.background='rgba(255,255,255,0.03)'"`}>
+      <span style="width:36px;height:36px;border-radius:10px;background:rgba(124,58,237,0.14);border:1px solid rgba(124,58,237,0.3);display:flex;align-items:center;justify-content:center;">${icon(ic, { size: 19, color: 'var(--plight)' })}</span>
+      <span style="font-size:15px;font-weight:700;color:var(--text);">${label}</span>
+      <span style="font-size:12px;color:var(--muted);line-height:1.4;">${desc}</span>
+    </button>`;
+  smRender(`
+    ${smHeader(subjectId, 'Choose a study mode', false)}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      ${tile('Flashcards', 'Flip cards · spaced repetition', 'auto_stories', `openFlashcards(${subjectId})`)}
+      ${tile('Learn', 'Multiple choice, one at a time', 'quiz', `smStartLearn(${subjectId})`, n < 2)}
+      ${tile('Match', 'Pair terms to answers, against the clock', 'pattern', `smStartMatch(${subjectId})`, n < 3)}
+      ${tile('Test', 'Type the answer, get scored', 'checklist', `smStartTest(${subjectId})`)}
+      ${tile('Cloze', 'Fill in the missing word', 'draft', `smStartCloze(${subjectId})`)}
+    </div>
+    <div style="margin-top:16px;font-size:12px;color:var(--muted);text-align:center;">${n} card${n !== 1 ? 's' : ''} in this deck</div>
+  `);
+}
+
+// Shared results screen.
+function smResults(mode: SmMode, extra = ''): void {
+  let total = 0, correct = 0;
+  if (mode === 'test')       { total = sm.test.length;       correct = sm.test.filter(t => t.ok).length; }
+  else if (mode === 'cloze') { total = sm.cloze.length;      correct = sm.cloze.filter(c => c.ok).length; }
+  else if (mode === 'match') { total = sm.tiles.length / 2;  correct = sm.matched; }
+  else                       { total = sm.cards.length;      correct = sm.correct; }
+  const pct = total ? Math.round(correct / total * 100) : 0;
+  const restart = mode === 'learn' ? `smStartLearn(${sm.subjectId})`
+                : mode === 'test'  ? `smStartTest(${sm.subjectId})`
+                : mode === 'cloze' ? `smStartCloze(${sm.subjectId})`
+                :                    `smStartMatch(${sm.subjectId})`;
+  smRender(`
+    ${smHeader(sm.subjectId, 'Results')}
+    <div style="text-align:center;padding:24px 0 8px;">
+      <div style="font-size:52px;font-weight:900;color:${pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--cyan)' : '#fb923c'};letter-spacing:-0.03em;">${pct}%</div>
+      <div style="font-size:14px;color:var(--muted);margin-top:4px;">${correct} of ${total} correct</div>
+    </div>
+    ${extra}
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:22px;">
+      <button onclick="${restart}" class="btn-primary" style="padding:11px 22px;font-size:14px;border-radius:11px;">Study again</button>
+      <button onclick="openDeckStudy(${sm.subjectId})" class="btn-ghost" style="padding:11px 22px;font-size:14px;border-radius:11px;border-color:rgba(255,255,255,0.12);">Other modes</button>
+    </div>
+  `);
+}
+
+// ── Learn (multiple choice) ───────────────────────────────────────────────
+function smStartLearn(subjectId: number): void {
+  sm.subjectId = subjectId; sm.cards = smShuffle(smGetCards(subjectId)); sm.idx = 0; sm.correct = 0;
+  smRenderLearn();
+}
+function smRenderLearn(): void {
+  if (sm.idx >= sm.cards.length) { smResults('learn'); return; }
+  const card = sm.cards[sm.idx]!;
+  const distract = smShuffle(sm.cards.filter((_, i) => i !== sm.idx)).slice(0, 3).map(c => ({ text: c.a, ok: false }));
+  sm.options = smShuffle([{ text: card.a, ok: true }, ...distract]);
+  sm.answered = false;
+  const opts = sm.options.map((o, i) => `
+    <button id="smOpt${i}" onclick="smAnswerLearn(${i})" style="text-align:left;padding:14px 16px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);font-size:14px;line-height:1.4;cursor:pointer;transition:background .12s,border-color .12s;" onmouseover="if(!this.dataset.done)this.style.background='rgba(124,58,237,0.08)'" onmouseout="if(!this.dataset.done)this.style.background='rgba(255,255,255,0.04)'">${_e(o.text)}</button>
+  `).join('');
+  smRender(`
+    ${smHeader(sm.subjectId, 'Learn')}
+    ${smProgress(sm.idx, sm.cards.length)}
+    <div style="background:rgba(7,15,31,0.6);border:1px solid var(--border);border-radius:16px;padding:28px 24px;margin-bottom:18px;min-height:96px;display:flex;align-items:center;justify-content:center;text-align:center;">
+      <div style="font-size:18px;font-weight:700;color:white;line-height:1.4;">${_e(card.q)}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;">${opts}</div>
+    <div id="smNext" style="margin-top:16px;text-align:right;display:none;">
+      <button onclick="smNextLearn()" class="btn-primary" style="padding:11px 22px;font-size:14px;border-radius:11px;">Next →</button>
+    </div>
+  `);
+}
+function smAnswerLearn(i: number): void {
+  if (sm.answered) return;
+  sm.answered = true;
+  if (sm.options[i]!.ok) sm.correct++;
+  sm.options.forEach((o, j) => {
+    const b = document.getElementById('smOpt' + j) as HTMLElement | null;
+    if (!b) return;
+    b.dataset['done'] = '1'; b.style.cursor = 'default';
+    if (o.ok)            { b.style.background = 'rgba(78,222,163,0.16)'; b.style.borderColor = 'rgba(78,222,163,0.5)'; b.style.color = 'var(--green)'; }
+    else if (j === i)    { b.style.background = 'rgba(239,68,68,0.14)';  b.style.borderColor = 'rgba(239,68,68,0.5)';  b.style.color = '#f87171'; }
+  });
+  const next = document.getElementById('smNext'); if (next) next.style.display = 'block';
+}
+function smNextLearn(): void { sm.idx++; smRenderLearn(); }
+
+// ── Match ─────────────────────────────────────────────────────────────────
+function smStartMatch(subjectId: number): void {
+  sm.subjectId = subjectId;
+  const pool = smShuffle(smGetCards(subjectId)).slice(0, 6);
+  const tiles: SmTile[] = [];
+  let id = 0;
+  pool.forEach((c, k) => {
+    tiles.push({ id: id++, text: c.q, side: 'q', key: k, matched: false });
+    tiles.push({ id: id++, text: c.a, side: 'a', key: k, matched: false });
+  });
+  sm.tiles = smShuffle(tiles); sm.sel = null; sm.matched = 0; sm.start = Date.now();
+  smRenderMatch();
+  sm.timer = setInterval(smMatchTick, 200);
+}
+function smRenderMatch(): void {
+  const tiles = sm.tiles.map(t => {
+    if (t.matched) return `<div style="border-radius:12px;padding:14px 10px;background:rgba(78,222,163,0.06);border:1px dashed rgba(78,222,163,0.25);min-height:66px;"></div>`;
+    const selected = sm.sel === t.id;
+    return `<button onclick="smPickTile(${t.id})" style="border-radius:12px;padding:12px 10px;background:${selected ? 'rgba(124,58,237,0.22)' : 'rgba(255,255,255,0.04)'};border:1px solid ${selected ? 'rgba(124,58,237,0.6)' : 'var(--border)'};color:var(--text);font-size:12.5px;line-height:1.35;cursor:pointer;min-height:66px;display:flex;align-items:center;justify-content:center;text-align:center;transition:all .12s;">${_e(t.text)}</button>`;
+  }).join('');
+  smRender(`
+    ${smHeader(sm.subjectId, 'Match')}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <span style="font-size:13px;color:var(--muted);">Tap a term, then its match</span>
+      <span id="smTimer" style="font-size:16px;font-weight:800;color:var(--cyan);font-family:'Space Grotesk';">0.0s</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">${tiles}</div>
+  `);
+}
+function smMatchTick(): void {
+  const t = document.getElementById('smTimer');
+  if (!t) { if (sm.timer) { clearInterval(sm.timer); sm.timer = null; } return; }
+  t.textContent = ((Date.now() - sm.start) / 1000).toFixed(1) + 's';
+}
+function smPickTile(id: number): void {
+  const t = sm.tiles.find(x => x.id === id);
+  if (!t || t.matched) return;
+  if (sm.sel === null) { sm.sel = id; smRenderMatch(); return; }
+  if (sm.sel === id)   { sm.sel = null; smRenderMatch(); return; }
+  const prev = sm.tiles.find(x => x.id === sm.sel);
+  if (prev && prev.key === t.key && prev.side !== t.side) {
+    prev.matched = true; t.matched = true; sm.matched++; sm.sel = null;
+    if (sm.tiles.every(x => x.matched)) {
+      if (sm.timer) { clearInterval(sm.timer); sm.timer = null; }
+      const secs = ((Date.now() - sm.start) / 1000).toFixed(1);
+      smResults('match', `<div style="text-align:center;font-size:14px;color:var(--text);">Matched all ${sm.matched} pairs in <strong style="color:var(--cyan);">${secs}s</strong></div>`);
+      return;
+    }
+    smRenderMatch();
+  } else {
+    sm.sel = null; smRenderMatch();   // mismatch — deselect
+  }
+}
+
+// ── Test (typed) ──────────────────────────────────────────────────────────
+function smStartTest(subjectId: number): void {
+  sm.subjectId = subjectId;
+  sm.test = smShuffle(smGetCards(subjectId)).slice(0, 20).map(c => ({ q: c.q, a: c.a, user: '', ok: null }));
+  sm.idx = 0;
+  smRenderTest();
+}
+function smRenderTest(): void {
+  if (sm.idx >= sm.test.length) { smResults('test', smTestReview()); return; }
+  const it = sm.test[sm.idx]!;
+  smRender(`
+    ${smHeader(sm.subjectId, 'Test')}
+    ${smProgress(sm.idx, sm.test.length)}
+    <div style="background:rgba(7,15,31,0.6);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:16px;min-height:80px;display:flex;align-items:center;justify-content:center;text-align:center;">
+      <div style="font-size:17px;font-weight:700;color:white;line-height:1.4;">${_e(it.q)}</div>
+    </div>
+    <input id="smTestInput" type="text" autocomplete="off" placeholder="Type your answer…" class="auth-input" style="background:rgba(255,255,255,0.05);font-size:15px;" onkeydown="if(event.key==='Enter')smCheckTest()">
+    <div id="smTestFeedback" style="margin-top:14px;"></div>
+    <div style="margin-top:16px;text-align:right;"><button id="smTestBtn" onclick="smCheckTest()" class="btn-primary" style="padding:11px 22px;font-size:14px;border-radius:11px;">Check</button></div>
+  `);
+  setTimeout(() => document.getElementById('smTestInput')?.focus(), 60);
+}
+function smCheckTest(): void {
+  const it = sm.test[sm.idx]!;
+  if (it.ok !== null) { sm.idx++; smRenderTest(); return; }   // already graded → advance
+  const input = document.getElementById('smTestInput') as HTMLInputElement | null;
+  it.user = input?.value || '';
+  it.ok = smNorm(it.user) !== '' && smNorm(it.user) === smNorm(it.a);
+  const fb = document.getElementById('smTestFeedback');
+  if (fb) fb.innerHTML = it.ok
+    ? `<div style="padding:12px 14px;border-radius:11px;background:rgba(78,222,163,0.12);border:1px solid rgba(78,222,163,0.3);color:var(--green);font-size:14px;font-weight:600;">✓ Correct</div>`
+    : `<div style="padding:12px 14px;border-radius:11px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.28);"><div style="color:#f87171;font-size:14px;font-weight:600;margin-bottom:6px;">✗ Answer: ${_e(it.a)}</div><button onclick="smOverrideTest()" style="background:none;border:none;color:var(--plight);font-size:12px;cursor:pointer;text-decoration:underline;padding:0;">I was right — count it</button></div>`;
+  if (input) input.disabled = true;
+  const btn = document.getElementById('smTestBtn'); if (btn) btn.textContent = sm.idx < sm.test.length - 1 ? 'Next →' : 'See results';
+}
+function smOverrideTest(): void {
+  const it = sm.test[sm.idx]!; it.ok = true;
+  const fb = document.getElementById('smTestFeedback');
+  if (fb) fb.innerHTML = `<div style="padding:12px 14px;border-radius:11px;background:rgba(78,222,163,0.12);border:1px solid rgba(78,222,163,0.3);color:var(--green);font-size:14px;font-weight:600;">✓ Counted as correct</div>`;
+}
+function smTestReview(): string {
+  const wrong = sm.test.filter(t => !t.ok);
+  if (!wrong.length) return `<div style="text-align:center;color:var(--green);font-size:14px;margin-top:8px;">Perfect — every answer correct! 🎉</div>`;
+  return `<div style="margin-top:20px;text-align:left;max-height:200px;overflow-y:auto;">
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);font-family:'Space Grotesk';margin-bottom:10px;">REVIEW · ${wrong.length} TO REDO</div>
+    ${wrong.map(t => `<div style="padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid var(--border);margin-bottom:6px;">
+      <div style="font-size:13px;color:var(--text);font-weight:600;">${_e(t.q)}</div>
+      <div style="font-size:12px;color:#f87171;margin-top:3px;">You: ${_e(t.user || '—')}</div>
+      <div style="font-size:12px;color:var(--green);">Answer: ${_e(t.a)}</div>
+    </div>`).join('')}
+  </div>`;
+}
+
+// ── Cloze (fill in the blank) ─────────────────────────────────────────────
+const SM_STOP = new Set('the a an of to in is are and or for with on at by as it its that this be was were from into than then them they you your our we us he she his her their what which who whom whose how why when where can could will would should may might must not no yes about over under between within across each other more most some any all'.split(' '));
+function smMakeCloze(card: FlashCard): SmClozeItem | null {
+  const ans = String(card.a || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const tokens = ans.split(/(\s+)/);   // keep whitespace separators
+  const strip = (s: string) => s.replace(/[^\p{L}\p{N}]/gu, '');
+  const cand: number[] = [];
+  tokens.forEach((tok, i) => {
+    const w = strip(tok).toLowerCase();
+    if (w.length >= 4 && !SM_STOP.has(w) && /\p{L}/u.test(tok)) cand.push(i);
+  });
+  if (!cand.length) return null;
+  let pick = cand[0]!;
+  for (const i of cand) if (strip(tokens[i]!).length > strip(tokens[pick]!).length) pick = i;
+  const tok  = tokens[pick]!;
+  const lead = tok.match(/^[^\p{L}\p{N}]*/u)?.[0] || '';
+  const trail = tok.match(/[^\p{L}\p{N}]*$/u)?.[0] || '';
+  return {
+    q: card.q,
+    pre:    tokens.slice(0, pick).join('') + lead,
+    answer: strip(tok),
+    post:   trail + tokens.slice(pick + 1).join(''),
+    user: '', ok: null,
+  };
+}
+function smStartCloze(subjectId: number): void {
+  sm.subjectId = subjectId;
+  const items: SmClozeItem[] = [];
+  for (const c of smShuffle(smGetCards(subjectId))) {
+    const cl = smMakeCloze(c);
+    if (cl) items.push(cl);
+    if (items.length >= 20) break;
+  }
+  if (!items.length) {
+    smRender(`${smHeader(subjectId, 'Cloze')}<div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;line-height:1.6;">This deck's answers are too short to make fill-in-the-blank questions.<br>Try <strong style="color:var(--plight);">Learn</strong> or <strong style="color:var(--plight);">Test</strong> instead.</div>`);
+    return;
+  }
+  sm.cloze = items; sm.idx = 0;
+  smRenderCloze();
+}
+function smRenderCloze(): void {
+  if (sm.idx >= sm.cloze.length) { smResults('cloze'); return; }
+  const it = sm.cloze[sm.idx]!;
+  smRender(`
+    ${smHeader(sm.subjectId, 'Cloze')}
+    ${smProgress(sm.idx, sm.cloze.length)}
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">${_e(it.q)}</div>
+    <div style="background:rgba(7,15,31,0.6);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:16px;font-size:16px;line-height:1.7;color:white;">${_e(it.pre)}<span style="display:inline-block;min-width:84px;border-bottom:2px solid var(--plight);">&nbsp;</span>${_e(it.post)}</div>
+    <input id="smClozeInput" type="text" autocomplete="off" placeholder="Fill in the blank…" class="auth-input" style="background:rgba(255,255,255,0.05);font-size:15px;" onkeydown="if(event.key==='Enter')smCheckCloze()">
+    <div id="smClozeFeedback" style="margin-top:14px;"></div>
+    <div style="margin-top:16px;text-align:right;"><button id="smClozeBtn" onclick="smCheckCloze()" class="btn-primary" style="padding:11px 22px;font-size:14px;border-radius:11px;">Check</button></div>
+  `);
+  setTimeout(() => document.getElementById('smClozeInput')?.focus(), 60);
+}
+function smCheckCloze(): void {
+  const it = sm.cloze[sm.idx]!;
+  if (it.ok !== null) { sm.idx++; smRenderCloze(); return; }
+  const input = document.getElementById('smClozeInput') as HTMLInputElement | null;
+  it.user = input?.value || '';
+  it.ok = smNorm(it.user) !== '' && smNorm(it.user) === smNorm(it.answer);
+  const fb = document.getElementById('smClozeFeedback');
+  if (fb) fb.innerHTML = it.ok
+    ? `<div style="padding:12px 14px;border-radius:11px;background:rgba(78,222,163,0.12);border:1px solid rgba(78,222,163,0.3);color:var(--green);font-size:14px;font-weight:600;">✓ Correct</div>`
+    : `<div style="padding:12px 14px;border-radius:11px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.28);color:#f87171;font-size:14px;font-weight:600;">✗ Answer: ${_e(it.answer)}</div>`;
+  if (input) input.disabled = true;
+  const btn = document.getElementById('smClozeBtn'); if (btn) btn.textContent = sm.idx < sm.cloze.length - 1 ? 'Next →' : 'See results';
 }
 
 function renderFC() {
@@ -2418,7 +2765,7 @@ function renderFlashcards(): void {
     <div class="fc-deck" style="border-radius:16px;padding:18px 18px 14px;background:rgba(7,15,31,0.55);border:1px solid ${d.color}33;backdrop-filter:blur(20px);cursor:pointer;transition:transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;"
       onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 28px ${d.color}33';this.style.borderColor='${d.color}66';"
       onmouseout="this.style.transform='';this.style.boxShadow='';this.style.borderColor='${d.color}33';"
-      onclick="openFlashcards(${d.id})">
+      onclick="openDeckStudy(${d.id})">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
         <div style="width:38px;height:38px;border-radius:11px;background:${d.color}1f;border:1px solid ${d.color}40;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
           ${icon('style', { size: 18, color: d.color })}
@@ -2427,10 +2774,10 @@ function renderFlashcards(): void {
       </div>
       <div style="font-size:15px;font-weight:700;color:var(--text);letter-spacing:-0.01em;line-height:1.25;margin-bottom:4px;">${_e(d.name)}</div>
       <div style="font-size:12px;color:var(--muted);line-height:1.45;min-height:34px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${_e(d.desc || 'Study deck')}</div>
-      <button type="button" onclick="event.stopPropagation();openFlashcards(${d.id})"
+      <button type="button" onclick="event.stopPropagation();openDeckStudy(${d.id})"
         style="margin-top:14px;width:100%;padding:9px;background:${d.color}22;border:1px solid ${d.color}45;border-radius:10px;color:${d.color};font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:-0.005em;transition:background 0.15s;"
         onmouseover="this.style.background='${d.color}36';" onmouseout="this.style.background='${d.color}22';">
-        Review deck →
+        Study →
       </button>
     </div>
   `).join('');
@@ -2440,7 +2787,7 @@ function renderFlashcards(): void {
     <div class="fc-deck" style="border-radius:16px;padding:18px 18px 14px;background:rgba(7,15,31,0.55);border:1px solid rgba(78,222,163,0.25);backdrop-filter:blur(20px);cursor:pointer;transition:transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;"
       onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 28px rgba(78,222,163,0.22)';this.style.borderColor='rgba(78,222,163,0.5)';"
       onmouseout="this.style.transform='';this.style.boxShadow='';this.style.borderColor='rgba(78,222,163,0.25)';"
-      onclick="openFlashcards(-1)">
+      onclick="openDeckStudy(-1)">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
         <div style="width:38px;height:38px;border-radius:11px;background:rgba(78,222,163,0.12);border:1px solid rgba(78,222,163,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
           ${icon('lightbulb', { size: 18, color: 'var(--green)' })}
@@ -2449,10 +2796,10 @@ function renderFlashcards(): void {
       </div>
       <div style="font-size:15px;font-weight:700;color:var(--text);letter-spacing:-0.01em;line-height:1.25;margin-bottom:4px;">Study Science Starter</div>
       <div style="font-size:12px;color:var(--muted);line-height:1.45;min-height:34px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">Spaced repetition, active recall, the Feynman technique — the core study-science vocabulary every learner should know.</div>
-      <button type="button" onclick="event.stopPropagation();openFlashcards(-1)"
+      <button type="button" onclick="event.stopPropagation();openDeckStudy(-1)"
         style="margin-top:14px;width:100%;padding:9px;background:rgba(78,222,163,0.14);border:1px solid rgba(78,222,163,0.32);border-radius:10px;color:var(--green);font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:-0.005em;transition:background 0.15s;"
         onmouseover="this.style.background='rgba(78,222,163,0.24)';" onmouseout="this.style.background='rgba(78,222,163,0.14)';">
-        Review deck →
+        Study →
       </button>
     </div>
   `;
