@@ -1171,6 +1171,29 @@ function _goToFinish(view: ViewName): void {
     btn.classList.toggle('active', btn.dataset['go'] === view);
   });
 
+  // a11y: exactly one main landmark at a time — mark the active view, and make
+  // it focusable (tabindex -1) so the skip link can jump to it.
+  const viewEl = document.getElementById(view + 'View');
+  document.querySelectorAll('.view[role="main"]').forEach(v => { if (v !== viewEl) v.removeAttribute('role'); });
+  if (viewEl) { viewEl.setAttribute('role', 'main'); viewEl.setAttribute('tabindex', '-1'); }
+
+  // a11y/SEO: update the document title per view (was static across the SPA, so
+  // screen readers never announced a view change and history entries collided).
+  const TITLES: Record<ViewName, string> = {
+    splash:     'Brainfy — AI Study App',
+    signin:     'Sign in · Brainfy',
+    signup:     'Sign up · Brainfy',
+    home:       'Home · Brainfy',
+    focus:      'Focus · Brainfy',
+    library:    'Library · Brainfy',
+    flashcards: 'Flashcards · Brainfy',
+    stats:      'Stats · Brainfy',
+    tasks:      'Tasks · Brainfy',
+    timetable:  'Timetable · Brainfy',
+    settings:   'Settings · Brainfy',
+  };
+  document.title = TITLES[view] || 'Brainfy';
+
   if (view === 'splash')     applySigninHint();
   if (view === 'home')       renderHome();
   if (view === 'focus')      renderFocus();
@@ -1414,6 +1437,66 @@ interface ConfirmOpts {
   cancelLabel?:  string;
   dangerous?:    boolean;   // styles confirm button red
 }
+// ── Dialog accessibility ──────────────────────────────────────────────────
+// Modals carry [role="dialog"][aria-modal="true"] (set in index.html). This
+// adds the behaviour AT users expect: Tab is trapped inside the open dialog,
+// focus moves into it on open, and returns to the trigger on close. Centralised
+// here so individual open/close functions don't each need focus plumbing.
+(function initDialogA11y(): void {
+  const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  // NB: don't use offsetParent — modals are position:fixed, whose offsetParent
+  // is always null even when visible. Check display/visibility + layout instead.
+  const isVisible = (d: HTMLElement) => !!d && getComputedStyle(d).display !== 'none' && getComputedStyle(d).visibility !== 'hidden';
+  const focusable = (c: HTMLElement) => Array.from(c.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(elx => elx.getClientRects().length > 0);
+  function topDialog(): HTMLElement | null {
+    const open = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]')).filter(isVisible);
+    if (!open.length) return null;
+    return open.sort((a, b) => (parseInt(getComputedStyle(a).zIndex) || 0) - (parseInt(getComputedStyle(b).zIndex) || 0))[open.length - 1]!;
+  }
+
+  // Trap Tab within the topmost open dialog.
+  document.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key !== 'Tab') return;
+    const dlg = topDialog();
+    if (!dlg) return;
+    const f = focusable(dlg);
+    if (!f.length) { e.preventDefault(); return; }
+    const first = f[0]!, last = f[f.length - 1]!;
+    const active = document.activeElement as HTMLElement;
+    if (!dlg.contains(active))                    { e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && active === first)      { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && active === last)      { e.preventDefault(); first.focus(); }
+  }, true);
+
+  // Move focus in on open; restore to the trigger on close. One observer over
+  // all dialogs watches their style/class (visibility) transitions.
+  const trigger = new WeakMap<HTMLElement, HTMLElement | null>();
+  const wasOpen = new WeakMap<HTMLElement, boolean>();
+  function sync(d: HTMLElement): void {
+    const open = isVisible(d);
+    const prev = wasOpen.get(d) || false;
+    if (open && !prev) {
+      trigger.set(d, document.activeElement as HTMLElement);
+      if (!d.contains(document.activeElement)) {
+        const f = focusable(d);
+        if (f.length) setTimeout(() => { if (isVisible(d) && !d.contains(document.activeElement)) f[0]!.focus(); }, 40);
+      }
+    } else if (!open && prev) {
+      const t = trigger.get(d);
+      if (t && document.body.contains(t)) setTimeout(() => t.focus(), 0);
+    }
+    wasOpen.set(d, open);
+  }
+  const mo = new MutationObserver(muts => {
+    const seen = new Set<HTMLElement>();
+    for (const m of muts) { const t = m.target as HTMLElement; if (!seen.has(t)) { seen.add(t); sync(t); } }
+  });
+  document.querySelectorAll<HTMLElement>('[role="dialog"]').forEach(d => {
+    wasOpen.set(d, isVisible(d));
+    mo.observe(d, { attributes: true, attributeFilter: ['style', 'class'] });
+  });
+})();
+
 function showConfirm(opts: ConfirmOpts = {}): Promise<boolean> {
   return new Promise<boolean>(resolve => {
     _cfmResolver = resolve;
@@ -4051,6 +4134,10 @@ function showToast(msg: string, type: 'info' | 'success' | 'warning' | 'error' =
   const icons = { info: 'info', success: 'check_circle', warning: 'warning', error: 'error' };
   const toast = document.createElement('div');
   toast.className = 'brainfy-toast';
+  // Announce to assistive tech. Errors/warnings are assertive (interrupt),
+  // info/success are polite. role=status gives it an implicit live region too.
+  toast.setAttribute('role', type === 'error' || type === 'warning' ? 'alert' : 'status');
+  toast.setAttribute('aria-live', type === 'error' || type === 'warning' ? 'assertive' : 'polite');
   toast.style.cssText = [
     'position:fixed','bottom:28px','left:50%','transform:translateX(-50%) translateY(0)',
     'background:rgba(7,15,31,0.96)','border:1px solid rgba(255,255,255,0.12)',
@@ -4214,6 +4301,7 @@ function passwordStrength(pw: string): number {
 function showAuthError(id: string, msg: string): void {
   const e = el(id);
   if (!e) return;
+  e.setAttribute('role', 'alert');   // announce errors to assistive tech
   e.textContent = msg;
   e.style.display = msg ? 'block' : 'none';
 }
