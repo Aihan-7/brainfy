@@ -10,5 +10,6 @@ Disallow: /api/
 # Internal design-prototype mockups — not real pages (also noindex'd via _headers)
 Disallow: /stitch/
 
-# Sitemap location
+# Sitemaps — static pages + the dynamic community-deck sitemap
 Sitemap: https://brainfy.online/sitemap.xml
+Sitemap: https://brainfy.online/decks-sitemap.xml
