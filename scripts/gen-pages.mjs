@@ -459,7 +459,7 @@ function jsonLd(p) {
   const primary = p.cat === 'guide'
     ? { "@type": "Article", "@id": `${url}#article`, headline: p.h1, description: p.desc,
         author: { "@id": `${ORIGIN}/#aihan` }, publisher: { "@id": `${ORIGIN}/#org` },
-        isPartOf: { "@id": `${ORIGIN}/#website` }, image: `${ORIGIN}/og-image.png`,
+        isPartOf: { "@id": `${ORIGIN}/#website` }, image: `${ORIGIN}/og/${p.slug}.png`,
         datePublished: TODAY, dateModified: TODAY, inLanguage: "en", mainEntityOfPage: url }
     : { "@type": "SoftwareApplication", "@id": `${url}#app`, name: `Brainfy — ${p.crumb}`,
         applicationCategory: "EducationalApplication", operatingSystem: "Web", url, description: p.desc,
@@ -501,14 +501,14 @@ function render(p) {
   <meta property="og:url" content="${url}" />
   <meta property="og:title" content="${esc(p.title)}" />
   <meta property="og:description" content="${esc(p.desc)}" />
-  <meta property="og:image" content="${ORIGIN}/og-image.png" />
+  <meta property="og:image" content="${ORIGIN}/og/${p.slug}.png" />
   <meta property="og:image:type" content="image/png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${esc(p.title)}" />
   <meta name="twitter:description" content="${esc(p.desc)}" />
-  <meta name="twitter:image" content="${ORIGIN}/og-image.png" />
+  <meta name="twitter:image" content="${ORIGIN}/og/${p.slug}.png" />
 
   <script type="application/ld+json">
 ${jsonLd(p)}
@@ -583,10 +583,12 @@ function renderHub() {
   <meta property="og:url" content="${ORIGIN}/resources.html" />
   <meta property="og:title" content="Study Resources & Guides | Brainfy" />
   <meta property="og:description" content="Feature guides, app comparisons, and evidence-based study techniques." />
-  <meta property="og:image" content="${ORIGIN}/og-image.png" />
+  <meta property="og:image" content="${ORIGIN}/og/resources.png" />
   <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:image" content="${ORIGIN}/og-image.png" />
+  <meta name="twitter:image" content="${ORIGIN}/og/resources.png" />
 
   <script type="application/ld+json">
 ${JSON.stringify({ "@context": "https://schema.org", "@graph": [
