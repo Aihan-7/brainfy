@@ -51,6 +51,19 @@ interface Subject {
   accessed:  number;
   cards?:    FlashCard[];
   documents?: Doc[];
+  publicDeckId?: string;   // set when this subject's cards are shared to publicDecks
+}
+
+// A community-shared deck (publicDecks/{id} in Firestore).
+interface PublicDeck {
+  id:        string;
+  ownerUid:  string;
+  ownerName: string;
+  name:      string;
+  desc:      string;
+  color:     string;
+  cards:     FlashCard[];
+  cardCount: number;
 }
 
 interface Task {
@@ -3055,10 +3068,14 @@ function renderFlashcards(): void {
   }
 }
 
+let libTab: 'mine' | 'community' = 'mine';
+
 function renderLibrary() {
   const grid   = el('libraryGrid');
   const search = (elInput('libSearchInput')?.value ?? '').toLowerCase();
   if (!grid) return;
+
+  if (libTab === 'community') { void renderCommunity(grid); return; }
 
   const filtered = S.subjects.filter(s =>
     !search || s.name.toLowerCase().includes(search) || s.desc.toLowerCase().includes(search)
@@ -3259,7 +3276,8 @@ function renderDocModal(): void {
   const body = el('docModalBody');
   if (!body) return;
 
-  const cardCount = (S.subjects.find(x => x.id === docModalSubjId)?.cards?.length) || 0;
+  const cardCount  = (S.subjects.find(x => x.id === docModalSubjId)?.cards?.length) || 0;
+  const deckShared = docModalSubjId != null && deckIsShared(docModalSubjId);
 
   const tabs: { key: 'file' | 'note' | 'link' | 'cards'; label: string; icon: string }[] = [
     { key: 'file',  label: 'File',  icon: 'upload_file' },
@@ -3318,6 +3336,20 @@ function renderDocModal(): void {
           <button onclick="exportSubjectCSV(${docModalSubjId})" class="btn-ghost" ${cardCount ? '' : 'disabled'} style="padding:9px 14px;font-size:13px;border-radius:10px;display:flex;align-items:center;gap:6px;border-color:rgba(255,255,255,0.12);${cardCount ? '' : 'opacity:0.45;cursor:not-allowed;'}">
             <span class="ms" style="font-size:16px;">description</span> Export CSV
           </button>
+        </div>
+
+        <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div style="font-size:12px;color:var(--muted);line-height:1.45;">${
+            !firebaseUser ? 'Sign in to share this deck with the community.'
+            : deckShared  ? 'Shared to the community library. Re-share to push updates.'
+            : 'Share this deck so other students can study it.'
+          }</div>
+          <div style="display:flex;gap:8px;flex-shrink:0;">
+            ${firebaseUser && deckShared ? `<button onclick="publishDeck(${docModalSubjId})" class="btn-ghost" style="padding:9px 12px;font-size:13px;border-radius:10px;border-color:rgba(255,255,255,0.12);">Update</button>` : ''}
+            <button onclick="toggleShareDeck(${docModalSubjId})" ${(firebaseUser && cardCount) ? '' : 'disabled'} class="btn-ghost" style="padding:9px 14px;font-size:13px;border-radius:10px;display:flex;align-items:center;gap:6px;${deckShared ? 'border-color:rgba(239,68,68,0.4);color:#f87171;' : 'border-color:rgba(124,58,237,0.4);color:var(--plight);'}${(firebaseUser && cardCount) ? '' : 'opacity:0.45;cursor:not-allowed;'}">
+              <span class="ms" style="font-size:16px;">${deckShared ? 'close' : 'auto_awesome'}</span> ${deckShared ? 'Stop sharing' : 'Share publicly'}
+            </button>
+          </div>
         </div>
       </div>
     ` : docModalTab === 'note' ? `
@@ -3706,6 +3738,182 @@ function exportSubjectCSV(subjId: number): void {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   showToast(`Exported ${cards.length} card${cards.length > 1 ? 's' : ''} as CSV`, 'success');
+}
+
+// ── Community-shared decks ────────────────────────────────────────────────
+// Publish a deck to the world-readable publicDecks collection (owner-write-only
+// by Firestore rules). Requires sign-in (a uid). Inert until the rules are
+// deployed — permission-denied is surfaced gracefully.
+let communityDecks: PublicDeck[] = [];   // cache of the last community fetch
+
+function deckIsShared(subjectId: number): boolean {
+  return !!S.subjects.find(x => x.id === subjectId)?.publicDeckId;
+}
+
+async function publishDeck(subjectId: number): Promise<void> {
+  if (!firebaseUser) { showToast('Sign in to share decks with the community', 'warning'); return; }
+  if (typeof firebase === 'undefined' || typeof firebase.firestore !== 'function') { showToast('Sharing unavailable — please refresh', 'warning'); return; }
+  const s = S.subjects.find(x => x.id === subjectId);
+  if (!s || !s.cards?.length) { showToast('This deck has no cards to share', 'warning'); return; }
+  if (s.cards.length > 1000)  { showToast('Decks over 1000 cards can’t be shared', 'warning'); return; }
+
+  const payload: Record<string, unknown> = {
+    ownerUid:  firebaseUser.uid,
+    ownerName: String(S.userName || firebaseUser.displayName || 'A student').slice(0, 60),
+    name:      String(s.name || 'Untitled deck').slice(0, 120),
+    desc:      String(s.desc || '').slice(0, 300),
+    color:     s.color || '#7c3aed',
+    cards:     s.cards.map(c => ({ q: String(c.q).slice(0, 2000), a: String(c.a).slice(0, 2000) })),
+    cardCount: s.cards.length,
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    const col = firebase.firestore().collection('publicDecks');
+    if (s.publicDeckId) {
+      await col.doc(s.publicDeckId).set(payload, { merge: true });
+    } else {
+      const ref = await col.add({ ...payload, createdAt: new Date().toISOString() });
+      s.publicDeckId = ref.id;
+      save();
+    }
+    const link = `${location.origin}/?deck=${s.publicDeckId}`;
+    try { await navigator.clipboard?.writeText(link); } catch (_) {}
+    showToast('Deck shared — link copied to clipboard', 'success');
+    renderDocModal();
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code;
+    console.error('[share] publish failed', code, err);
+    track('share.publish.error', { code });
+    showToast(code === 'permission-denied'
+      ? 'Sharing isn’t enabled on this project yet (deploy the Firestore rules).'
+      : 'Couldn’t share the deck — try again.', 'error');
+  }
+}
+
+async function unpublishDeck(subjectId: number): Promise<void> {
+  const s = S.subjects.find(x => x.id === subjectId);
+  if (!s || !s.publicDeckId) return;
+  try {
+    await firebase.firestore().collection('publicDecks').doc(s.publicDeckId).delete();
+  } catch (err) { console.error('[share] unpublish failed', err); }
+  s.publicDeckId = undefined;
+  save();
+  showToast('Deck is no longer shared', 'info');
+  renderDocModal();
+}
+
+function toggleShareDeck(subjectId: number): void {
+  if (deckIsShared(subjectId)) unpublishDeck(subjectId);
+  else                         publishDeck(subjectId);
+}
+
+async function fetchPublicDecks(): Promise<PublicDeck[]> {
+  if (typeof firebase === 'undefined' || typeof firebase.firestore !== 'function') return [];
+  const snap = await firebase.firestore().collection('publicDecks').orderBy('updatedAt', 'desc').limit(60).get();
+  return snap.docs.map((d: { id: string; data: () => Record<string, unknown> }) => {
+    const x = d.data() || {};
+    const cards = Array.isArray(x['cards']) ? (x['cards'] as FlashCard[]) : [];
+    return {
+      id: d.id,
+      ownerUid:  String(x['ownerUid'] || ''),
+      ownerName: String(x['ownerName'] || 'A student'),
+      name:      String(x['name'] || 'Untitled deck'),
+      desc:      String(x['desc'] || ''),
+      color:     String(x['color'] || '#7c3aed'),
+      cards,
+      cardCount: typeof x['cardCount'] === 'number' ? (x['cardCount'] as number) : cards.length,
+    };
+  });
+}
+
+// Clone a shared deck's cards into a brand-new local subject.
+function importPublicDeckById(id: string): void {
+  const deck = communityDecks.find(d => d.id === id);
+  if (!deck) { showToast('That deck is no longer available', 'warning'); return; }
+  const cards = (deck.cards || [])
+    .filter(c => c && c.q != null && c.a != null)
+    .map(c => ({ q: String(c.q), a: String(c.a) }));
+  if (!cards.length) { showToast('That deck has no cards', 'warning'); return; }
+  S.subjects.push({
+    id: S.nextId++,
+    name: `${deck.name} (imported)`.slice(0, 140),
+    desc: deck.desc || `Shared by ${deck.ownerName}`,
+    docs: 0,
+    color: deck.color || SUBJECT_COLORS[S.subjects.length % SUBJECT_COLORS.length]!,
+    accessed: Date.now(),
+    cards,
+  });
+  save();
+  showToast(`Added “${deck.name}” (${cards.length} cards) to your library`, 'success');
+}
+
+// Open a deck shared via /?deck=<id>: fetch it, offer to copy it in.
+async function maybeOpenSharedDeck(): Promise<void> {
+  const id = new URLSearchParams(location.search).get('deck');
+  if (!id) return;
+  try { history.replaceState(null, '', location.pathname); } catch (_) {}   // don't re-trigger on reload
+  if (typeof firebase === 'undefined' || typeof firebase.firestore !== 'function') return;
+  try {
+    const doc = await firebase.firestore().collection('publicDecks').doc(id).get();
+    if (!doc.exists) { showToast('That shared deck wasn’t found', 'warning'); return; }
+    const x = doc.data() || {};
+    const cards = Array.isArray(x['cards']) ? (x['cards'] as FlashCard[]) : [];
+    const deck: PublicDeck = {
+      id: doc.id, ownerUid: String(x['ownerUid'] || ''), ownerName: String(x['ownerName'] || 'A student'),
+      name: String(x['name'] || 'Shared deck'), desc: String(x['desc'] || ''), color: String(x['color'] || '#7c3aed'),
+      cards, cardCount: typeof x['cardCount'] === 'number' ? (x['cardCount'] as number) : cards.length,
+    };
+    communityDecks = [deck, ...communityDecks.filter(d => d.id !== deck.id)];
+    const ok = await showConfirm({
+      title:        `Add “${deck.name}”?`,
+      message:      `${deck.cardCount} cards · shared by ${deck.ownerName}. This copies the deck into your library.`,
+      confirmLabel: 'Add to library',
+      cancelLabel:  'Not now',
+    });
+    if (ok) { importPublicDeckById(deck.id); goTo('library'); }
+  } catch (err) { console.error('[share] open link failed', err); }
+}
+
+// Render the "Shared Community Resources" tab into the library grid.
+async function renderCommunity(grid: HTMLElement): Promise<void> {
+  grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:48px 24px;color:var(--muted);font-size:13px;">Loading shared decks…</div>`;
+  let decks: PublicDeck[] = [];
+  try {
+    decks = await fetchPublicDecks();
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code;
+    console.error('[share] fetch failed', code, err);
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:48px 24px;background:rgba(7,15,31,0.4);border:1px dashed var(--border);border-radius:16px;">
+      <div style="font-size:14px;color:var(--text);font-weight:600;margin-bottom:6px;">Community decks aren’t available yet</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.55;max-width:380px;margin:0 auto;">${code === 'permission-denied' ? 'Deploy the updated Firestore rules to enable shared decks.' : 'Couldn’t reach the community library. Check your connection and try again.'}</div>
+    </div>`;
+    return;
+  }
+  if (libTab !== 'community') return;   // user switched away while loading
+  communityDecks = decks;
+  if (!decks.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:48px 24px;background:rgba(7,15,31,0.4);border:1px dashed var(--border);border-radius:16px;">
+      <div style="font-size:14px;color:var(--text);font-weight:600;margin-bottom:6px;">No shared decks yet</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.55;max-width:380px;margin:0 auto;">Be the first — open a deck’s <strong>Cards</strong> tab and tap <strong>Share publicly</strong>.</div>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = decks.map(d => `
+    <div class="subj-card" style="min-height:170px;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;">
+        <div style="width:42px;height:42px;background:${_e(d.color)}20;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid ${_e(d.color)}30;">
+          <span class="ms" style="font-size:22px;color:${_e(d.color)};">style</span>
+        </div>
+        <span style="font-family:'Space Grotesk';font-size:10px;color:var(--muted);font-weight:700;letter-spacing:0.06em;">${d.cardCount} CARD${d.cardCount !== 1 ? 'S' : ''}</span>
+      </div>
+      <div style="font-weight:700;font-size:15px;margin-bottom:4px;line-height:1.25;">${_e(d.name)}</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.45;flex:1;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${_e(d.desc || 'Shared study deck')}</div>
+      <div style="font-size:11px;color:var(--muted2);margin:10px 0 12px;">by ${_e(d.ownerName)}</div>
+      <button onclick="importPublicDeckById('${_e(d.id)}')" class="btn-primary" style="width:100%;padding:9px;font-size:13px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <span class="ms" style="font-size:16px;">add</span> Add to my library
+      </button>
+    </div>
+  `).join('');
 }
 
 // Add a Doc to a subject. If subjectIdOverride is omitted, uses the currently-
@@ -5335,11 +5543,13 @@ function initEvents() {
   // Library: search
   el('libSearchInput')?.addEventListener('input', renderLibrary);
 
-  // Library: tabs
+  // Library: tabs (My Library / Shared Community Resources)
   document.querySelectorAll('.lib-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.lib-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
+      libTab = (tab as HTMLElement).dataset['tab'] === 'community' ? 'community' : 'mine';
+      renderLibrary();
     });
   });
 
@@ -6063,6 +6273,8 @@ function init() {
 
   // Fire the daily on-open study nudge once state has settled.
   window.setTimeout(nudgeIfDue, 2500);
+  // Handle a /?deck=<id> share link once Firestore is ready.
+  window.setTimeout(() => { void maybeOpenSharedDeck(); }, 1800);
 
   // ── Firebase auth observer ────────────────────
   // Fires once on load: if user was already signed in, skip splash and
