@@ -1,14 +1,15 @@
 # ────────────────────────────────────────────────────────────────────────────
-#  CI: typecheck + build
+#  CI: typecheck + test + build
 #
 #  Runs on every push and pull request targeting main. Verifies:
 #    • TypeScript compiles cleanly (no implicit-any, no type errors)
+#    • The unit tests pass (node:test) + reports coverage (c8)
 #    • The full build pipeline (tsc → terser) succeeds
 #    • The minified script.js committed to the repo matches what `npm run
 #      build` produces — catches "forgot to rebuild before pushing" PRs
 #
-#  Does NOT run tests (there aren't any yet) or deploy — Cloudflare Pages
-#  handles deploy on its own once changes land on main.
+#  Does NOT deploy — Cloudflare Pages handles deploy on its own once changes
+#  land on main.
 # ────────────────────────────────────────────────────────────────────────────
 
 name: build
@@ -45,11 +46,14 @@ jobs:
         # failure when typecheck is the actual problem.
         run: npx tsc --noEmit
 
-      - name: Test
-        # node:test, zero-dep. Currently covers functions/api/_lib/auth.js
-        # (JWT verifier — the most security-critical pure module). Add more
-        # tests/*.test.mjs files as we extract pure logic from main.ts.
-        run: npm test
+      - name: Test + coverage
+        # node:test runner under c8 for coverage. Covers the SM-2 scheduler
+        # (srs.js), the Firebase JWT verifier (auth.js), the cost-abuse guards
+        # (guard.js), the deck SSR layer (_render.js) and every /api endpoint
+        # (auth gate, body-size + rate-limit guards, max_tokens clamp, provider
+        # selection). A failing test fails the build; coverage is reported for
+        # visibility (no hard threshold yet).
+        run: npm run coverage
 
       - name: Build
         # Compiles src/main.ts → script.js → minified script.js.
