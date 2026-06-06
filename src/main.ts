@@ -393,16 +393,7 @@ function syncAmbient(): void {
 //
 // Ease factor is clamped to [1.3, 2.5] so a hot streak doesn't blow the
 // schedule out, and a bad streak doesn't trap a card in same-day repetition.
-const SRS_NEW_INTERVALS: Record<FcRating, number> = {
-  again: 0,
-  hard:  1,
-  good:  3,
-  easy:  7,
-};
-const SRS_EASE_MIN     = 1.3;
-const SRS_EASE_MAX     = 2.5;
-const SRS_EASE_DEFAULT = 2.5;
-const DAY_MS           = 86400000;
+const DAY_MS = 86400000;
 
 // Anki-style daily cap on NEW cards (never-reviewed) per session. Without
 // this, a user with a freshly-imported 500-card deck would be shown all 500
@@ -410,68 +401,23 @@ const DAY_MS           = 86400000;
 // box value; expose as a setting later if requested.
 const SRS_NEW_PER_SESSION = 20;
 
-function srsSchedule(card: FlashCard, rating: FcRating): FlashCard {
-  const now = Date.now();
-  let interval = card.interval ?? 0;
-  let ease     = card.ease     ?? SRS_EASE_DEFAULT;
-  let reps     = card.reps     ?? 0;
-  let lapses   = card.lapses   ?? 0;
-
-  // First exposure — no interval recorded yet
-  const isNew = card.interval == null;
-
-  if (rating === 'again') {
-    interval = 0;             // due immediately, will re-appear this session
-    ease     = Math.max(SRS_EASE_MIN, ease - 0.20);
-    reps     = 0;
-    if (!isNew) lapses += 1;
-  } else if (isNew) {
-    interval = SRS_NEW_INTERVALS[rating];
-    if (rating === 'easy') ease = Math.min(SRS_EASE_MAX, ease + 0.15);
-    if (rating === 'hard') ease = Math.max(SRS_EASE_MIN, ease - 0.15);
-    reps = 1;
-  } else {
-    // Mature card — multiply forward.
-    const mult = rating === 'hard' ? 1.2
-               : rating === 'good' ? ease
-               : /* easy */          ease * 1.3;
-    interval = Math.max(1, Math.round(interval * mult));
-    if (rating === 'easy') ease = Math.min(SRS_EASE_MAX, ease + 0.15);
-    if (rating === 'hard') ease = Math.max(SRS_EASE_MIN, ease - 0.15);
-    reps += 1;
-  }
-
-  return {
-    ...card,
-    dueAt:    now + Math.round(interval * DAY_MS),
-    interval,
-    ease,
-    reps,
-    lapses,
-    lastReviewedAt: now,
-  };
-}
-
-// Predict the next interval for a card+rating without mutating. Used for the
-// labels on the rating buttons ("Good · 3d").
-function srsPreview(card: FlashCard, rating: FcRating): number {
-  const next = srsSchedule(card, rating);
-  return next.interval ?? 0;
-}
-
-function srsIsDue(card: FlashCard, now: number = Date.now()): boolean {
-  // No dueAt → never reviewed → due
-  return card.dueAt == null || card.dueAt <= now;
-}
-
-// Pretty-print an interval in days as a human label: 0d → "<1d", 1 → "1d",
-// 30 → "1mo", 365 → "1y". Used for button labels.
-function srsLabel(days: number): string {
-  if (days < 1)    return '<1d';
-  if (days < 30)   return Math.round(days) + 'd';
-  if (days < 365)  return Math.round(days / 30) + 'mo';
-  return Math.round(days / 365) + 'y';
-}
+// The pure SM-2 math (srsSchedule/srsPreview/srsIsDue/srsLabel) lives in
+// /srs.js — loaded as a separate global script (same pattern as icons.js) so
+// it can be unit-tested in isolation (tests/srs.test.mjs) without importing
+// this whole bundle. It's exposed on the global as `BrainfySRS`; we alias the
+// functions to locals so every call site below (and minification) is unchanged.
+// State-aware helpers (srsAllDue/srsSessionQueue/srsReviewedToday) stay here
+// because they read app state (S.subjects); the four functions above are pure.
+declare const BrainfySRS: {
+  srsSchedule(card: FlashCard, rating: FcRating): FlashCard;
+  srsPreview(card: FlashCard, rating: FcRating): number;
+  srsIsDue(card: FlashCard, now?: number): boolean;
+  srsLabel(days: number): string;
+};
+const srsSchedule = BrainfySRS.srsSchedule;
+const srsPreview  = BrainfySRS.srsPreview;
+const srsIsDue    = BrainfySRS.srsIsDue;
+const srsLabel    = BrainfySRS.srsLabel;
 
 // Walk every subject's cards and return the ones that are due, paired with
 // the subject they belong to so the UI can label them and we can persist

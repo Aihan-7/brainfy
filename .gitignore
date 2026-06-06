@@ -14,6 +14,11 @@ node_modules/
 npm-debug.log*
 package-lock.json
 
+# ── Test coverage output (c8) ──────────────────────
+coverage/
+.nyc_output/
+*.lcov
+
 # ── TypeScript build output ────────────────────────
 # script.js is committed so it deploys with the repo
 # script.js

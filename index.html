@@ -130,6 +130,9 @@
        this, every <span class="ms">name</span> shows its literal Material
        Symbols name as text until the app bundle finally loads. -->
   <script src="/icons.js?v=1778429000" defer></script>
+  <!-- Pure SM-2 scheduling math (src/main.ts reads it via the BrainfySRS global).
+       Deferred so it executes before the lazily-loaded app bundle calls it. -->
+  <script src="/srs.js?v=1778429000" defer></script>
 
   <!-- Fonts: load async (non-render-blocking) — preconnect above warms the connection. -->
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
