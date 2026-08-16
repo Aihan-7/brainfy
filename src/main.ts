@@ -400,9 +400,23 @@ const SRS_NEW_INTERVALS: Record<FcRating, number> = {
   easy:  7,
 };
 const SRS_EASE_MIN     = 1.3;
-const SRS_EASE_MAX     = 2.5;
+// Ceiling sits ABOVE the default on purpose. When both were 2.5 the "+0.15 for
+// Easy" bonus was clamped away for every card that had never been penalised —
+// i.e. it was dead code, and ease could only ever ratchet downward.
+const SRS_EASE_MAX     = 3.0;
 const SRS_EASE_DEFAULT = 2.5;
 const DAY_MS           = 86400000;
+
+// Due dates land on the START OF A LOCAL DAY, never on a wall-clock offset.
+// Scheduling `now + 3 days` meant a card graded at 21:00 was not due until 21:00
+// three days later — so a user studying at 19:30 that day was told "nothing due",
+// then hit a double batch the next day. Anki rolls over at the day boundary for
+// exactly this reason.
+function srsStartOfDay(ms: number): number {
+  const d = new Date(ms);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
 
 // Anki-style daily cap on NEW cards (never-reviewed) per session. Without
 // this, a user with a freshly-imported 500-card deck would be shown all 500
@@ -443,7 +457,9 @@ function srsSchedule(card: FlashCard, rating: FcRating): FlashCard {
 
   return {
     ...card,
-    dueAt:    now + Math.round(interval * DAY_MS),
+    // interval 0 ("Again") stays due immediately so the card comes back this
+    // session; anything ≥1 day is due when that day starts.
+    dueAt:    interval <= 0 ? now : srsStartOfDay(now + Math.round(interval * DAY_MS)),
     interval,
     ease,
     reps,
@@ -1130,6 +1146,38 @@ let syncState: SyncState = 'idle';
 let lastSyncedAt: number | null = null;
 let _pendingSaveTimer: number | undefined;
 
+// ── Write safety ────────────────────────────────────────────────────────────
+// `save()` overwrites the whole cloud document, so it is only safe once we have
+// SEEN that document. If the initial read failed (transient Firestore error, an
+// extension blocking firestore.googleapis.com, a rules hiccup) we used to fall
+// through to "cloud looks empty" and push local state over it — on a fresh
+// device that meant replacing a real account with an empty one.
+// So: no successful read, no write. See AUDIT-2026-08-16.md, P1-1.
+let cloudReadOk = false;
+
+// Tracks whether the local copy contains edits that never reached the cloud, so
+// a later session can tell "cloud is authoritative" from "local is ahead".
+// Kept OUT of S: it is per-device bookkeeping, not user state to be synced.
+const SYNC_META_KEY = 'brainfy_sync_meta';
+interface SyncMeta { uid: string; dirty: boolean; syncedAt?: string }
+
+function readSyncMeta(): SyncMeta | null {
+  try {
+    const raw = localStorage.getItem(SYNC_META_KEY);
+    return raw ? JSON.parse(raw) as SyncMeta : null;
+  } catch (_) { return null; }
+}
+function writeSyncMeta(meta: SyncMeta): void {
+  try { localStorage.setItem(SYNC_META_KEY, JSON.stringify(meta)); } catch (_) { /* quota — non-fatal */ }
+}
+// Are there local edits this account never managed to push? Only counts when the
+// marker belongs to the SAME uid — otherwise it is a previous user's leftovers
+// on a shared device, which must never be merged into this account.
+function localHasUnsyncedEdits(uid: string): boolean {
+  const m = readSyncMeta();
+  return !!m && m.uid === uid && m.dirty === true;
+}
+
 function setSyncState(next: SyncState): void {
   syncState = next;
   if (next === 'synced') lastSyncedAt = Date.now();
@@ -1274,6 +1322,12 @@ function save() {
 
   // Not signed in → no cloud sync to attempt
   if (!firebaseUser) { if (syncState !== 'offline') setSyncState('idle'); return; }
+
+  // Mark the local copy as ahead of the cloud BEFORE anything can bail out, so
+  // that edits made offline — or lost to a crash mid-write — still leave a
+  // truthful marker for the next session to find and merge.
+  writeSyncMeta({ uid: firebaseUser.uid, dirty: true, syncedAt: readSyncMeta()?.syncedAt });
+
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     setSyncState('offline');
     return;
@@ -1281,13 +1335,30 @@ function save() {
   const ref = userDoc();
   if (!ref) { setSyncState('idle'); return; }
 
+  // Never overwrite a document we have not successfully read this session —
+  // that is how an empty local state ends up replacing a real account.
+  // The local write above still happened, so nothing the user did is lost;
+  // it just stays on the device until a read succeeds (chip offers a retry).
+  if (!cloudReadOk) { setSyncState('error'); return; }
+
   // Debounce so rapid edits collapse into one cloud write
   setSyncState('syncing');
   window.clearTimeout(_pendingSaveTimer);
   _pendingSaveTimer = window.setTimeout(() => {
-    ref.set({ state: S, updatedAt: new Date().toISOString() })
-      .then(() => setSyncState('synced'))
-      .catch((err: any) => { console.error('[sync] save failed', err?.code, err?.message, err); track('sync.save.error', { code: err?.code, message: err?.message }); setSyncState('error'); });
+    // ref.set() validates its argument BEFORE returning a promise, so an
+    // unserialisable value (an `undefined` field, most likely) throws
+    // synchronously and would sail straight past .catch() — leaving the chip
+    // stuck on "syncing" forever while nothing reached the cloud. Catch both.
+    try {
+      const stamp = new Date().toISOString();
+      ref.set({ state: S, updatedAt: stamp })
+        .then(() => { writeSyncMeta({ uid: firebaseUser.uid, dirty: false, syncedAt: stamp }); setSyncState('synced'); })
+        .catch((err: any) => { console.error('[sync] save failed', err?.code, err?.message, err); track('sync.save.error', { code: err?.code, message: err?.message }); setSyncState('error'); });
+    } catch (err: any) {
+      console.error('[sync] save threw', err?.code, err?.message, err);
+      track('sync.save.throw', { code: err?.code, message: err?.message });
+      setSyncState('error');
+    }
   }, 400);
 }
 
@@ -1298,8 +1369,41 @@ function retrySync(): void {
   const ref = userDoc();
   if (!ref) return;
   setSyncState('syncing');
-  ref.set({ state: S, updatedAt: new Date().toISOString() })
-    .then(() => { setSyncState('synced'); showToast('Synced to cloud', 'success'); })
+
+  // Two very different failures wear the same error chip:
+  //   • we never READ the cloud document → re-read first. Pushing now would
+  //     overwrite an account we have never seen (P1-1).
+  //   • the read was fine and a WRITE failed → just push again (below).
+  if (!cloudReadOk) {
+    ref.get()
+      .then((snap: any) => {
+        cloudReadOk = true;
+        const cloudState: AppState | null = (snap && snap.exists) ? ((snap.data() || {}).state || null) : null;
+        if (hasUserData(cloudState)) {
+          // Local edits made while disconnected are merged in rather than
+          // dropped; with nothing local pending, the cloud copy simply wins.
+          S = (localHasUnsyncedEdits(firebaseUser.uid) && hasUserData(S))
+            ? mergeStates(cloudState as AppState, S)
+            : { ...DEFAULT_STATE, ...(cloudState as AppState) };
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch (_) {}
+          _goToFinish(currentView);      // repaint + push the reconciled state
+        } else {
+          save();
+        }
+        showToast('Reconnected — your data is safe', 'success');
+      })
+      .catch((err: any) => {
+        console.error('[sync] retry read failed', err?.code, err?.message, err);
+        track('sync.retryread.error', { code: err?.code, message: err?.message });
+        setSyncState('error');
+        showToast('Still can’t reach the cloud. Your work is saved on this device.', 'warning');
+      });
+    return;
+  }
+
+  const stamp = new Date().toISOString();
+  ref.set({ state: S, updatedAt: stamp })
+    .then(() => { writeSyncMeta({ uid: firebaseUser.uid, dirty: false, syncedAt: stamp }); setSyncState('synced'); showToast('Synced to cloud', 'success'); })
     .catch((err: any) => { console.error('[sync] retry failed', err?.code, err?.message, err); track('sync.retry.error', { code: err?.code, message: err?.message }); setSyncState('error');  showToast('Still offline. Will retry on next change.', 'warning'); });
 }
 
@@ -1428,14 +1532,25 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
       const ref  = userDoc();
       const snap = ref && await ref.get();
       if (snap && snap.exists) cloudState = (snap.data() || {}).state || null;
+      // A missing document is still a SUCCESSFUL read — it genuinely means
+      // "new account, nothing stored yet", which is safe to overwrite.
+      if (ref) cloudReadOk = true;
     } catch (err: any) {
       console.error('[sync] load failed', err?.code, err?.message);
       track('sync.load.error', { code: err?.code, message: err?.message });
-      // Network/rules error — keep local; chip surfaces the error on next save.
+      // We do NOT know what is in the cloud, so we must not touch it: keep the
+      // local copy as-is and leave cloudReadOk false, which makes save() refuse
+      // to push until a read succeeds (the chip offers a retry). Previously this
+      // fell through to "cloud looks empty" and pushed local over the real
+      // document — on a fresh device that silently replaced a whole account
+      // with an empty one.
+      showToast('Couldn’t reach your cloud data — working from this device for now.', 'warning');
     }
     const cloudHasData = hasUserData(cloudState);
 
-    if (cloudHasData && wasGuest && localHasData) {
+    if (!cloudReadOk) {
+      // Unknown cloud state → no reconciliation. S stays exactly as loaded.
+    } else if (cloudHasData && wasGuest && localHasData) {
       const merge = await showConfirm({
         title:        'Bring your guest work along?',
         message:      `This account already has saved data. Merge in the ${describeGuestData(localState)} you created as a guest, or use only your account's data?`,
@@ -1444,7 +1559,14 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
       });
       S = merge ? mergeStates(cloudState as AppState, localState) : { ...DEFAULT_STATE, ...(cloudState as AppState) };
     } else if (cloudHasData) {
-      S = { ...DEFAULT_STATE, ...(cloudState as AppState) };
+      // The cloud copy is normally authoritative. But if this device still holds
+      // edits that never reached it — the tab was closed inside save()'s 400 ms
+      // debounce, or the network dropped mid-write — then replacing S would throw
+      // that work away without a word. Merge instead. mergeStates() dedupes, so
+      // for a device that synced cleanly this is a no-op.
+      S = (localHasData && localHasUnsyncedEdits(user.uid))
+        ? mergeStates(cloudState as AppState, localState)
+        : { ...DEFAULT_STATE, ...(cloudState as AppState) };
     } else {
       // Cloud empty → keep local (guest keeps their work; brand-new user starts clean).
       S = localHasData ? localState : { ...DEFAULT_STATE, ...(cloudState || {}) };
@@ -1458,8 +1580,8 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
     S.userName = realName;
     setSigninHint(realName);
 
-    save();                 // push the resolved state to the cloud
-    setSyncState('synced');
+    save();                 // push the resolved state (refuses to push if the read failed)
+    if (cloudReadOk) setSyncState('synced');
   })();
   return authResolution;
 }
@@ -1698,7 +1820,9 @@ const ICONS: Record<string, string> = {
   forest:                  '<path d="M12 2L3 14h4l-3 6h16l-3-6h4z"/>',
   format_list_bulleted:    '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6"  r="0.8"/><circle cx="3.5" cy="12" r="0.8"/><circle cx="3.5" cy="18" r="0.8"/>',
   format_quote:            '<path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2-1 0-1 .008-1 1.031V20c0 1 0 1 1 1z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2-1 0-1 .008-1 1.031V20c0 1 0 1 1 1z"/>',
+  group_add:               '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>',
   home:                    '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+  ios_share:               '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>',
   info:                    '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
   lightbulb:               '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c1 .7 1.5 1.5 1.5 2.3v1a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1c0-.8.5-1.6 1.5-2.3A7 7 0 0 0 12 2z"/>',
   link:                    '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
@@ -2888,7 +3012,9 @@ async function disableReminders(): Promise<void> {
     const sub = reg && await reg.pushManager.getSubscription();
     if (sub) await sub.unsubscribe();
   } catch (_) { /* ignore */ }
-  S.pushSub = undefined;
+  // `delete`, not `= undefined`: Firestore rejects undefined field values, and
+  // save() would throw on every subsequent write. See save().
+  delete S.pushSub;
   save();
   renderSettings();
   showToast('Study reminders off', 'info');
@@ -3850,6 +3976,22 @@ async function publishDeck(subjectId: number): Promise<void> {
   if (!s || !s.cards?.length) { showToast('This deck has no cards to share', 'warning'); return; }
   if (s.cards.length > 1000)  { showToast('Decks over 1000 cards can’t be shared', 'warning'); return; }
 
+  // Publishing is irreversible in practice — the page is world-readable, edge-
+  // cached, and submitted to search engines via /decks-sitemap.xml. Decks are
+  // built from the user's own notes and carry their display name, and a lot of
+  // our users are school-age. One unlabelled tap was too few. (Re-publishing an
+  // already-shared deck just updates it, so no second prompt.)
+  if (!s.publicDeckId) {
+    const publishName = String(S.userName || firebaseUser.displayName || 'A student').slice(0, 60);
+    const ok = await showConfirm({
+      title:        'Publish this deck publicly?',
+      message:      `All ${s.cards.length} cards, the deck name and your name (“${publishName}”) go on a public page that anyone can open and search engines can index. Don’t publish anything private. You can stop sharing later.`,
+      confirmLabel: 'Publish publicly',
+      cancelLabel:  'Cancel',
+    });
+    if (!ok) return;
+  }
+
   const payload: Record<string, unknown> = {
     ownerUid:  firebaseUser.uid,
     ownerName: String(S.userName || firebaseUser.displayName || 'A student').slice(0, 60),
@@ -3892,7 +4034,9 @@ async function unpublishDeck(subjectId: number): Promise<void> {
   try {
     await firebase.firestore().collection('publicDecks').doc(s.publicDeckId).delete();
   } catch (err) { console.error('[share] unpublish failed', err); }
-  s.publicDeckId = undefined;
+  // `delete`, not `= undefined` — Firestore rejects undefined field values and
+  // save() would throw on every subsequent write. See save().
+  delete s.publicDeckId;
   save();
   showToast('Deck is no longer shared', 'info');
   renderDocModal();
@@ -3978,10 +4122,27 @@ function inviteFriends(): void {
     'Brainfy turns your notes & PDFs into flashcards and keeps you focused while you study — free, no ads. Join me:', 'invite.click');
 }
 
+// A public deck is authored by another user, so every field of it — INCLUDING
+// the Firestore document id, which the client picks — is untrusted input.
+//   • DECK_ID_RE mirrors the guard in functions/decks/[id].js so an id that
+//     could never resolve to a real SSR page never reaches the UI either.
+//   • safeDeckColor keeps a deck's colour out of CSS-injection territory: it
+//     lands inside a style="" attribute, where HTML-escaping is not enough.
+// Same validation as parseDeckDoc() in functions/decks/_render.js.
+const DECK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+function safeDeckColor(c: unknown): string {
+  return /^#[0-9a-fA-F]{6}$/.test(String(c)) ? String(c) : '#7c3aed';
+}
+
 async function fetchPublicDecks(): Promise<PublicDeck[]> {
   if (typeof firebase === 'undefined' || typeof firebase.firestore !== 'function') return [];
   const snap = await firebase.firestore().collection('publicDecks').orderBy('updatedAt', 'desc').limit(60).get();
-  return snap.docs.map((d: { id: string; data: () => Record<string, unknown> }) => {
+  return snap.docs
+    // Same two guards the SSR pages apply: a malformed id never reaches the DOM,
+    // and a deck switched off in the console (approved:false) disappears here too.
+    .filter((d: { id: string; data: () => Record<string, unknown> }) =>
+      DECK_ID_RE.test(d.id) && (d.data() || {})['approved'] !== false)
+    .map((d: { id: string; data: () => Record<string, unknown> }) => {
     const x = d.data() || {};
     const cards = Array.isArray(x['cards']) ? (x['cards'] as FlashCard[]) : [];
     return {
@@ -4069,22 +4230,38 @@ async function renderCommunity(grid: HTMLElement): Promise<void> {
     </div>`;
     return;
   }
-  grid.innerHTML = decks.map(d => `
+  // Delegated click handling: the deck id is passed as a data attribute, never
+  // interpolated into an inline onclick. Escaping is not enough there — an
+  // onclick body is a JS context, and the HTML parser turns _e()'s &#39; back
+  // into a real quote before the JS is compiled, so a deck whose id contained
+  // an apostrophe could run arbitrary script in every viewer's session.
+  if (!grid.dataset['deckDelegated']) {
+    grid.addEventListener('click', ev => {
+      const btn = (ev.target as HTMLElement | null)?.closest<HTMLElement>('[data-deck-id]');
+      const id  = btn?.dataset['deckId'];
+      if (id && DECK_ID_RE.test(id)) importPublicDeckById(id);
+    });
+    grid.dataset['deckDelegated'] = '1';
+  }
+  grid.innerHTML = decks.map(d => {
+    const col = safeDeckColor(d.color);
+    return `
     <div class="subj-card" style="min-height:170px;display:flex;flex-direction:column;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;">
-        <div style="width:42px;height:42px;background:${_e(d.color)}20;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid ${_e(d.color)}30;">
-          <span class="ms" style="font-size:22px;color:${_e(d.color)};">style</span>
+        <div style="width:42px;height:42px;background:${col}20;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid ${col}30;">
+          <span class="ms" style="font-size:22px;color:${col};">style</span>
         </div>
         <span style="font-family:'Space Grotesk';font-size:10px;color:var(--muted);font-weight:700;letter-spacing:0.06em;">${d.cardCount} CARD${d.cardCount !== 1 ? 'S' : ''}</span>
       </div>
       <div style="font-weight:700;font-size:15px;margin-bottom:4px;line-height:1.25;">${_e(d.name)}</div>
       <div style="font-size:12px;color:var(--muted);line-height:1.45;flex:1;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${_e(d.desc || 'Shared study deck')}</div>
       <div style="font-size:11px;color:var(--muted2);margin:10px 0 12px;">by ${_e(d.ownerName)}</div>
-      <button onclick="importPublicDeckById('${_e(d.id)}')" class="btn-primary" style="width:100%;padding:9px;font-size:13px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:6px;">
+      <button type="button" data-deck-id="${_e(d.id)}" class="btn-primary" style="width:100%;padding:9px;font-size:13px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:6px;">
         <span class="ms" style="font-size:16px;">add</span> Add to my library
       </button>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 // Add a Doc to a subject. If subjectIdOverride is omitted, uses the currently-
@@ -4281,7 +4458,7 @@ interface AIImportResult {
 }
 
 let aiImportSubjId: number | null = null;
-let aiImportSource: 'file' | 'youtube' | null = null;
+let aiImportSource: 'file' | 'youtube' | 'text' | null = null;
 let aiImportResult: AIImportResult | null = null;
 let aiImportResultTab: 'flashcards' | 'summary' | 'outline' = 'flashcards';
 // Source payload kept around after study-mode processing so the summary can be
@@ -4298,10 +4475,25 @@ function openAIImportPicker(subjId: number, anchorEl: HTMLElement): void {
   // Close if already open for same button
   if (picker.classList.contains('open')) { closeAIImportPicker(); return; }
 
+  // #aiImportPicker is position:fixed, and getBoundingClientRect() is already
+  // viewport-relative — so adding window.scrollY (as this used to) double-counts
+  // the scroll offset and pushes the menu further off-screen the further down the
+  // page you are. On a 812px-tall phone, tapping a subject card near the bottom
+  // put the menu at top:882px: invisible, and unreachable by scrolling because
+  // it is fixed. The app's primary CTA silently did nothing. Flip the menu above
+  // the anchor when there isn't room below, and keep it on-screen either way.
   const rect = anchorEl.getBoundingClientRect();
-  picker.style.top  = (rect.bottom + 8 + window.scrollY) + 'px';
-  picker.style.left = Math.min(rect.left, window.innerWidth - 240) + 'px';
+  const GAP  = 8;
+  // Show it first so it has a measurable size (it is display:none until .open).
+  // Both style writes happen before the next paint, so there is no flash at the
+  // pre-positioned location.
   picker.classList.add('open');
+  const pickerH = picker.offsetHeight || 150;
+  const pickerW = picker.offsetWidth  || 220;
+  const fitsBelow = rect.bottom + GAP + pickerH <= window.innerHeight - GAP;
+  const top = fitsBelow ? rect.bottom + GAP : rect.top - pickerH - GAP;
+  picker.style.top  = Math.max(GAP, Math.min(top, window.innerHeight - pickerH - GAP)) + 'px';
+  picker.style.left = Math.max(GAP, Math.min(rect.left, window.innerWidth - pickerW - GAP)) + 'px';
 
   // Click-outside to close
   setTimeout(() => {
@@ -4328,7 +4520,7 @@ function closeAIImportPicker(): void {
 }
 
 // ── Modal open/close ─────────────────────────────
-function startAIImport(source: 'file' | 'youtube'): void {
+function startAIImport(source: 'file' | 'youtube' | 'text'): void {
   closeAIImportPicker();
   aiImportSource = source;
   aiImportResult = null;
@@ -4363,7 +4555,10 @@ function renderAIImportStep(step: AIImportStep): void {
   if (!body) return;
 
   if (step === 'input') {
-    body.innerHTML = aiImportSource === 'youtube' ? renderYTInput() : renderFileInput();
+    body.innerHTML = aiImportSource === 'youtube' ? renderYTInput()
+                   : aiImportSource === 'text'    ? renderPasteInput()
+                   :                                renderFileInput();
+    if (aiImportSource === 'text') setTimeout(() => el('aiPasteInput')?.focus(), 60);
   } else if (step === 'processing') {
     body.innerHTML = renderProcessing();
   } else {
@@ -4390,6 +4585,74 @@ function renderYTInput(): string {
       </button>
     </div>
   `;
+}
+
+// Paste-your-notes input. The headline promise is "turn your notes into
+// flashcards", but every AI path used to require a *file* — and a student's
+// notes live in Notes.app, a Google Doc, or a friend's message, not on a
+// filesystem. On a phone "export this as .txt first" ends the session.
+function renderPasteInput(): string {
+  return `
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:rgba(76,215,246,0.06);border:1px solid rgba(76,215,246,0.18);border-radius:12px;">
+        <span class="ms" style="font-size:22px;color:var(--cyan);">edit</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);">Notes → Study Materials</div>
+          <div style="font-size:11px;color:var(--muted);">Paste anything — lecture notes, a chapter summary, a messy brain-dump</div>
+        </div>
+      </div>
+      <div>
+        <label for="aiPasteInput" style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);display:block;margin-bottom:8px;">YOUR NOTES</label>
+        <textarea id="aiPasteInput" rows="9" placeholder="Paste or type your notes here…&#10;&#10;Rough is fine — abbreviations, bullet points, half-sentences. The AI works it out."
+          oninput="updatePasteCount()"
+          style="width:100%;resize:vertical;padding:14px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text);font-size:14px;line-height:1.6;font-family:'Manrope',sans-serif;"></textarea>
+        <div id="aiPasteCount" style="font-size:11px;color:var(--muted2);margin-top:6px;text-align:right;">Add at least ~40 characters</div>
+      </div>
+      <button id="aiPasteBtn" onclick="processPastedNotes()" disabled class="btn-primary" style="padding:12px;font-size:14px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;opacity:0.45;cursor:not-allowed;">
+        <span class="ms" style="font-size:18px;">auto_awesome</span> Generate Study Materials
+      </button>
+    </div>
+  `;
+}
+
+// Live character feedback + gating, so "Generate" is never a dead button.
+const PASTE_MIN_CHARS = 40;
+function updatePasteCount(): void {
+  const ta  = el('aiPasteInput') as HTMLTextAreaElement | null;
+  const lbl = el('aiPasteCount');
+  const btn = elBtn('aiPasteBtn');
+  if (!ta || !lbl || !btn) return;
+  const n     = ta.value.trim().length;
+  const ready = n >= PASTE_MIN_CHARS;
+  lbl.textContent = ready
+    ? `${n.toLocaleString()} characters${n > 12000 ? ' — we’ll use the first 12,000' : ''}`
+    : `Add at least ~${PASTE_MIN_CHARS} characters (${n}/${PASTE_MIN_CHARS})`;
+  btn.disabled = !ready;
+  btn.style.opacity = ready ? '1' : '0.45';
+  btn.style.cursor  = ready ? 'pointer' : 'not-allowed';
+}
+
+// Pasted notes reuse the whole file pipeline: same request shape, same
+// progress steps, same auto-save into the subject's documents — the only
+// difference is the doc is stored as a note rather than an uploaded file.
+function processPastedNotes(): void {
+  const ta = el('aiPasteInput') as HTMLTextAreaElement | null;
+  const text = (ta?.value || '').trim();
+  if (text.length < PASTE_MIN_CHARS) { showToast('Add a few more notes first', 'warning'); return; }
+
+  // Title from the first non-empty line, so the saved note is findable later.
+  const firstLine = text.split('\n').map(l => l.trim()).find(Boolean) || 'Pasted notes';
+  const name = firstLine.length > 60 ? firstLine.slice(0, 57) + '…' : firstLine;
+
+  aiImportFileData = {
+    kind:   'text',
+    name,
+    size:   new Blob([text]).size,
+    mime:   'text/plain',
+    text,
+    pasted: true,
+  };
+  void processFile();
 }
 
 function renderFileInput(): string {
@@ -4579,6 +4842,7 @@ interface AIImportFileData {
   mime:    string;
   text?:   string;   // text/pdf — extracted plain text for the AI
   dataUrl?: string;  // pdf/image — original file as data: URL for the doc
+  pasted?: boolean;  // typed/pasted rather than uploaded → save it as a note
 }
 let aiImportFileData: AIImportFileData | null = null;
 
@@ -4884,7 +5148,9 @@ async function processFile(): Promise<void> {
     // fallback would be null and silently drop the doc.
     if (aiImportSubjId !== null) {
       const docContent = kind === 'text' ? (fd.text || '') : (fd.dataUrl || '');
-      const doc: Doc = { id: S.nextId++, name, type: 'file', content: docContent, mime, size, date: Date.now() };
+      // Pasted notes are saved as a note, so they re-open in the note viewer
+      // instead of being treated as an uploaded file.
+      const doc: Doc = { id: S.nextId++, name, type: fd.pasted ? 'note' : 'file', content: docContent, mime, size, date: Date.now() };
       if (kind !== 'image' && fd.text) doc.aiText = fd.text.slice(0, 12000);
       addDocToSubject(doc, aiImportSubjId);
     }
@@ -5526,8 +5792,11 @@ function handleSignOut(): void {
     firebaseUser = null;
     idToken      = null;
     authResolution = null;       // allow a fresh cloud-reconcile on the next sign-in
+    cloudReadOk    = false;      // next session must re-read before it may write
     S = structuredClone(DEFAULT_STATE);
     try { localStorage.removeItem(STORAGE_KEY); } catch(_) {}
+    // The local copy is gone, so there is nothing left "unsynced" to merge.
+    try { localStorage.removeItem(SYNC_META_KEY); } catch(_) {}
     clearSigninHint();           // forget "Continue as X" — next tab opens generic splash
     goTo('splash');
   });
@@ -6470,7 +6739,7 @@ function init() {
   // ── Firebase auth observer ────────────────────
   // Fires once on load: if user was already signed in, skip splash and
   // load their cloud state. If not, show splash as normal.
-  firebase.auth().onAuthStateChanged(async (user: any) => {
+  const authObserver = async (user: any) => {
     if (user) {
       // Reconcile cloud state (merging any guest work). Memoized, so if an
       // explicit sign-in handler is also resolving, we await the same result.
@@ -6500,7 +6769,19 @@ function init() {
       const authViews: ViewName[] = ['splash', 'signin', 'signup'];
       if (!authViews.includes(currentView)) goTo('splash');
     }
-  });
+  };
+
+  // If the Firebase SDK never loaded (blocked CDN, privacy extension, gstatic
+  // outage) `firebase` is undefined and touching it here would throw, taking
+  // the rest of init() with it. Degrade instead: everything local — the timer,
+  // decks, study modes, guest mode — keeps working; only sync and sign-in wait
+  // for a successful reload. Pairs with the boot fallback in index.html.
+  if (typeof firebase !== 'undefined' && typeof firebase.auth === 'function') {
+    firebase.auth().onAuthStateChanged(authObserver);
+  } else {
+    console.error('[boot] Firebase SDK unavailable — running local-only');
+    setSyncState('offline');
+  }
 
   // Initial paint of the chip (before auth resolves)
   renderSyncChip();

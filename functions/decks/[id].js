@@ -28,7 +28,9 @@ export async function onRequestGet(context) {
     const res = await fetch(`${url}/publicDecks/${encodeURIComponent(id)}?key=${key}`);
     if (res.ok) { const doc = await res.json(); deck = parseDeckDoc(doc.fields); }
   } catch (_) { /* network/Firestore error → treat as not found */ }
-  if (!deck) return notFound();
+  // `blocked` = someone set approved:false on this deck in the console. Treat it
+  // as gone: 404 + noindex, so it drops out of search results too.
+  if (!deck || deck.blocked) return notFound();
 
   return new Response(renderDeckPage(id, deck), {
     headers: {

@@ -4,6 +4,9 @@
 // regenerate. Referenced as a second Sitemap: line in robots.txt.
 
 import { parseDeckDoc, fsBase, ORIGIN } from './decks/_render.js';
+// This file sits at the functions root, so neither api/ nor decks/ middleware
+// covers it — apply the headers directly.
+import { withSecurityHeaders } from './_lib/security-headers.js';
 
 export async function onRequestGet(context) {
   const { env } = context;
@@ -18,7 +21,8 @@ export async function onRequestGet(context) {
       const data = await res.json();
       for (const d of (data.documents || [])) {
         const deck = parseDeckDoc(d.fields);
-        if (!deck || deck.cardCount < 4) continue;   // match the noindex thin-guard
+        if (!deck || deck.blocked) continue;          // moderation kill switch
+        if (deck.cardCount < 4) continue;             // match the noindex thin-guard
         const id = (d.name || '').split('/').pop();
         if (!/^[A-Za-z0-9_-]{6,64}$/.test(id)) continue;
         const lastmod = (d.updateTime || '').slice(0, 10);
@@ -42,10 +46,10 @@ export async function onRequestGet(context) {
   ];
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join('\n')}\n</urlset>\n`;
-  return new Response(xml, {
+  return withSecurityHeaders(new Response(xml, {
     headers: {
       'Content-Type': 'application/xml; charset=utf-8',
       'Cache-Control': 'public, max-age=600, s-maxage=3600',
     },
-  });
+  }));
 }

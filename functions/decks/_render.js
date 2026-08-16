@@ -15,6 +15,12 @@ export function parseDeckDoc(fields) {
   if (!fields) return null;
   const str = (f) => (f && typeof f.stringValue === 'string') ? f.stringValue : '';
   const num = (f) => f ? Number(f.integerValue ?? f.doubleValue ?? 0) : 0;
+  // Moderation kill switch. Absent (the normal case) means "fine" — decks are
+  // published without review, as before. Setting approved:false on a document
+  // in the Firebase console pulls it from /decks, from the sitemap, and makes
+  // its page 404, without touching the owner's copy. Clients cannot set this
+  // field; firestore.rules rejects writes that try. See AUDIT-2026-08-16.md P1-3.
+  const bool = (f) => (f && typeof f.booleanValue === 'boolean') ? f.booleanValue : undefined;
   const arr = fields.cards && fields.cards.arrayValue && fields.cards.arrayValue.values || [];
   const cards = arr.map(v => {
     const cf = v && v.mapValue && v.mapValue.fields || {};
@@ -24,6 +30,7 @@ export function parseDeckDoc(fields) {
   if (!name || !cards.length) return null;
   return {
     name,
+    blocked: bool(fields.approved) === false,
     desc: str(fields.desc).trim(),
     ownerName: str(fields.ownerName).trim() || 'A student',
     color: /^#[0-9a-fA-F]{6}$/.test(str(fields.color)) ? str(fields.color) : '#7c3aed',

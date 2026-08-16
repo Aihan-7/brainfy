@@ -14,7 +14,8 @@ export async function onRequestGet(context) {
       const data = await res.json();
       for (const d of (data.documents || [])) {
         const deck = parseDeckDoc(d.fields);
-        if (!deck || deck.cardCount < 4) continue;   // skip thin/empty decks
+        if (!deck || deck.blocked) continue;          // moderation kill switch
+        if (deck.cardCount < 4) continue;             // skip thin/empty decks
         decks.push({
           id: (d.name || '').split('/').pop(),
           name: deck.name, ownerName: deck.ownerName, cardCount: deck.cardCount,
