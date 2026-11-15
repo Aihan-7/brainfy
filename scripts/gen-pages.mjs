@@ -450,7 +450,7 @@ const ORG = {
 const PERSON = {
   "@type": "Person", "@id": `${ORIGIN}/#aihan`, name: "Aihan Mifthas", url: `${ORIGIN}/founder.html`,
   jobTitle: "Founder & CEO", worksFor: { "@id": `${ORIGIN}/#org` },
-  sameAs: ['https://github.com/Aihan-7', 'https://www.instagram.com/stillaihantho_/'],
+  sameAs: ['https://github.com/Aihan-7', 'https://www.linkedin.com/in/aihan-mifthas-004954408/', 'https://www.instagram.com/stillaihantho_/'],
 };
 const WEBSITE = { "@type": "WebSite", "@id": `${ORIGIN}/#website`, url: `${ORIGIN}/`, name: "Brainfy", publisher: { "@id": `${ORIGIN}/#org` }, inLanguage: "en" };
 
