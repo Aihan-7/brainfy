@@ -1387,7 +1387,7 @@
     /* ───────── persistent header ───────── */
     .pp-hd{position:absolute;z-index:60;top:0;left:0;right:0;display:flex;align-items:center;gap:clamp(12px,2vw,28px);padding:20px var(--pp-gut);transition:background-color .3s ease,padding .3s ease,box-shadow .3s ease}
     .pp-js .pp-hd{position:fixed}
-    .pp-hd.pp-solid{padding-top:9px;padding-bottom:9px;background:rgba(16,12,9,.93);box-shadow:0 1px 0 rgba(243,233,211,.09),0 10px 30px -18px rgba(0,0,0,.9)}
+    .pp-hd.pp-solid{padding-top:9px;padding-bottom:9px;background:#100c09;box-shadow:0 1px 0 rgba(243,233,211,.09),0 10px 30px -18px rgba(0,0,0,.9)}
     .pp-brand{display:inline-flex;align-items:center;gap:10px;flex:none;text-decoration:none;color:var(--pp-cream);min-height:40px}
     .pp-brand svg{width:29px;height:29px;flex:none}
     .pp-brand b{font-weight:500;font-style:italic;font-size:23px;letter-spacing:-.01em;line-height:1}
@@ -1615,6 +1615,7 @@
     html:not(.pp-pin) .pp-dividers,html:not(.pp-pin) .pp-dymo-w{display:none}
     html:not(.pp-pin) .pp-a3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:4vw;padding:14vh var(--pp-gut);background:radial-gradient(42vw 42vw at 72% 50%,rgba(255,200,140,.16),rgba(6,4,3,0) 60%),#0b0907}
     html:not(.pp-pin) .pp-a3 .pp-timer{--D:min(34vw,480px);justify-self:center;order:2;margin-top:3vh}
+    html:not(.pp-pin) .pp-tutor{right:-14%;top:-4%}
     html:not(.pp-pin) .pp-dim,html:not(.pp-pin) .pp-lamp{display:none}
     @media (max-width:899px){
       html:not(.pp-pin) .pp-a1,html:not(.pp-pin) .pp-a2,html:not(.pp-pin) .pp-a3{grid-template-columns:minmax(0,1fr)}
@@ -1964,16 +1965,22 @@
       var guestHidden = !g || g.style.display === 'none';
       proxies.forEach(function (b) {
         if (b.getAttribute('data-pp-proxy') === 'enter') {
-          // The slim header has no room for "Continue as <name> →" (it would
-          // ellipsize at phone widths), so it says "Continue →" and keeps the
-          // full label as its accessible name / tooltip.
-          var t = label, full = hd.contains(b) && /^Continue as /.test(label) ? label : '';
-          if (full) t = 'Continue →';
-          if (b.textContent !== t) b.textContent = t;
+          // In the slim header "Continue as <name> →" can ellipsize on narrow
+          // screens; there it falls back to "Continue →" (fitHeaderCta) and keeps
+          // the full label as its accessible name / tooltip.
+          var full = hd.contains(b) && /^Continue as /.test(label) ? label : '';
+          if (b.textContent !== label) b.textContent = label;
           if (full) { b.setAttribute('aria-label', full); b.title = full; } else if (b.title) { b.removeAttribute('aria-label'); b.removeAttribute('title'); }
         }
         else if (b.hidden !== guestHidden) b.hidden = guestHidden;
       });
+      fitHeaderCta();
+    }
+    function fitHeaderCta() {
+      var b = hd.querySelector('.pp-hd-cta'), full = b && b.getAttribute('aria-label');
+      if (!full || !b.offsetWidth) return;              // generic label, or not shown right now
+      if (b.textContent !== full) b.textContent = full;
+      if (b.scrollWidth > b.clientWidth + 1) b.textContent = 'Continue →';
     }
     /* applySigninHint() (in the bundle) swaps #enterBrainBtn for a clone. If a
        keyboard user had focus on it right then, focus fell back to <body>;
@@ -2197,7 +2204,7 @@
       }
       var solid = y > 8;
       if (hs.solid !== solid) { hs.solid = solid; hd.classList.toggle('pp-solid', solid); }
-      if (hs.cta !== cta) { hs.cta = cta; hd.classList.toggle('pp-cta-on', cta); }
+      if (hs.cta !== cta) { hs.cta = cta; hd.classList.toggle('pp-cta-on', cta); if (cta) fitHeaderCta(); }
       if (hs.step !== step) {
         hs.step = step;
         stepLinks.forEach(function (a, i) { if (i === step) a.setAttribute('aria-current', 'step'); else a.removeAttribute('aria-current'); });
@@ -2257,15 +2264,19 @@
     }
     function onResize() {
       if (!isOn()) return;
+      fitHeaderCta();
       setPin(canPin && !mqReduce.matches && w.innerHeight >= 460);
       measureRange();
       if (pin && layout()) { P = -1; }
       req();
     }
 
-    if (pin) { rem = 0; drawClock(0); layout(); measureRange(); render(P = prog()); }
+    if (pin) { rem = 0; drawClock(0); }
     else { rem = mode * 60; drawClock(rem); }
-    header(P < 0 ? 0 : P);
+    requestAnimationFrame(function () {
+      if (pin) { layout(); measureRange(); render(P = prog()); }
+      header(P < 0 ? 0 : P);
+    });
     w.addEventListener('scroll', req, { passive: true });
     var rq = false;
     w.addEventListener('resize', function () { if (!rq) { rq = true; requestAnimationFrame(function () { rq = false; onResize(); }); } }, { passive: true });
