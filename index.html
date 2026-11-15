@@ -135,6 +135,9 @@
   <!-- Fonts: load async (non-render-blocking) — preconnect above warms the connection. -->
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap"></noscript>
+  <!-- Splash opening ("Paper & Ink"): Fraunces / Caveat / DM Mono, loaded the same async way. -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&amp;family=DM+Mono:wght@300;400&amp;family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..600,50,0;1,144,300..500,100,1&amp;display=swap" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&amp;family=DM+Mono:wght@300;400&amp;family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..600,50,0;1,144,300..500,100,1&amp;display=swap"></noscript>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -166,6 +169,10 @@
       min-height: 100vh;
       overflow-x: hidden;
     }
+    /* clip, not hidden: hidden turns <body> into a scroll container and breaks
+       position:sticky (the splash story). Older browsers keep hidden, and the
+       splash falls back to its static layout there. */
+    @supports (overflow-x: clip) { body { overflow-x: clip; } }
     body::before, body::after { display: none !important; }
 
     /* ── Views ── */
@@ -337,7 +344,15 @@
     }
     .view.active { animation: viewFadeIn 0.22s ease-out both; }
     /* Auth + splash views should also animate */
-    #splashView.active, #signinView.active, #signupView.active { animation: viewFadeIn 0.22s ease-out both; }
+    #signinView.active, #signupView.active { animation: viewFadeIn 0.22s ease-out both; }
+    /* Splash: no entry animation on first paint (the h1 must be visible
+       immediately); when you come back to it from the app (html.pp-ready, set
+       by the splash script) it fades in, opacity only and with no fill after —
+       a lingering transform would turn #splashView into the containing block of
+       its position:fixed header. */
+    @keyframes splashViewFade { from { opacity: 0; } }
+    #splashView.active { animation: none; }
+    html.pp-ready #splashView.active { animation: splashViewFade 0.22s ease-out backwards; }
 
     /* ══ UPGRADE: Traveling light-beam auth card ══ */
     .auth-beam-wrap {
@@ -401,7 +416,7 @@
       0%, 100% { box-shadow: 0 0 0 0 rgba(124,58,237,0.4); }
       50%       { box-shadow: 0 0 0 8px rgba(124,58,237,0); }
     }
-    #enterBrainBtn, #getStartedBtn {
+    #getStartedBtn {
       animation: subtlePulse 2.8s ease-in-out infinite;
     }
 
@@ -662,7 +677,7 @@
     @media (prefers-reduced-motion: reduce) {
       .auth-beam-wrap::before   { animation: none; }
       .view.active, #splashView.active, #signinView.active, #signupView.active { animation: none; }
-      #enterBrainBtn, #getStartedBtn { animation: none; }
+      #getStartedBtn { animation: none; }
       .hd-stat, .chart-bar { animation: none; }
       * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
     }
@@ -671,50 +686,8 @@
        SPLASH PAGE REDESIGN — Framer Motion style
     ══════════════════════════════════════════ */
 
-    /* Mesh grid background */
-    .splash-mesh {
-      position: absolute; inset: 0; pointer-events: none;
-      background-image:
-        linear-gradient(rgba(124,58,237,0.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(124,58,237,0.035) 1px, transparent 1px);
-      background-size: 64px 64px;
-      mask-image: radial-gradient(ellipse 85% 70% at 50% 40%, black 10%, transparent 100%);
-      -webkit-mask-image: radial-gradient(ellipse 85% 70% at 50% 40%, black 10%, transparent 100%);
-    }
-
-    /* Floating ambient orbs */
-    .splash-orb { position: absolute; border-radius: 50%; filter: blur(90px); pointer-events: none; }
-    @keyframes orbFloat1 {
-      0%,100% { transform: translate(0,0) scale(1); }
-      33%      { transform: translate(28px,-18px) scale(1.04); }
-      66%      { transform: translate(-16px,16px) scale(0.97); }
-    }
-    @keyframes orbFloat2 {
-      0%,100% { transform: translate(0,0) scale(1); }
-      50%      { transform: translate(-26px,22px) scale(1.06); }
-    }
-
-    /* Hero staggered fade-up */
-    @keyframes splashFadeUp {
-      from { opacity: 0; transform: translateY(30px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    .sh-1 { animation: splashFadeUp 0.72s cubic-bezier(0.22,1,0.36,1) 0.08s  both; }
-    .sh-2 { animation: splashFadeUp 0.72s cubic-bezier(0.22,1,0.36,1) 0.22s  both; }
-    .sh-3 { animation: splashFadeUp 0.72s cubic-bezier(0.22,1,0.36,1) 0.36s  both; }
-    .sh-4 { animation: splashFadeUp 0.72s cubic-bezier(0.22,1,0.36,1) 0.50s  both; }
-    .sh-5 { animation: splashFadeUp 0.72s cubic-bezier(0.22,1,0.36,1) 0.64s  both; }
-    .sh-6 { animation: splashFadeUp 0.72s cubic-bezier(0.22,1,0.36,1) 0.78s  both; }
-
-    /* Live indicator pulse */
-    @keyframes brainFloat {
-      0%, 100% { transform: translateY(-54%); }
-      50%       { transform: translateY(-61%); }
-    }
-    @keyframes brainFloatR {
-      0%, 100% { transform: translateY(-46%); }
-      50%       { transform: translateY(-53%); }
-    }
+    /* (The splash opening — header, notes → cards → focus story — is styled in
+       <style id="pp-css"> at the end of <head>.) */
 
     /* Live indicator pulse */
     @keyframes liveBlip {
@@ -798,9 +771,11 @@
       to   { opacity: 1; transform: translateY(0)    scale(1);    }
     }
     .view.active { animation: viewEnter 0.3s cubic-bezier(0.34,1.2,0.64,1) both !important; }
-    #splashView.active, #signinView.active, #signupView.active {
+    #signinView.active, #signupView.active {
       animation: viewEnter 0.32s cubic-bezier(0.34,1.2,0.64,1) both !important;
     }
+    #splashView.active { animation: none !important; }
+    html.pp-ready #splashView.active { animation: splashViewFade 0.32s ease-out backwards !important; }
 
     /* ── Button press states (tactile feedback) ── */
     .btn-primary:active { transform: scale(0.96) !important; }
@@ -967,15 +942,15 @@
     }
 
     /* ── Splash CTA glow ring: springier button ── */
-    #enterBrainBtn, #getStartedBtn {
+    #getStartedBtn {
       transition: opacity 0.18s, transform 0.2s cubic-bezier(0.34,1.56,0.64,1),
                   box-shadow 0.2s !important;
     }
-    #enterBrainBtn:hover, #getStartedBtn:hover {
+    #getStartedBtn:hover {
       transform: translateY(-2px) scale(1.02) !important;
       box-shadow: 0 8px 28px rgba(124,58,237,0.5) !important;
     }
-    #enterBrainBtn:active, #getStartedBtn:active { transform: scale(0.97) !important; }
+    #getStartedBtn:active { transform: scale(0.97) !important; }
 
     /* ── Bento card hover: more lift ── */
     .bento-card:hover {
@@ -1355,14 +1330,6 @@
       footer { flex-wrap: wrap !important; gap: 12px !important; }
       footer > div { flex-wrap: wrap !important; gap: 14px !important; }
 
-      /* ── Splash hero: hide decorative brains so they don't overlap CTAs ── */
-      #splashView > section:first-of-type > div[style*="position:absolute"][style*="z-index:1"] {
-        display: none !important;
-      }
-      /* Hero CTAs stack vertically + full-width */
-      .sh-4 { flex-direction: column !important; align-items: stretch !important; }
-      .sh-4 > button { width: 100% !important; padding: 14px 24px !important; }
-
       /* ── Splash bento: 12-col grid → single column on phones ── */
       #splash-bento > div[style*="grid-template-columns:repeat(12,1fr)"],
       #splash-bento > div[style*="grid-template-columns: repeat(12, 1fr)"] {
@@ -1381,6 +1348,357 @@
       #splash-cta h2 { font-size: clamp(26px, 7vw, 36px) !important; }
     }
   </style>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       SPLASH OPENING — "Paper & Ink" (notes → cards → focus scroll story)
+       Everything here is scoped: .pp-* classes, all inside #splashView, so
+       none of it can touch the app views that share this document.
+         html.pp-js  → the splash script is running (fixed header, live states)
+         html.pp-pin → pinned scroll story. Added by the inline boot script at
+                       the top of #splashView only when motion is OK, the
+                       viewport is ≥460px tall and the browser has
+                       overflow-x:clip + sticky. Otherwise (and with no JS)
+                       the story renders as three static sections.
+       ══════════════════════════════════════════════════════════════════ -->
+  <style id="pp-css">
+    #splashView{
+      --pp-desk:#15110d; --pp-paper:#f4ecda; --pp-ink:#1b2440; --pp-ink2:#4a5068;
+      --pp-cream:#f3e9d3; --pp-cream2:#cfc4ad; --pp-marker:#ffdc45; --pp-coral:#ff7756;
+      --pp-rule:rgba(76,124,176,.30); --pp-margin:rgba(212,86,72,.55);
+      --pp-serif:'Fraunces','Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+      --pp-hand:'Caveat','Segoe Print','Bradley Hand',cursive;
+      --pp-mono:'DM Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      --pp-gut:clamp(16px,5vw,76px);
+    }
+    .pp-story,.pp-hd,.pp-end{font-family:var(--pp-serif);font-synthesis:none;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;color:var(--pp-cream);line-height:1.5;text-align:left}
+    
+    :where(.pp-story,.pp-hd) :where(button){font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webkit-appearance:none;appearance:none}
+    .pp-story :focus-visible,.pp-hd :focus-visible,.pp-end :focus-visible{outline:2px dashed var(--pp-marker);outline-offset:4px;border-radius:2px}
+    .pp-vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+    .pp-ar{display:inline-block;width:1.05em;height:.6em;vertical-align:.02em;overflow:visible;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+
+    /* ───────── persistent header ───────── */
+    .pp-hd{position:absolute;z-index:60;top:0;left:0;right:0;display:flex;align-items:center;gap:clamp(12px,2vw,28px);padding:20px var(--pp-gut);transition:background-color .3s ease,padding .3s ease,box-shadow .3s ease}
+    .pp-js .pp-hd{position:fixed}
+    .pp-hd.pp-solid{padding-top:9px;padding-bottom:9px;background:rgba(16,12,9,.93);box-shadow:0 1px 0 rgba(243,233,211,.09),0 10px 30px -18px rgba(0,0,0,.9)}
+    .pp-brand{display:inline-flex;align-items:center;gap:10px;flex:none;text-decoration:none;color:var(--pp-cream);min-height:40px}
+    .pp-brand svg{width:29px;height:29px;flex:none}
+    .pp-brand b{font-weight:500;font-style:italic;font-size:23px;letter-spacing:-.01em;line-height:1}
+    .pp-steps{display:flex;align-items:center;gap:2px;margin-left:clamp(4px,1.4vw,18px);padding-left:clamp(10px,1.6vw,22px);border-left:1px solid rgba(243,233,211,.16);counter-reset:none}
+    .pp-steps a{position:relative;display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:0 10px;font-family:var(--pp-mono);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;color:#bcb099;text-decoration:none;transition:color .2s}
+    .pp-steps a i{font-style:normal;color:#9d917b;transition:color .2s}
+    .pp-steps a::after{content:"";position:absolute;left:10px;right:10px;bottom:6px;height:2px;background:var(--pp-marker);transform:scaleX(0);transform-origin:0 50%;transition:transform .35s cubic-bezier(.3,.7,.2,1)}
+    .pp-steps a:hover{color:var(--pp-cream)}
+    .pp-steps a[aria-current]{color:var(--pp-cream)}
+    .pp-steps a[aria-current] i{color:var(--pp-coral)}
+    .pp-steps a[aria-current]::after{transform:scaleX(1)}
+    .pp-spacer{flex:1 1 auto}
+    .pp-links{display:flex;align-items:center;gap:clamp(14px,2.2vw,30px);font-family:var(--pp-mono);font-size:13px;letter-spacing:.04em}
+    .pp-links a{color:#cfc4ad;text-decoration:none;padding:6px 0;background:linear-gradient(var(--pp-marker),var(--pp-marker)) 0 100%/0 2px no-repeat;transition:color .2s,background-size .25s}
+    .pp-links a:hover{color:var(--pp-cream);background-size:100% 2px}
+    .pp-hd.pp-solid .pp-links{display:none}
+    .pp-login{position:relative;display:inline-flex;align-items:center;flex:none;min-height:38px;background:var(--pp-paper);color:var(--pp-ink);font-family:var(--pp-mono);font-size:13px;font-weight:400;letter-spacing:.03em;padding:0 15px 0 24px;text-decoration:none;clip-path:polygon(9px 0,100% 0,100% 100%,9px 100%,0 50%);transition:transform .2s}
+    .pp-login::before{content:"";position:absolute;left:10px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:var(--pp-desk)}
+    .pp-login:hover{transform:rotate(-3deg)}
+    .pp-login:focus-visible{clip-path:none}
+    .pp-hd-cta{display:none!important}
+    .pp-hd.pp-cta-on .pp-hd-cta{display:inline-block!important;animation:ppSlideIn .35s cubic-bezier(.2,.8,.2,1) both}
+    .pp-hd .pp-btn{min-height:40px;padding:0 16px;font-size:15px;max-width:min(260px,46vw);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;line-height:40px}
+    @keyframes ppSlideIn{from{opacity:0;transform:translateY(-6px)}}
+
+    /* ───────── stage / desk ───────── */
+    .pp-story{position:relative;background:#120e0b}
+    .pp-stage{position:relative;--f:min(1.22vw,1.95vh)}
+    .pp-desk{position:absolute;inset:0;overflow:hidden;pointer-events:none;background:
+      radial-gradient(80% 70% at 22% 6%,rgba(255,206,150,.10),transparent 62%),
+      linear-gradient(180deg,#1f1711,#140f0b)}
+    .pp-desk svg{position:absolute;inset:0;width:100%;height:100%}
+    .pp-desk::after{content:"";position:absolute;inset:0;background:radial-gradient(140% 120% at 55% 42%,transparent 42%,rgba(0,0,0,.62))}
+    .pp-act{position:relative}
+
+    /* ───────── buttons ───────── */
+    .pp-ctas{display:flex;flex-wrap:wrap;align-items:center;gap:14px 16px}
+    .pp-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:0 24px;font-family:var(--pp-serif);font-size:17px;line-height:1.2;border-radius:3px;text-decoration:none;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,background-color .18s ease,color .18s ease}
+    .pp-btn[hidden]{display:none!important}
+    .pp-btn-p{background:var(--pp-marker);color:var(--pp-ink);font-weight:600;box-shadow:0 2px 0 #b8921c,0 14px 22px -14px #000}
+    .pp-btn-p:hover{transform:translateY(-2px) rotate(-.6deg);box-shadow:0 4px 0 #b8921c,0 18px 26px -14px #000}
+    .pp-btn-p:active{transform:translateY(1px);box-shadow:0 1px 0 #b8921c,0 8px 16px -12px #000}
+    .pp-btn-s{color:var(--pp-cream);box-shadow:inset 0 0 0 1.5px rgba(243,233,211,.55);font-weight:450}
+    .pp-btn-s:hover{box-shadow:inset 0 0 0 1.5px var(--pp-cream);background:rgba(243,233,211,.06)}
+    .pp-btn-t{min-height:44px;padding:0 4px;font-family:var(--pp-mono);font-size:13.5px;letter-spacing:.03em;color:#cfc4ad;gap:8px}
+    .pp-btn-t span{border-bottom:1px dashed rgba(207,196,173,.65);padding-bottom:2px}
+    .pp-btn-t:hover{color:var(--pp-cream)}
+    .pp-btn-t svg{width:14px;height:14px}
+
+    /* ───────── act 1 copy ───────── */
+    .pp-eyebrow{font-family:var(--pp-mono);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--pp-cream2);display:flex;align-items:center;gap:12px;margin-bottom:24px}
+    .pp-eyebrow::before{content:"";width:28px;height:1px;background:var(--pp-coral)}
+    .pp-h1{font-family:var(--pp-serif);font-weight:320;font-size:clamp(40px,min(5.45vw,9.4vh),96px);line-height:1;letter-spacing:-.025em;font-variation-settings:'opsz' 144;color:var(--pp-cream);margin:0}
+    .pp-l1,.pp-l2{display:block;white-space:nowrap}
+    .pp-l3{display:block;margin-top:.12em;font-style:italic;font-weight:300;color:#fff4de;letter-spacing:-.02em}
+    .pp-mark{color:var(--pp-ink);background:linear-gradient(101deg,rgba(255,220,69,0) .05em,var(--pp-marker) .16em,#ffd52e 94%,rgba(255,220,69,0) 99.5%) 0 64%/100% 74% no-repeat;padding:0 .14em 0 .1em;margin:0 -.06em 0 -.04em;border-radius:.1em .28em .12em .3em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+    .pp-u{position:relative;white-space:nowrap}
+    .pp-u svg{position:absolute;left:-.04em;bottom:-.2em;width:calc(100% + .14em);height:.36em;overflow:visible}
+    .pp-u path{fill:none;stroke:var(--pp-coral);stroke-width:7;stroke-linecap:round;stroke-dasharray:420;stroke-dashoffset:0}
+    .pp-sub{margin-top:28px;max-width:31em;font-size:clamp(16px,1.3vw,19px);line-height:1.6;color:var(--pp-cream2);font-variation-settings:'opsz' 14}
+    .pp-sub strong{color:var(--pp-cream);font-weight:500}
+    .pp-a1 .pp-ctas{margin-top:32px}
+    .pp-for{margin-top:26px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 0;font-family:var(--pp-mono);font-size:12.5px;letter-spacing:.06em;color:#bfb39b}
+    .pp-for b{font-weight:400;color:var(--pp-cream2);margin-right:12px;text-transform:uppercase;letter-spacing:.14em;font-size:11.5px}
+    .pp-for span{white-space:nowrap}
+    .pp-for span:not(:last-child)::after{content:"·";margin:0 .6em;color:#8a7f6a}
+    .pp-aside{position:absolute;font-family:var(--pp-hand);font-size:25px;font-weight:500;color:var(--pp-cream2);display:flex;align-items:flex-start;gap:6px;transform:rotate(-4deg);pointer-events:none}
+    .pp-aside svg{width:74px;height:46px;margin-top:6px}
+    .pp-aside path{fill:none;stroke:var(--pp-cream2);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+    /* ───────── the page of notes ───────── */
+    .pp-sheet{position:absolute;width:31em;height:40em;font-size:var(--f);will-change:transform;color:var(--pp-ink)}
+    .pp-drop{position:absolute;inset:0}
+    .pp-under{position:absolute;inset:0;background:linear-gradient(172deg,#f7f6f2,#e3e0d8);transform:rotate(-3.2deg) translate(-1.3em,-2.5em);box-shadow:0 1.6em 2.6em -1em rgba(0,0,0,.7);overflow:hidden}
+    .pp-under-hd{position:absolute;left:1.5em;right:1.3em;top:.62em;display:flex;justify-content:space-between;font-family:var(--pp-mono);font-size:.62em;letter-spacing:.06em;color:#6b6d78}
+    .pp-under-sl{position:absolute;left:1.6em;right:1.4em;top:2.5em;height:13em;border:1px solid #c9c9cf;background:#fff}
+    .pp-under-sl b{position:absolute;left:1.1em;top:.9em;font:600 1em/1.2 system-ui,-apple-system,'Segoe UI',sans-serif;color:#2b3350}
+    .pp-paper{position:relative;width:31em;height:40em;color:var(--pp-ink);overflow:hidden;cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 30 30'%3E%3Cpath d='M9 21 21 3l6 4-12 18z' fill='%231b2440'/%3E%3Cpath d='M9 21l6 4-3 3H4z' fill='%23ffdc45' stroke='%231b2440' stroke-width='1.2'/%3E%3C/svg%3E") 4 28,auto;
+      background:
+        linear-gradient(90deg,transparent 3.6em,var(--pp-margin) 3.6em,var(--pp-margin) calc(3.6em + 1px),transparent calc(3.6em + 1px),transparent 3.8em,var(--pp-margin) 3.8em,var(--pp-margin) calc(3.8em + 1px),transparent calc(3.8em + 1px)),
+        repeating-linear-gradient(180deg,transparent 0,transparent calc(1.85em - 1px),var(--pp-rule) calc(1.85em - 1px),var(--pp-rule) 1.85em) 0 5.55em/100% 100% no-repeat,
+        radial-gradient(120% 90% at 30% 15%,#f8f2e3,#f1e7d1 60%,#e8dbbf);
+      box-shadow:0 .08em .1em rgba(0,0,0,.35),0 1.4em 2.8em -.9em rgba(0,0,0,.8),inset 0 0 3em rgba(160,130,80,.12)}
+    .pp-hole{position:absolute;left:1.35em;width:1.05em;height:1.05em;border-radius:50%;background:#16110d;box-shadow:inset .08em .12em .2em rgba(0,0,0,.8),0 .05em 0 rgba(255,255,255,.5)}
+    .pp-hole:nth-child(1){top:6.2em}.pp-hole:nth-child(2){top:19.4em}.pp-hole:nth-child(3){top:32.6em}
+    .pp-tape{position:absolute;top:-.5em;left:12em;width:7em;height:2.2em;background:rgba(232,220,190,.62);transform:rotate(-5deg);clip-path:polygon(2% 8%,10% 0,22% 9%,35% 1%,50% 7%,63% 0,77% 8%,90% 1%,100% 9%,98% 92%,88% 100%,74% 91%,60% 99%,46% 92%,31% 100%,18% 91%,5% 98%,0 90%)}
+    .pp-ph{position:absolute;left:calc(4.7em/1.18);right:calc(2.4em/1.18);top:calc(1.25em/1.18);display:flex;justify-content:space-between;align-items:baseline;font-family:var(--pp-hand);font-weight:500;font-size:1.18em;color:var(--pp-ink2)}
+    .pp-pt{position:absolute;left:calc(4.6em/2.15);top:calc(2.55em/2.15);font-family:var(--pp-hand);font-weight:500;font-size:2.15em;letter-spacing:-.005em;color:var(--pp-ink);-webkit-text-stroke:.012em currentColor}
+    .pp-pt svg{position:absolute;left:-.1em;bottom:-.18em;width:105%;height:.32em;overflow:visible}
+    .pp-pt path{fill:none;stroke:var(--pp-ink);stroke-width:1.6;stroke-linecap:round}
+    .pp-notes{position:absolute;left:4.7em;right:1.2em;top:5.55em}
+    .pp-ln{height:1.40152em;font-family:var(--pp-hand);font-weight:500;font-size:1.32em;line-height:1.40152;white-space:nowrap;color:#1e2a4e;margin-top:-.04em;border-radius:.3em;background:linear-gradient(99deg,rgba(255,221,64,0),rgba(255,221,64,.42) .4em,rgba(255,214,52,.36) calc(100% - .4em),rgba(255,221,64,0)) 0 60%/0 62% no-repeat;transition:background-size .45s cubic-bezier(.5,.1,.2,1)}
+    .pp-ln.pp-mk{background-size:100% 62%}
+    .pp-ind{padding-left:1.3em}
+    .pp-ln b{font-weight:500;-webkit-text-stroke:.02em currentColor}
+    .pp-ex{color:#c4472c;margin-left:.3em;-webkit-text-stroke:.02em currentColor}
+    .pp-ts{color:#c4472c;margin-left:.45em;font-size:.86em}
+    .pp-ts svg{width:.62em;height:.62em;vertical-align:-.02em;fill:currentColor}
+    .pp-ln sub,.pp-a sub,.pp-ctx sub{font-size:.62em;vertical-align:-.2em;line-height:0}
+    .pp-hl{padding:.02em .26em .02em .24em;margin:0 -.12em;border-radius:.42em .18em .5em .22em;background-repeat:no-repeat;background-size:100% 100%;mix-blend-mode:multiply;
+      background-image:linear-gradient(99deg,rgba(255,221,64,0) .06em,rgba(255,221,64,.95) .3em,rgba(255,214,52,.86) 55%,rgba(255,221,64,.95) calc(100% - .3em),rgba(255,221,64,0) calc(100% - .04em))}
+    .pp-hc{background-image:linear-gradient(99deg,rgba(255,128,96,0) .06em,rgba(255,130,98,.78) .3em,rgba(255,120,88,.7) 55%,rgba(255,130,98,.8) calc(100% - .3em),rgba(255,128,96,0) calc(100% - .04em))}
+    .pp-mito{position:absolute;left:20.4em;top:23.1em;width:8.2em;height:4.6em;transform:rotate(-10deg);overflow:visible}
+    .pp-mito *{fill:none;stroke:#26315a;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+    .pp-nt{position:absolute;font-family:var(--pp-hand);font-weight:500;color:#2a3560;white-space:nowrap;font-size:calc(var(--s)*1em);left:calc(var(--x)/var(--s));top:calc(var(--y)/var(--s))}
+    .pp-n1{--s:1.22;--x:5.1em;--y:24.3em;transform:rotate(-2.5deg)}
+    .pp-n2{--s:1.22;--x:5.2em;--y:28.4em;color:#565b6d;transform:rotate(-1.5deg)}
+    .pp-n2 i{font-style:normal;color:#c4472c}
+    .pp-n3{--s:1.16;--x:5.3em;--y:31.2em;color:#565b6d;transform:rotate(-1deg)}
+    .pp-ring{position:absolute;right:-2.6em;top:-2.4em;width:10.5em;height:10.5em;mix-blend-mode:multiply;transform:rotate(20deg)}
+    .pp-pencil{position:absolute;left:11.5em;top:37.6em;width:24em;height:1.7em;transform:rotate(-17deg);transform-origin:0 50%;filter:drop-shadow(.3em .5em .35em rgba(0,0,0,.45))}
+
+    /* first second: the page lands, the tape presses down, the marker sweeps, the pencil rolls in */
+    @keyframes ppDrop{0%{opacity:0;transform:translate(1.5em,-3.2em) rotate(-4deg) scale(1.05)}55%{opacity:1;transform:translate(0,.25em) rotate(.6deg) scale(.995)}78%{transform:translate(0,-.08em) rotate(-.15deg)}100%{transform:none}}
+    @keyframes ppTape{from{opacity:0;transform:rotate(-12deg) scale(1.3)}to{opacity:1}}
+    @keyframes ppSweep{from{background-size:0 100%}}
+    @keyframes ppRoll{from{opacity:0;translate:7em 4em}60%{opacity:1}to{translate:0 0}}
+    @keyframes ppDraw{from{stroke-dashoffset:420}}
+    .pp-anim .pp-drop{animation:ppDrop 1s cubic-bezier(.25,.8,.3,1) .05s both}
+    .pp-anim .pp-tape{animation:ppTape .45s cubic-bezier(.3,.9,.4,1.2) .72s both}
+    .pp-anim .pp-paper .pp-hl{animation:ppSweep .5s cubic-bezier(.5,.1,.2,1) both}
+    .pp-anim .pp-paper .pp-hl[data-k="0"]{animation-delay:.95s}
+    .pp-anim .pp-paper .pp-hl[data-k="1"]{animation-delay:1.18s}
+    .pp-anim .pp-paper .pp-hl[data-k="2"]{animation-delay:1.41s}
+    .pp-anim .pp-paper .pp-hl[data-k="3"]{animation-delay:1.64s}
+    .pp-anim .pp-pencil{animation:ppRoll .85s cubic-bezier(.2,.75,.25,1) 1.15s both}
+    .pp-anim .pp-u path{animation:ppDraw 1.1s cubic-bezier(.6,.05,.2,1) .5s both}
+
+    /* ───────── index cards ───────── */
+    .pp-cards{position:relative;font-size:var(--f)}
+    .pp-card{width:20em;height:12.4em;font-size:var(--f)}
+    .pp-flip{position:absolute;inset:0;transform-style:preserve-3d;-webkit-transform-style:preserve-3d}
+    .pp-face{position:absolute;inset:0;border-radius:.22em;color:var(--pp-ink);overflow:hidden;-webkit-backface-visibility:hidden;backface-visibility:hidden;
+      background:
+        linear-gradient(180deg,transparent 2.6em,rgba(212,86,72,.6) 2.6em,rgba(212,86,72,.6) calc(2.6em + 1.5px),transparent calc(2.6em + 1.5px)),
+        repeating-linear-gradient(180deg,transparent 0,transparent calc(1.55em - 1px),rgba(76,124,176,.24) calc(1.55em - 1px),rgba(76,124,176,.24) 1.55em) 0 2.6em/100% 100% no-repeat,
+        linear-gradient(165deg,#fefaf1,#f5eedd);
+      box-shadow:0 .06em .1em rgba(0,0,0,.3),0 1.1em 2em -.7em rgba(0,0,0,.75)}
+    .pp-back{transform:rotateY(180deg)}
+    .pp-ct{position:absolute;left:1.2em;right:1.2em;top:.95em;display:flex;justify-content:space-between;gap:1em;font-family:var(--pp-mono);font-size:.6em;letter-spacing:.12em;text-transform:uppercase;color:var(--pp-ink2);white-space:nowrap}
+    .pp-ct b{font-weight:400;color:#b2432b}
+    .pp-q{position:absolute;left:.85em;right:.85em;top:2.08em;font-size:1.42em;line-height:1.0915;font-weight:420;letter-spacing:-.01em;font-variation-settings:'opsz' 30;margin:0}
+    .pp-cb{position:absolute;left:1.2em;right:1.2em;bottom:.9em;display:flex;gap:1.4em;font-family:var(--pp-mono);font-size:.56em;letter-spacing:.1em;text-transform:uppercase;color:var(--pp-ink2);white-space:nowrap}
+    .pp-front .pp-cb span:nth-child(3){color:var(--pp-ink);box-shadow:0 1.5px 0 var(--pp-coral)}
+    .pp-back .pp-cb{justify-content:space-between;text-transform:none;letter-spacing:.04em;font-size:.6em}
+    .pp-back .pp-cb i{font-style:normal;color:#b2432b}
+    .pp-a{position:absolute;left:0;right:0;top:2.99em;text-align:center;font-family:var(--pp-hand);font-weight:500;font-size:1.32em;line-height:1.40152;color:#1e2a4e;white-space:nowrap;margin:0}
+    .pp-ctx{position:absolute;left:1.5em;right:1.5em;top:7.58em;font-size:.8em;line-height:1.9375;font-weight:400;font-variation-settings:'opsz' 14;color:#39405a;text-align:center;margin:0}
+    .pp-dividers{font-size:var(--f);width:20em;height:12.4em}
+    .pp-dv{position:absolute;inset:0;border-radius:.25em;transform:translateY(calc((3 - var(--i)) * -.3em - .7em));box-shadow:0 .06em .1em rgba(0,0,0,.3),0 .8em 1.6em -.6em rgba(0,0,0,.6)}
+    .pp-dv span{position:absolute;top:-1.55em;left:calc(var(--i) * 24% + 1%);width:23%;height:1.75em;border-radius:.35em .35em 0 0;background:inherit;font-family:var(--pp-mono);font-size:1em;display:flex;align-items:flex-start;justify-content:center;padding-top:.32em}
+    .pp-dv span b{font-weight:400;font-size:.62em;letter-spacing:.12em;text-transform:uppercase;color:var(--pp-ink)}
+    .pp-dymo{position:absolute;left:-1.3em;bottom:-2.9em;transform:rotate(-3.5deg);padding:.34em .9em .3em;border-radius:.14em;background:#c63a2b linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 45%,rgba(0,0,0,.18));box-shadow:0 .12em .3em rgba(0,0,0,.55);font-family:var(--pp-mono);font-size:.7em;letter-spacing:.24em;text-transform:uppercase;color:#fff6ee;text-shadow:0 -1px 0 rgba(0,0,0,.35);white-space:nowrap}
+    .pp-dv:nth-child(1){background:#a9bdd0}.pp-dv:nth-child(2){background:#bcc9a4}.pp-dv:nth-child(3){background:#dcae90}.pp-dv:nth-child(4){background:#e5cc90}
+
+    /* ───────── act copy (2,3) ───────── */
+    .pp-label{font-family:var(--pp-mono);font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--pp-coral);display:flex;align-items:center;gap:12px;margin:0 0 20px}
+    .pp-label i{font-style:normal;color:#d8cdb6}
+    .pp-h2{font-family:var(--pp-serif);font-weight:330;font-size:clamp(32px,3.7vw,64px);line-height:1.02;letter-spacing:-.022em;font-variation-settings:'opsz' 144;color:var(--pp-cream);margin:0}
+    .pp-h2 em{font-style:italic;font-weight:300}
+    .pp-body{margin:20px 0 0;max-width:30em;font-size:clamp(15.5px,1.2vw,18px);line-height:1.62;color:var(--pp-cream2);font-variation-settings:'opsz' 14}
+    .pp-body b{color:var(--pp-cream);font-weight:500}
+    .pp-a3 .pp-h2{font-size:clamp(42px,5vw,88px);color:#fff4de;line-height:.98}
+    .pp-a3 .pp-ctas{margin-top:30px}
+
+    /* ───────── timer ───────── */
+    .pp-timer{width:var(--D,420px);text-align:center;position:relative}
+    .pp-dial{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 18px 28px rgba(0,0,0,.55))}
+    .pp-dial text{font-family:var(--pp-mono);font-size:15px;fill:#4a4234;text-anchor:middle}
+    .pp-readout{margin-top:calc(var(--D,420px) * .045);font-family:var(--pp-mono);font-weight:300;font-size:max(30px,calc(var(--D,420px) * .15));line-height:1;letter-spacing:.02em;color:#fff0d6;font-variant-numeric:tabular-nums}
+    .pp-colon{opacity:.6;margin:0 .02em}
+    .pp-modes{margin-top:calc(var(--D,420px) * .045);display:flex;justify-content:center;flex-wrap:wrap;gap:4px 6px}
+    .pp-modes button{min-height:40px;padding:0 10px;font-family:var(--pp-mono);font-size:12.5px;letter-spacing:.05em;color:#b3a891;border-radius:3px;transition:color .2s,background-color .2s}
+    .pp-modes button:hover{color:#fff0d6;background:rgba(255,240,214,.06)}
+    .pp-modes button[aria-pressed="true"]{color:#fff0d6;box-shadow:inset 0 -2px 0 var(--pp-marker)}
+    .pp-snd{margin:4px 0 0;font-family:var(--pp-mono);font-size:12px;letter-spacing:.05em;color:#a99e88}
+    .pp-tutor{position:absolute;right:-30%;top:1%;width:10.5em;padding:.9em 1em 1em;font-family:var(--pp-hand);font-weight:500;font-size:calc(var(--D,420px) * .046);line-height:1.15;text-align:left;color:#2a3560;background:linear-gradient(170deg,#ffe98f,#ffdf6a);transform:rotate(6deg);box-shadow:0 .1em .15em rgba(0,0,0,.25),0 1.2em 1.6em -.8em rgba(0,0,0,.7);clip-path:polygon(0 0,100% 0,100% 88%,90% 100%,0 100%)}
+    .pp-tutor small{display:block;margin-top:.35em;font-family:var(--pp-mono);font-size:.5em;letter-spacing:.12em;text-transform:uppercase;color:#7a6331}
+    .pp-lamp{position:absolute;pointer-events:none;border-radius:50%;background:radial-gradient(closest-side,rgba(255,206,146,.40),rgba(255,188,118,.16) 42%,rgba(255,180,110,0) 100%);mix-blend-mode:screen}
+    .pp-dim{position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(7,6,5,0) 76%,#070605 99.5%),radial-gradient(circle at var(--lx,70%) var(--ly,45%),rgba(6,4,3,0) 0,rgba(6,4,3,.18) calc(var(--lr,300px) * .42),rgba(6,4,3,.84) calc(var(--lr,300px) * .95),rgba(5,4,3,.95) calc(var(--lr,300px) * 1.5))}
+
+    /* ───────── end credits: the hand-off into the rest of the page ───────── */
+    .pp-end{position:relative;padding:clamp(56px,10vh,110px) var(--pp-gut) clamp(90px,15vh,150px);background:
+      radial-gradient(48% 60% at 50% 34%,rgba(255,200,140,.10),rgba(255,200,140,0) 70%),
+      linear-gradient(180deg,#070605 0%,#0a0908 38%,#0b1326 100%)}
+    .pp-ccard{position:relative;max-width:640px;margin:0 auto;padding:2.1em 2.2em 1.8em;font-size:clamp(14px,1.15vw,16px);color:var(--pp-ink);transform:rotate(-1.2deg);
+      background:
+        linear-gradient(180deg,transparent 3.5em,rgba(212,86,72,.55) 3.5em,rgba(212,86,72,.55) calc(3.5em + 1.5px),transparent calc(3.5em + 1.5px)),
+        repeating-linear-gradient(180deg,transparent 0,transparent calc(2.2em - 1px),rgba(76,124,176,.22) calc(2.2em - 1px),rgba(76,124,176,.22) 2.2em) 0 3.5em/100% 100% no-repeat,
+        linear-gradient(165deg,#fefaf1,#f1e8d3);
+      box-shadow:0 .08em .12em rgba(0,0,0,.4),0 2em 3.4em -1.2em rgba(0,0,0,.85);border-radius:.25em}
+    .pp-cc-top{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 1.3em;font-family:var(--pp-mono);font-size:.8em;letter-spacing:.16em;text-transform:uppercase;color:var(--pp-ink2)}
+    .pp-cc-top b{font-weight:400;color:#b2432b}
+    .pp-ccard h2{font:inherit;margin:0}
+    .pp-cc{margin:0;padding:0}
+    .pp-cc>div{display:grid;grid-template-columns:minmax(8.5em,auto) 1fr;gap:0 1em;align-items:baseline;min-height:2.2em;padding-top:.15em}
+    .pp-cc dt{font-family:var(--pp-mono);font-size:.78em;letter-spacing:.12em;text-transform:uppercase;color:#5a6078}
+    .pp-cc dd{margin:0;font-size:1.06em;line-height:2.08;font-variation-settings:'opsz' 18;color:var(--pp-ink)}
+    .pp-cc-sig{margin:.9em 0 0;font-family:var(--pp-hand);font-weight:500;font-size:1.55em;line-height:1.3;color:#2a3560;transform:rotate(-1deg)}
+    .pp-cc-sig b{font-weight:500;color:var(--pp-ink);-webkit-text-stroke:.015em currentColor}
+    .pp-cc-stamp{position:absolute;right:1.4em;bottom:1.3em;padding:.35em .7em .3em;border:2px solid rgba(198,58,43,.72);border-radius:.2em;font-family:var(--pp-mono);font-size:.74em;letter-spacing:.2em;text-transform:uppercase;color:rgba(198,58,43,.85);transform:rotate(-8deg)}
+
+    /* ═════════ FLOW MODE (no JS / reduced motion / short screens) ═════════ */
+    html:not(.pp-pin) .pp-act{overflow:hidden}
+    html:not(.pp-pin) .pp-a1{min-height:100vh;min-height:100svh;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);align-items:center;gap:3vw;padding:120px var(--pp-gut) 60px}
+    html:not(.pp-pin) .pp-a1 .pp-sheet{position:relative;justify-self:center;transform:rotate(3deg);margin:2em 0 -6em;order:2}
+    html:not(.pp-pin) .pp-aside{display:none}
+    html:not(.pp-pin) .pp-a2{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);align-items:center;gap:4vw;padding:12vh var(--pp-gut)}
+    html:not(.pp-pin) .pp-copies{display:grid;gap:9vh}
+    html:not(.pp-pin) .pp-cards{display:grid;grid-template-columns:repeat(2,20em);gap:2.2em 1.6em;justify-content:center;padding-top:2.4em}
+    html:not(.pp-pin) .pp-card{position:relative}
+    html:not(.pp-pin) .pp-card:nth-child(odd){transform:rotate(-2.5deg)}
+    html:not(.pp-pin) .pp-card:nth-child(even){transform:rotate(2deg) translateY(1.2em)}
+    html:not(.pp-pin) .pp-card.pp-showa .pp-flip{transform:rotateY(180deg)}
+    html:not(.pp-pin) .pp-dividers{display:none}
+    html:not(.pp-pin) .pp-a3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:4vw;padding:14vh var(--pp-gut);background:radial-gradient(42vw 42vw at 72% 50%,rgba(255,200,140,.16),rgba(6,4,3,0) 60%),#0b0907}
+    html:not(.pp-pin) .pp-a3 .pp-timer{--D:min(34vw,480px);justify-self:center;order:2;margin-top:3vh}
+    html:not(.pp-pin) .pp-dim,html:not(.pp-pin) .pp-lamp{display:none}
+    html:not(.pp-pin) .pp-act{scroll-margin-top:64px}
+    @media (max-width:899px){
+      html:not(.pp-pin) .pp-a1,html:not(.pp-pin) .pp-a2,html:not(.pp-pin) .pp-a3{grid-template-columns:minmax(0,1fr)}
+      html:not(.pp-pin) .pp-a1{padding-top:116px}
+      html:not(.pp-pin) .pp-a1 .pp-sheet{margin:1em auto -10em}
+      html:not(.pp-pin) .pp-cards{grid-template-columns:20em;font-size:min(3.4vw,15px)}
+      html:not(.pp-pin) .pp-card{font-size:inherit}
+      html:not(.pp-pin) .pp-a3 .pp-timer{--D:min(70vw,340px);order:0}
+      html:not(.pp-pin) .pp-tutor{display:none}
+    }
+
+    /* ═════════ PINNED STORY MODE ═════════ */
+    .pp-pin .pp-story{height:400vh}
+    .pp-pin .pp-stage{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden}
+    .pp-pin .pp-act{position:absolute;inset:0;pointer-events:none}
+    .pp-pin .pp-copy{position:absolute;pointer-events:auto;will-change:transform,opacity}
+    .pp-pin .pp-copy.pp-off{pointer-events:none}
+    .pp-pin .pp-sheet{left:0;top:0;pointer-events:auto;transform:translate(calc(72vw - 15.5em),calc(55vh - 20em)) rotate(3deg)}
+    .pp-pin .pp-a1 .pp-copy{left:var(--pp-gut);top:50%;width:min(48vw,720px,calc(72vw - 17.9 * min(1.22vw,1.95vh) - var(--pp-gut)));transform:translateY(calc(-46% + var(--dy,0px)))}
+    .pp-pin .pp-aside{left:38.5vw;bottom:8vh}
+    .pp-pin .pp-a2 .pp-copy{left:var(--pp-gut);top:max(13vh,84px);width:min(37vw,560px);transform:translateY(var(--dy,0px));opacity:0}
+    .pp-pin .pp-card,.pp-pin .pp-dividers{position:absolute;left:0;top:0;will-change:transform}
+    .pp-pin .pp-card{visibility:hidden}
+    .pp-pin .pp-dividers{opacity:0}
+    .pp-pin .pp-a3 .pp-copy{left:var(--pp-gut);top:50%;width:min(40vw,600px);transform:translateY(calc(-50% + var(--dy,0px)));opacity:0}
+    .pp-pin .pp-timer{position:absolute;left:0;top:0;opacity:0;will-change:transform,opacity;pointer-events:auto}
+    .pp-pin .pp-timer.pp-off{pointer-events:none}
+    .pp-pin .pp-dim,.pp-pin .pp-lamp{opacity:0}
+    .pp-pin .pp-modes{margin-left:-30%;margin-right:-30%}
+    .pp-pin .pp-snd{margin-left:-30%;margin-right:-30%}
+
+    /* ═════════ narrow: phones, portrait tablets ═════════ */
+    @media (max-width:899px),(max-aspect-ratio:19/20){
+      .pp-stage{--f:min(3.2vw,1.9vh)}
+      .pp-hd{flex-wrap:wrap;gap:8px 12px;padding:12px var(--pp-gut) 0}
+      .pp-hd.pp-solid{padding-top:8px;padding-bottom:8px;flex-wrap:nowrap}
+      .pp-brand b{font-size:21px}.pp-brand svg{width:26px;height:26px}
+      .pp-links{order:5;flex:1 1 100%;gap:22px;padding-top:2px;border-top:1px solid rgba(243,233,211,.12);font-size:12px}
+      .pp-links a{padding:10px 0}
+      .pp-steps{display:none}
+      .pp-hd.pp-solid .pp-steps{display:flex;margin-left:6px;padding-left:10px}
+      .pp-hd.pp-solid .pp-steps a{padding:0 7px;gap:0}
+      .pp-hd.pp-solid .pp-steps a span{display:none}
+      .pp-hd.pp-solid .pp-steps a::after{left:7px;right:7px}
+      .pp-hd.pp-solid .pp-login{display:none}
+      .pp-hd.pp-solid .pp-brand b{display:none}
+      .pp-hd .pp-btn{padding:0 13px;font-size:14.5px;max-width:calc(100vw - 186px)}
+      .pp-login{font-size:12px;min-height:36px;padding:0 12px 0 21px}
+      .pp-eyebrow{font-size:11.5px;margin-bottom:16px}
+      .pp-h1{font-size:clamp(36px,10.6vw,72px)}
+      .pp-sub{margin-top:18px;font-size:15.5px;line-height:1.55}
+      .pp-a1 .pp-ctas{margin-top:22px;gap:10px}
+      .pp-a1 .pp-btn-p,.pp-a1 .pp-btn-s{flex:1 1 100%;max-width:440px}
+      .pp-btn{min-height:50px;font-size:16px}
+      .pp-for{margin-top:14px;font-size:11.5px}
+      .pp-for b{display:none}
+      .pp-pin .pp-a1 .pp-copy{top:110px;width:auto;right:var(--pp-gut);transform:translateY(var(--dy,0px))}
+      .pp-pin .pp-aside{display:none}
+      .pp-pin .pp-a2 .pp-copy{top:72px;width:auto;right:var(--pp-gut)}
+      .pp-pin .pp-a3 .pp-copy{top:auto;bottom:max(20px,3vh);width:auto;right:var(--pp-gut);transform:translateY(var(--dy,0px))}
+      .pp-h2{font-size:clamp(29px,8.2vw,52px)}
+      .pp-a3 .pp-h2{font-size:clamp(38px,10.6vw,70px)}
+      .pp-body{margin-top:12px;font-size:15px;line-height:1.55}
+      .pp-label{margin-bottom:12px;font-size:11.5px}
+      .pp-a3 .pp-ctas{margin-top:18px;gap:10px}
+      .pp-a3 .pp-btn{flex:1 1 100%;max-width:440px}
+      .pp-wide{display:none}
+      .pp-modes button{font-size:12px;padding:0 9px}
+      .pp-modes button span{display:none}
+      .pp-snd{display:none}
+      .pp-tutor{display:none}
+      .pp-ccard{padding:1.6em 1.3em 1.5em;font-size:14px}
+      .pp-cc>div{grid-template-columns:1fr;min-height:0;padding:.35em 0 .2em}
+      .pp-cc dd{line-height:1.6}
+      .pp-cc-stamp{position:static;display:inline-block;margin-top:.9em}
+    }
+    @media (min-width:640px) and ((max-width:899px) or (max-aspect-ratio:19/20)){
+      .pp-hd{flex-wrap:nowrap;padding-bottom:12px}
+      .pp-links{order:0;flex:none;border-top:0;padding-top:0;font-size:12.5px}
+      .pp-hd.pp-solid .pp-steps a{padding:0 9px;gap:0}
+      .pp-hd.pp-solid .pp-steps a span{display:inline}
+      .pp-a1 .pp-btn-p,.pp-a1 .pp-btn-s,.pp-a3 .pp-btn{flex:0 1 auto}
+      .pp-pin .pp-a1 .pp-copy{top:100px}
+      html:not(.pp-pin) .pp-a1{padding-top:100px}
+    }
+    @media (min-width:760px) and ((max-width:899px) or (max-aspect-ratio:19/20)){.pp-hd.pp-solid .pp-brand b{display:inline}}
+    @media (max-width:380px){.pp-links{gap:16px;font-size:11.5px}.pp-for{font-size:11px}}
+    @media (max-width:359px){.pp-hd.pp-solid{column-gap:8px}.pp-hd.pp-solid .pp-steps{margin-left:2px;padding-left:6px}.pp-hd.pp-solid .pp-steps a{padding:0 5px}.pp-hd.pp-solid .pp-steps a::after{left:5px;right:5px}.pp-hd .pp-btn{padding:0 10px;font-size:14px;max-width:calc(100vw - 150px)}}
+    @media (max-height:820px){.pp-pin .pp-aside{display:none}}
+    @media ((max-width:899px) or (max-aspect-ratio:19/20)) and (max-height:740px){
+      .pp-pin .pp-a3 .pp-body{display:none}
+      .pp-a3 .pp-h2{font-size:clamp(34px,9.6vw,60px)}
+      .pp-a3 .pp-ctas{margin-top:14px}
+      .pp-pin .pp-a1 .pp-for{display:none}
+    }
+    @media (prefers-reduced-motion:reduce){
+      #splashView .pp-story *,#splashView .pp-hd,#splashView .pp-hd *{animation:none!important;transition:none!important}
+    }
+    @media (forced-colors:active){.pp-mark,.pp-hl{forced-color-adjust:none}}
+  </style>
 </head>
 <body>
 
@@ -1394,175 +1712,539 @@
 ══════════════════════════════════════════ -->
 <div id="splashView" class="view active">
 
-  <!-- ── FIXED NAVBAR ── -->
+  <!-- ══════════════════════════════════════════════════════════════════
+       OPENING — "Paper & Ink": a page of notes → index cards → one lamp-lit
+       timer. Styles: <style id="pp-css"> in <head>. Script: end of this block.
+       ══════════════════════════════════════════════════════════════════ -->
+  <!-- Pinned story only when motion is OK, the screen is tall enough and the
+       browser can keep position:sticky working (overflow-x:clip). Runs before
+       the markup below is parsed, so there is no layout flash. -->
+  <script>(function(r){try{r.classList.add('pp-js');if(!matchMedia('(prefers-reduced-motion: reduce)').matches&&innerHeight>=460&&window.CSS&&CSS.supports('overflow-x','clip')&&CSS.supports('position','sticky'))r.classList.add('pp-pin')}catch(e){}})(document.documentElement)</script>
 
-  <!-- ════════════════════════════
-       HERO SECTION
-  ════════════════════════════ -->
-  <section style="position:relative;overflow:hidden;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:100px 40px 80px;">
+  <!-- ── Header: nav at the top, then a slim bar with the 01·02·03 story index + Enter ── -->
+  <header class="pp-hd" id="ppHd">
+    <a class="pp-brand" href="/" aria-label="Brainfy home">
+      <svg viewBox="0 0 30 30" aria-hidden="true"><rect x="3" y="6" width="24" height="17" rx="1.5" fill="#f4ecda" transform="rotate(-8 15 15)"/><path d="M5.6 10.4 26.6 7.5" stroke="#d45648" stroke-width="1.1"/><path d="M8 15.6h12" stroke="#ffdc45" stroke-width="4.2" stroke-linecap="round" transform="rotate(-8 15 15)" opacity=".95"/><path d="M8 20h8" stroke="#1b2440" stroke-width="1.3" stroke-linecap="round" transform="rotate(-8 15 15)"/></svg>
+      <b>Brainfy</b>
+    </a>
+    <nav class="pp-steps" aria-label="How Brainfy works">
+      <a href="#pp-notes" data-pp-step="0" aria-current="step"><i>01</i><span>&nbsp;Notes</span></a>
+      <a href="#pp-cards" data-pp-step="1"><i>02</i><span>&nbsp;Cards</span></a>
+      <a href="#pp-focus" data-pp-step="2"><i>03</i><span>&nbsp;Focus</span></a>
+    </nav>
+    <span class="pp-spacer"></span>
+    <nav class="pp-links" aria-label="Primary">
+      <a href="/resources.html">Resources</a>
+      <a href="/resources.html#guides">Guides</a>
+      <a href="/decks">Decks</a>
+    </nav>
+    <a class="pp-login" href="#" data-pp-intent onclick="goTo('signin');return false;">Log in</a>
+    <button type="button" class="pp-btn pp-btn-p pp-hd-cta" data-pp-proxy="enter" onclick="document.getElementById('enterBrainBtn').click()">Enter Brainfy →</button>
+  </header>
 
-    <!-- Mesh grid -->
-    <div class="splash-mesh"></div>
-
-    <!-- Ambient orbs -->
-    <div class="splash-orb" style="width:720px;height:720px;top:-180px;left:-220px;background:radial-gradient(circle,rgba(124,58,237,0.16) 0%,transparent 68%);animation:orbFloat1 15s ease-in-out infinite;"></div>
-    <div class="splash-orb" style="width:580px;height:580px;bottom:-140px;right:-160px;background:radial-gradient(circle,rgba(76,215,246,0.11) 0%,transparent 68%);animation:orbFloat2 12s ease-in-out infinite;"></div>
-    <div class="splash-orb" style="width:320px;height:320px;top:55%;left:65%;background:radial-gradient(circle,rgba(78,222,163,0.07) 0%,transparent 70%);animation:orbFloat1 10s ease-in-out 2s infinite;"></div>
-
-    <!-- ── TOP NAV / HEADER (links the marketing surface from the homepage) ── -->
-    <header style="position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;width:100%;max-width:1240px;margin:0 auto;padding:18px clamp(20px,5vw,40px);">
-      <a href="/" aria-label="Brainfy home" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;">
-        <span style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#7c3aed,#6d28d9);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-family:'Space Grotesk',sans-serif;font-size:16px;">B</span>
-        <span style="font-weight:800;font-size:18px;color:#fff;letter-spacing:-0.01em;font-family:'Space Grotesk',sans-serif;">Brainfy</span>
-      </a>
-      <nav aria-label="Primary" style="display:flex;align-items:center;gap:clamp(14px,2.4vw,22px);flex-wrap:wrap;font-size:14px;font-weight:600;">
-        <a href="/resources.html" style="color:#c8d4ec;text-decoration:none;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#c8d4ec'">Resources</a>
-        <a href="/resources.html#guides" style="color:#c8d4ec;text-decoration:none;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#c8d4ec'">Guides</a>
-        <a href="/decks" style="color:#c8d4ec;text-decoration:none;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#c8d4ec'">Decks</a>
-        <a href="#" onclick="goTo('signin');return false;" style="color:#fff;background:linear-gradient(135deg,#7c3aed,#6d28d9);padding:9px 16px;border-radius:10px;text-decoration:none;box-shadow:0 8px 22px rgba(124,58,237,.28);">Log in →</a>
-      </nav>
-    </header>
-
-    <!-- Brain left -->
-    <div style="position:absolute;left:clamp(20px,5vw,100px);top:50%;transform:translateY(-54%);z-index:1;pointer-events:none;animation:brainFloat 7s ease-in-out infinite;">
-      <div style="position:relative;">
-        <!-- Glow halo -->
-        <div style="position:absolute;inset:-30px;background:radial-gradient(circle,rgba(124,58,237,0.22),transparent 70%);border-radius:50%;filter:blur(18px);"></div>
-        <svg width="160" height="160" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.82;filter:drop-shadow(0 0 22px rgba(124,58,237,0.55)) drop-shadow(0 0 8px rgba(76,215,246,0.3));transform:rotate(-8deg);">
-          <!-- Brain SVG illustration -->
-          <ellipse cx="100" cy="105" rx="58" ry="52" fill="url(#brainGrad1)" opacity="0.9"/>
-          <ellipse cx="72" cy="90" rx="34" ry="40" fill="url(#brainGrad2)" opacity="0.85"/>
-          <ellipse cx="128" cy="90" rx="34" ry="40" fill="url(#brainGrad2)" opacity="0.85"/>
-          <!-- Fold lines left lobe -->
-          <path d="M55 80 Q62 70 68 82" stroke="rgba(255,255,255,0.35)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-          <path d="M50 96 Q60 86 66 98" stroke="rgba(255,255,255,0.25)" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <path d="M58 112 Q68 102 74 114" stroke="rgba(255,255,255,0.25)" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <path d="M62 68 Q72 58 78 70" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <!-- Fold lines right lobe -->
-          <path d="M145 80 Q138 70 132 82" stroke="rgba(255,255,255,0.35)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-          <path d="M150 96 Q140 86 134 98" stroke="rgba(255,255,255,0.25)" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <path d="M142 112 Q132 102 126 114" stroke="rgba(255,255,255,0.25)" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <path d="M138 68 Q128 58 122 70" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <!-- Center divide -->
-          <path d="M100 58 Q96 80 100 105 Q104 130 100 150" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <!-- Stem -->
-          <rect x="88" y="148" width="24" height="14" rx="7" fill="url(#brainGrad2)" opacity="0.7"/>
-          <!-- Sparkle dots -->
-          <circle cx="76" cy="60" r="3" fill="var(--cyan)" opacity="0.8"/>
-          <circle cx="130" cy="56" r="2" fill="var(--green)" opacity="0.7"/>
-          <circle cx="58" cy="100" r="2.5" fill="var(--plight)" opacity="0.6"/>
-          <circle cx="148" cy="104" r="2" fill="var(--cyan)" opacity="0.6"/>
-          <defs>
-            <linearGradient id="brainGrad1" x1="50" y1="55" x2="150" y2="160" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#7c3aed"/>
-              <stop offset="60%" stop-color="#6d28d9"/>
-              <stop offset="100%" stop-color="#4cd7f6" stop-opacity="0.7"/>
-            </linearGradient>
-            <linearGradient id="brainGrad2" x1="60" y1="50" x2="140" y2="150" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#a78bfa"/>
-              <stop offset="100%" stop-color="#7c3aed"/>
-            </linearGradient>
-          </defs>
-        </svg>
-        <!-- Floating label -->
-        <div style="margin-top:12px;text-align:center;font-size:11px;font-weight:700;letter-spacing:0.12em;color:rgba(167,139,250,0.55);font-family:'Space Grotesk';">DEEP FOCUS</div>
-      </div>
+  <section class="pp-story pp-anim" id="ppStory" aria-label="Notes to flashcards to focus">
+  <div class="pp-stage" id="ppStage">
+    <div class="pp-desk" aria-hidden="true">
+      <svg><filter id="ppWood" x="-10%" y="-20%" width="120%" height="140%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.0011 0.0035" numOctaves="1" seed="9" result="fig"/><feColorMatrix in="fig" type="matrix" values="0 0 0 0 .42  0 0 0 0 .28  0 0 0 0 .17  1.5 0 0 0 -.58" result="figure"/><feTurbulence type="fractalNoise" baseFrequency="0 0.032" numOctaves="4" seed="7" result="bands"/><feTurbulence type="fractalNoise" baseFrequency="0.0013 0.0045" numOctaves="2" seed="11" result="warp"/><feDisplacementMap in="bands" in2="warp" scale="80" xChannelSelector="R" yChannelSelector="G" result="grain"/><feColorMatrix in="grain" type="matrix" values="0 0 0 0 .06  0 0 0 0 .04  0 0 0 0 .025  -2.2 0 0 0 1.2" result="dark"/><feTurbulence type="fractalNoise" baseFrequency="0.02 0.7" numOctaves="1" seed="3" result="pore"/><feColorMatrix in="pore" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.4 1.1" result="pores"/><feMerge><feMergeNode in="figure"/><feMergeNode in="dark"/><feMergeNode in="pores"/></feMerge></filter><rect width="100%" height="100%" filter="url(#ppWood)" opacity=".55"/></svg>
     </div>
 
-    <!-- Brain right -->
-    <div style="position:absolute;right:clamp(20px,5vw,100px);top:50%;transform:translateY(-46%);z-index:1;pointer-events:none;animation:brainFloatR 9s ease-in-out 1.5s infinite;">
-      <div style="position:relative;">
-        <div style="position:absolute;inset:-30px;background:radial-gradient(circle,rgba(76,215,246,0.18),transparent 70%);border-radius:50%;filter:blur(18px);"></div>
-        <svg width="140" height="140" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.75;filter:drop-shadow(0 0 20px rgba(76,215,246,0.45)) drop-shadow(0 0 8px rgba(124,58,237,0.3));transform:rotate(10deg) scaleX(-1);">
-          <ellipse cx="100" cy="105" rx="58" ry="52" fill="url(#brainGrad3)" opacity="0.9"/>
-          <ellipse cx="72" cy="90" rx="34" ry="40" fill="url(#brainGrad4)" opacity="0.85"/>
-          <ellipse cx="128" cy="90" rx="34" ry="40" fill="url(#brainGrad4)" opacity="0.85"/>
-          <path d="M55 80 Q62 70 68 82" stroke="rgba(255,255,255,0.3)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-          <path d="M50 96 Q60 86 66 98" stroke="rgba(255,255,255,0.22)" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <path d="M58 112 Q68 102 74 114" stroke="rgba(255,255,255,0.22)" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <path d="M145 80 Q138 70 132 82" stroke="rgba(255,255,255,0.3)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-          <path d="M150 96 Q140 86 134 98" stroke="rgba(255,255,255,0.22)" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <path d="M142 112 Q132 102 126 114" stroke="rgba(255,255,255,0.22)" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <path d="M100 58 Q96 80 100 105 Q104 130 100 150" stroke="rgba(255,255,255,0.18)" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <rect x="88" y="148" width="24" height="14" rx="7" fill="url(#brainGrad4)" opacity="0.7"/>
-          <circle cx="76" cy="60" r="2.5" fill="var(--green)" opacity="0.7"/>
-          <circle cx="130" cy="56" r="3" fill="var(--plight)" opacity="0.6"/>
-          <circle cx="148" cy="100" r="2" fill="var(--cyan)" opacity="0.8"/>
-          <defs>
-            <linearGradient id="brainGrad3" x1="50" y1="55" x2="150" y2="160" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#4cd7f6"/>
-              <stop offset="60%" stop-color="#06b6d4"/>
-              <stop offset="100%" stop-color="#7c3aed" stop-opacity="0.7"/>
-            </linearGradient>
-            <linearGradient id="brainGrad4" x1="60" y1="50" x2="140" y2="150" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#67e8f9"/>
-              <stop offset="100%" stop-color="#4cd7f6"/>
-            </linearGradient>
-          </defs>
-        </svg>
-        <div style="margin-top:12px;text-align:center;font-size:11px;font-weight:700;letter-spacing:0.12em;color:rgba(76,215,246,0.5);font-family:'Space Grotesk';">FLOW STATE</div>
-      </div>
-    </div>
-
-    <!-- Hero content -->
-    <div style="position:relative;z-index:1;max-width:820px;width:100%;">
-
-      <!-- Eyebrow (brand line) -->
-      <p class="sh-1" style="font-size:12px;font-weight:700;letter-spacing:0.18em;color:var(--plight);font-family:'Space Grotesk';margin-bottom:18px;text-transform:uppercase;">
-        Focus deeply · Study calmly
-      </p>
-
-      <!-- H1 -->
-      <h1 class="sh-2" style="font-size:clamp(40px,6.4vw,76px);font-weight:900;line-height:1.06;letter-spacing:-0.03em;color:white;margin-bottom:22px;">
-        Turn your notes into flashcards.<br/>
-        <span style="background:linear-gradient(90deg,var(--plighter) 0%,var(--cyan) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Then actually focus.</span>
-      </h1>
-
-      <!-- Subtitle -->
-      <p class="sh-3" style="font-size:18px;line-height:1.72;color:var(--muted);max-width:560px;margin:0 auto 38px;font-weight:400;">
-        The free <strong style="color:var(--text);font-weight:600;">AI study app</strong> that turns your PDFs, notes and lecture videos into flashcards — then keeps you in deep focus with a calm timer and an AI tutor. No ads, no streak guilt.
-      </p>
-
-      <!-- CTAs -->
-      <div class="sh-4" style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:56px;">
-        <button class="btn-primary" id="enterBrainBtn" style="padding:15px 52px;font-size:16px;font-weight:700;border-radius:12px;background:linear-gradient(135deg,var(--primary),#6d28d9);box-shadow:0 8px 32px rgba(124,58,237,0.42);letter-spacing:0.01em;">
-          Enter Brainfy →
-        </button>
-        <button class="btn-ghost" id="tryGuestBtn" onclick="enterGuestMode()" style="padding:15px 32px;font-size:15px;font-weight:600;border-radius:12px;border-color:rgba(124,58,237,0.45);color:var(--text);cursor:pointer;">
-          Try it free — no signup →
-        </button>
-        <button class="btn-ghost" style="padding:15px 28px;font-size:15px;border-radius:12px;border-color:rgba(255,255,255,0.1);cursor:pointer;" onclick="document.getElementById('splash-bento').scrollIntoView({behavior:'smooth'})">
-          See how it works
-        </button>
-      </div>
-
-      <!-- Honest value pills -->
-      <div class="sh-5" style="display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;">
-        <div style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:999px;background:rgba(78,222,163,0.06);border:1px solid rgba(78,222,163,0.18);font-size:12px;color:var(--text);font-weight:600;letter-spacing:-0.005em;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          Privacy-first
-        </div>
-        <div style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:999px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.22);font-size:12px;color:var(--text);font-weight:600;letter-spacing:-0.005em;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--plight)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-          Built for deep work
-        </div>
-        <div style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:999px;background:rgba(76,215,246,0.06);border:1px solid rgba(76,215,246,0.18);font-size:12px;color:var(--text);font-weight:600;letter-spacing:-0.005em;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 7v5l3 3"/><path d="M16 3.5L19 6l2.5-2.5"/></svg>
-          AI study tutor
-        </div>
-        <div style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid var(--border);font-size:12px;color:var(--text);font-weight:600;letter-spacing:-0.005em;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          Free forever core
+    <!-- ═══ ACT I — NOTES ═══ -->
+    <section class="pp-act pp-a1" id="pp-notes" aria-labelledby="ppH1">
+      <div class="pp-sheet" id="ppSheet" aria-hidden="true">
+        <div class="pp-drop">
+          <div class="pp-under"><div class="pp-under-hd"><span>slides.pdf</span><span>Lecture 7 · p.14 / 32</span></div><div class="pp-under-sl"><b>Oxidative phosphorylation</b></div></div>
+          <div class="pp-paper" id="ppPaper">
+            <i class="pp-hole"></i><i class="pp-hole"></i><i class="pp-hole"></i>
+            <div class="pp-tape"></div>
+            <svg class="pp-ring" viewBox="0 0 200 200"><g fill="none" stroke="#7b4a1f"><circle cx="100" cy="100" r="80" stroke-width="9" opacity=".07"/><circle cx="100" cy="100" r="83" stroke-width="2.6" opacity=".26" stroke-dasharray="300 18 90 26 60 30"/><circle cx="101" cy="99" r="77" stroke-width="1.3" opacity=".2" stroke-dasharray="140 40 210 70"/></g><circle cx="100" cy="100" r="80" fill="#8a5a2b" opacity=".045"/></svg>
+            <div class="pp-ph"><span>Biology — lecture 7</span><span>Tue 14 Oct</span></div>
+            <div class="pp-pt">Cellular respiration<svg viewBox="0 0 300 12" preserveAspectRatio="none"><path d="M2 7c30-6 52 4 80-1s50-5 78 0 60 3 86-2 34-2 52 0"/></svg></div>
+            <div class="pp-notes">
+              <div class="pp-ln">glucose + 6O<sub>2</sub> <svg class="pp-ar" viewBox="0 0 22 12"><path d="M1 6.6c5-.9 11-.7 18-.3M14.5 2.6 19.6 6.4 14.8 9.8"/></svg> 6CO<sub>2</sub> + 6H<sub>2</sub>O + energy</div>
+              <div class="pp-ln"><b>1.</b> Glycolysis — in the <span class="pp-hl" data-k="0">cytoplasm</span></div>
+              <div class="pp-ln pp-ind"><svg class="pp-ar" viewBox="0 0 22 12"><path d="M1 6.6c5-.9 11-.7 18-.3M14.5 2.6 19.6 6.4 14.8 9.8"/></svg> net 2 ATP + 2 NADH, no O<sub>2</sub> needed</div>
+              <div class="pp-ln"><b>2.</b> Krebs cycle — <span class="pp-hl" data-k="1">mitochondrial matrix</span></div>
+              <div class="pp-ln pp-ind"><svg class="pp-ar" viewBox="0 0 22 12"><path d="M1 6.6c5-.9 11-.7 18-.3M14.5 2.6 19.6 6.4 14.8 9.8"/></svg> CO<sub>2</sub> released here</div>
+              <div class="pp-ln"><b>3.</b> ETC — inner membrane, most ATP<span class="pp-ts"><svg viewBox="0 0 10 10"><path d="M2 1l7 4-7 4z"/></svg> 18:02</span></div>
+              <div class="pp-ln pp-ind"><span class="pp-hl pp-hc" data-k="2">O<sub>2</sub> = final electron acceptor</span><span class="pp-ex">exam!</span></div>
+              <div class="pp-ln pp-ind">total ~ <span class="pp-hl" data-k="3">30–32 ATP</span> per glucose</div>
+              <div class="pp-ln">no O<sub>2</sub>? <svg class="pp-ar" viewBox="0 0 22 12"><path d="M1 6.6c5-.9 11-.7 18-.3M14.5 2.6 19.6 6.4 14.8 9.8"/></svg> anaerobic <svg class="pp-ar" viewBox="0 0 22 12"><path d="M1 6.6c5-.9 11-.7 18-.3M14.5 2.6 19.6 6.4 14.8 9.8"/></svg> lactate (cramps)</div>
+            </div>
+            <svg class="pp-mito" viewBox="0 0 180 100"><path d="M18 52c0-26 34-44 78-42s70 20 68 42-30 40-76 40S18 78 18 52z"/><path d="M36 54c6-16 12-16 14 0s8 16 14 0 10-16 14 0 8 16 14 0 10-16 14 0 8 16 14 0 8-14 12-2"/><path d="M8 20l8 10M172 84l-6-9"/></svg>
+            <div class="pp-nt pp-n1">the powerhouse (yes, I know) <svg class="pp-ar" viewBox="0 0 22 12"><path d="M1 6.6c5-.9 11-.7 18-.3M14.5 2.6 19.6 6.4 14.8 9.8"/></svg></div>
+            <div class="pp-nt pp-n2"><i>?</i> ask the tutor: why do old books say 38</div>
+            <div class="pp-nt pp-n3"><svg class="pp-ar" viewBox="0 0 22 12"><path d="M1 6.6c5-.9 11-.7 18-.3M14.5 2.6 19.6 6.4 14.8 9.8"/></svg> turn into flashcards before Fri</div>
+            <svg class="pp-pencil" viewBox="0 0 400 28"><defs><linearGradient id="ppPb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2a2c"/><stop offset=".45" stop-color="#121214"/><stop offset=".55" stop-color="#1c1c1e"/><stop offset="1" stop-color="#0b0b0c"/></linearGradient><linearGradient id="ppPf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9cf86"/><stop offset=".5" stop-color="#b48a35"/><stop offset="1" stop-color="#8a6624"/></linearGradient></defs><rect x="0" y="3" width="30" height="22" rx="4" fill="#efe6d6"/><rect x="26" y="2" width="30" height="24" fill="url(#ppPf)"/><path d="M33 2v24M40 2v24M47 2v24" stroke="#7c5c20" stroke-width="1"/><rect x="56" y="3" width="282" height="22" fill="url(#ppPb)"/><path d="M338 3 384 12.4V15.6L338 25z" fill="#d8b588"/><path d="M370 9.6 396 14 370 18.4z" fill="#2c2c2e"/><text x="80" y="18" font-family="DM Mono,monospace" font-size="9.5" letter-spacing="2" fill="#c9a24a">BRAINFY · HB</text></svg>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Scroll cue -->
-    <div class="sh-6" style="position:absolute;bottom:32px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;opacity:0.35;pointer-events:none;">
-      <span style="font-size:9px;letter-spacing:0.16em;color:var(--muted);font-family:'Space Grotesk';">SCROLL</span>
-      <div style="width:1px;height:30px;background:linear-gradient(to bottom,var(--muted),transparent);"></div>
-    </div>
+      <div class="pp-copy" id="ppC1">
+        <p class="pp-eyebrow">Free AI study app</p>
+        <h1 class="pp-h1" id="ppH1"><span class="pp-l1">Turn your notes</span> <span class="pp-l2">into <mark class="pp-mark">flashcards.</mark></span> <span class="pp-l3">Then actually <span class="pp-u">focus.<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M4 13C40 8 86 6 128 8s52 3 66 1"/></svg></span></span></h1>
+        <p class="pp-sub">The free <strong>AI study app</strong> that turns your PDFs, notes and lecture videos into flashcards — then keeps you in deep focus with a calm timer and an AI tutor. No ads, no streak guilt.</p>
+        <!-- #enterBrainBtn / #tryGuestBtn are wired by the boot script + src/main.ts
+             (applySigninHint rewrites the label and clones the node), so they
+             stay text-only. Every other Enter / Try button proxies to these. -->
+        <div class="pp-ctas" id="ppCtaRow">
+          <button class="pp-btn pp-btn-p" type="button" id="enterBrainBtn">Enter Brainfy →</button>
+          <button class="pp-btn pp-btn-s" type="button" id="tryGuestBtn" onclick="enterGuestMode()">Try it free — no signup</button>
+          <a class="pp-btn pp-btn-t" href="#pp-cards" id="ppHow"><span>See how it works</span><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2v10M3 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+        <p class="pp-for"><b>Made for</b><span>GCSE</span><span>A-level</span><span>AP</span><span>CBSE</span><span>NEET</span><span>Med &amp; nursing</span></p>
+      </div>
+      <div class="pp-aside" id="ppAside" aria-hidden="true">notes like these<svg viewBox="0 0 74 46"><path d="M3 38c18 4 38-2 52-18 5-6 8-11 10-16M56 6l9-3 1 10"/></svg></div>
+    </section>
+
+    <!-- ═══ ACT II — CARDS ═══ -->
+    <section class="pp-act pp-a2" id="pp-cards" aria-labelledby="ppH2a">
+      <div class="pp-copies">
+        <div class="pp-copy" id="ppC2a">
+          <p class="pp-label">02 <i>/ Cards</i></p>
+          <h2 class="pp-h2" id="ppH2a">Highlight it once.<br><em>It comes back as a card.</em></h2>
+          <p class="pp-body">Drop in a PDF, your notes, a photo of the board or a YouTube lecture. Brainfy’s AI pulls out what matters and writes the questions<span class="pp-wide"> — with an outline and a summary on the side</span>.</p>
+        </div>
+        <div class="pp-copy" id="ppC2b">
+          <p class="pp-label">02 <i>/ Review</i></p>
+          <h2 class="pp-h2">Then the deck does <em>the remembering.</em></h2>
+          <p class="pp-body">Spaced repetition<span class="pp-wide">, Anki-style,</span> puts each card back in your daily queue right before you’d forget it. Study it four ways: <b>Learn</b>, <b>Match</b>, <b>Test</b> and <b>Cloze</b>.</p>
+        </div>
+      </div>
+
+      <div class="pp-cards" aria-hidden="true">
+        <div class="pp-dividers" id="ppDividers"><div class="pp-dv" style="--i:0"><span><b>Learn</b></span></div><div class="pp-dv" style="--i:1"><span><b>Match</b></span></div><div class="pp-dv" style="--i:2"><span><b>Test</b></span></div><div class="pp-dv" style="--i:3"><span><b>Cloze</b></span></div><div class="pp-dymo">Due today · 4</div></div>
+        <div class="pp-card"><div class="pp-flip">
+          <div class="pp-face pp-front"><div class="pp-ct"><span>Biology · A-level</span><b>Q 1/4</b></div><p class="pp-q">Where in the cell does glycolysis happen?</p><div class="pp-cb"><span>again</span><span>hard</span><span>good</span><span>easy</span></div></div>
+          <div class="pp-face pp-back"><div class="pp-ct"><span>Answer · 1/4</span><span>Biology · A-level</span></div><p class="pp-a"><span class="pp-hl">cytoplasm</span></p><p class="pp-ctx">Glycolysis splits glucose here, before any mitochondria get involved.</p><div class="pp-cb"><span>from · your notes</span><i>AI note</i></div></div>
+        </div></div>
+        <div class="pp-card pp-showa"><div class="pp-flip">
+          <div class="pp-face pp-front"><div class="pp-ct"><span>Biology · A-level</span><b>Q 2/4</b></div><p class="pp-q">Where does the Krebs cycle take place?</p><div class="pp-cb"><span>again</span><span>hard</span><span>good</span><span>easy</span></div></div>
+          <div class="pp-face pp-back"><div class="pp-ct"><span>Answer · 2/4</span><span>Biology · A-level</span></div><p class="pp-a"><span class="pp-hl">mitochondrial matrix</span></p><p class="pp-ctx">The cycle runs inside the matrix, and that is where the CO<sub>2</sub> comes from.</p><div class="pp-cb"><span>from · slides.pdf</span><i>AI note</i></div></div>
+        </div></div>
+        <div class="pp-card pp-showa"><div class="pp-flip">
+          <div class="pp-face pp-front"><div class="pp-ct"><span>Biology · A-level</span><b>Q 3/4</b></div><p class="pp-q">What is the final electron acceptor in the ETC?</p><div class="pp-cb"><span>again</span><span>hard</span><span>good</span><span>easy</span></div></div>
+          <div class="pp-face pp-back"><div class="pp-ct"><span>Answer · 3/4</span><span>Biology · A-level</span></div><p class="pp-a"><span class="pp-hl pp-hc">O<sub>2</sub> = final electron acceptor</span></p><p class="pp-ctx">Oxygen takes the electrons at the end of the chain and becomes water.</p><div class="pp-cb"><span>from · YouTube lecture</span><i>AI note</i></div></div>
+        </div></div>
+        <div class="pp-card"><div class="pp-flip">
+          <div class="pp-face pp-front"><div class="pp-ct"><span>Biology · A-level</span><b>Q 4/4</b></div><p class="pp-q">Roughly how much ATP does one glucose yield?</p><div class="pp-cb"><span>again</span><span>hard</span><span>good</span><span>easy</span></div></div>
+          <div class="pp-face pp-back"><div class="pp-ct"><span>Answer · 4/4</span><span>Biology · A-level</span></div><p class="pp-a"><span class="pp-hl">30–32 ATP</span></p><p class="pp-ctx">The modern estimate. Older textbooks round it up to 36–38.</p><div class="pp-cb"><span>from · whiteboard.jpg</span><i>AI note</i></div></div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ═══ ACT III — FOCUS ═══ -->
+    <section class="pp-act pp-a3" id="pp-focus" aria-labelledby="ppH2c">
+      <div class="pp-dim" id="ppDim" aria-hidden="true"></div>
+      <div class="pp-lamp" id="ppLamp" aria-hidden="true"></div>
+      <div class="pp-timer" id="ppTimer">
+        <div aria-hidden="true">
+          <svg class="pp-dial" viewBox="0 0 400 400">
+            <defs>
+              <radialGradient id="ppTf" cx="42%" cy="34%" r="72%"><stop offset="0" stop-color="#fcf6e8"/><stop offset=".62" stop-color="#f0e4ca"/><stop offset="1" stop-color="#d7c39e"/></radialGradient>
+              <radialGradient id="ppTk" cx="38%" cy="30%" r="80%"><stop offset="0" stop-color="#fffaf0"/><stop offset="1" stop-color="#d9c8a6"/></radialGradient>
+              <linearGradient id="ppTw" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff8a66"/><stop offset="1" stop-color="#ec5a3a"/></linearGradient>
+            </defs>
+            <circle cx="200" cy="200" r="199" fill="#241c15"/>
+            <circle cx="200" cy="200" r="191" fill="url(#ppTf)"/>
+            <circle cx="200" cy="200" r="176" fill="none" stroke="#3a3228" stroke-width="10" stroke-dasharray="1.6 16.83" stroke-dashoffset=".8" transform="rotate(-90 200 200)" opacity=".75"/>
+            <circle cx="200" cy="200" r="174" fill="none" stroke="#2a231b" stroke-width="20" stroke-dasharray="3 89.15" stroke-dashoffset="1.5" transform="rotate(-90 200 200)"/>
+            <g id="ppFace"><text x="200" y="59">0</text><text x="127" y="78.6">5</text><text x="73.6" y="132">10</text><text x="54" y="205">15</text><text x="73.6" y="278">20</text><text x="127" y="331.4">25</text><text x="200" y="351">30</text><text x="273" y="331.4">35</text><text x="326.4" y="278">40</text><text x="346" y="205">45</text><text x="326.4" y="132">50</text><text x="273" y="78.6">55</text></g>
+            <path id="ppWedge" fill="url(#ppTw)" d="M200 200L200 70A130 130 0 0 0 135 312.58Z"/>
+            <circle cx="200" cy="200" r="130" fill="none" stroke="rgba(60,40,20,.12)"/>
+            <circle cx="203" cy="205" r="34" fill="rgba(0,0,0,.18)"/>
+            <circle cx="200" cy="200" r="32" fill="url(#ppTk)" stroke="#c4af88"/>
+            <rect x="197.5" y="174" width="5" height="22" rx="2.5" fill="#2a231b"/>
+            <text x="200" y="298" style="font-size:10px;letter-spacing:2.5px;fill:#7b6f58">BRAINFY</text>
+          </svg>
+          <div class="pp-tutor">stuck on Krebs?<br>ask the AI tutor <small>note to self</small></div>
+          <div class="pp-readout"><span id="ppMM">25</span><span class="pp-colon">:</span><span id="ppSS">00</span></div>
+        </div>
+        <div class="pp-modes" role="group" aria-label="Try a timer length">
+          <button type="button" data-pp-mode="25" aria-pressed="true"><span>Pomodoro </span>25/5</button>
+          <button type="button" data-pp-mode="50" aria-pressed="false"><span>Extended </span>50/10</button>
+          <button type="button" data-pp-mode="90" aria-pressed="false"><span>Deep Work </span>90/20</button>
+        </div>
+        <p class="pp-snd">sounds in the app: lofi · rain · white noise · forest</p>
+      </div>
+      <div class="pp-copy" id="ppC3">
+        <p class="pp-label">03 <i>/ Focus</i></p>
+        <h2 class="pp-h2" id="ppH2c">Lights down. <em>Begin.</em></h2>
+        <p class="pp-body">Bring one set of notes; leave with a deck and twenty-five quiet minutes. One calm timer — <b>Pomodoro</b> 25/5, <b>Extended</b> 50/10 or <b>Deep Work</b> 90/20<span class="pp-wide">, with lofi, rain, white noise or forest playing low</span>. Stuck? Ask the <b>AI tutor</b>; it already knows your subjects.</p>
+        <div class="pp-ctas">
+          <button class="pp-btn pp-btn-p" type="button" data-pp-proxy="enter" onclick="document.getElementById('enterBrainBtn').click()">Enter Brainfy →</button>
+          <button class="pp-btn pp-btn-s" type="button" data-pp-proxy="guest" onclick="document.getElementById('tryGuestBtn').click()">Try it free — no signup</button>
+        </div>
+      </div>
+    </section>
+  </div>
   </section>
+
+  <!-- ── End credits: the lamp-lit desk hands off to the rest of the page ── -->
+  <div class="pp-end">
+    <div class="pp-ccard">
+      <div class="pp-cc-top"><h2>Brainfy — end credits</h2><b>Admit one</b></div>
+      <dl class="pp-cc">
+        <div><dt>Starring</dt><dd>your notes, PDFs, slides &amp; lecture videos</dd></div>
+        <div><dt>Original score</dt><dd>lofi · rain · white noise · forest</dd></div>
+        <div><dt>Supporting role</dt><dd>an AI tutor that knows your subjects</dd></div>
+        <div><dt>Made for</dt><dd>GCSE · A-level · AP · CBSE · NEET · med &amp; nursing</dd></div>
+        <div><dt>Admission</dt><dd>free. No ads, no streak guilt.</dd></div>
+      </dl>
+      <p class="pp-cc-sig">Written &amp; directed by one student — <b>Aihan Mifthas</b></p>
+      <span class="pp-cc-stamp" aria-hidden="true">Works offline</span>
+    </div>
+  </div>
+
+  <script>
+  /* Paper & Ink opening. Scoped IIFE; passive listeners; no work while the
+     splash is hidden (the app hides it after entering) or the tab is hidden. */
+  (function () {
+    'use strict';
+    var d = document, R = d.documentElement, w = window;
+    var splash = d.getElementById('splashView'), story = d.getElementById('ppStory');
+    if (!splash || !story) return;
+    function $(id) { return d.getElementById(id); }
+    function qa(s, c) { return Array.prototype.slice.call((c || d).querySelectorAll(s)); }
+    function cl(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+    function seg(p, a, b) { return cl((p - a) / (b - a)); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function io(t) { return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+    function eo(t) { return 1 - Math.pow(1 - t, 3); }
+    function px(v) { return v.toFixed(1) + 'px'; }
+    function mq(s) { try { return w.matchMedia(s); } catch (e) { return { matches: false }; } }
+    var mqReduce = mq('(prefers-reduced-motion: reduce)');
+    var canPin = !!(w.CSS && CSS.supports && CSS.supports('overflow-x', 'clip') && CSS.supports('position', 'sticky'));
+    var pin = R.classList.contains('pp-pin');
+    var stage = $('ppStage'), hd = $('ppHd'), how = $('ppHow'), ctaRow = $('ppCtaRow');
+    var stepLinks = qa('[data-pp-step]', hd), acts = [$('pp-notes'), $('pp-cards'), $('pp-focus')];
+    function isOn() { return splash.classList.contains('active') && !d.hidden; }
+
+    /* ── 1. Extra Enter / Try buttons mirror the real ones (label + visibility).
+          The boot script and applySigninHint() rewrite #enterBrainBtn ("Continue
+          as <name> →") and hide #tryGuestBtn for returning users. ── */
+    var proxies = qa('[data-pp-proxy]');
+    function syncCTAs() {
+      var e = $('enterBrainBtn'), g = $('tryGuestBtn');
+      var label = e ? e.textContent.replace(/\s+/g, ' ').trim() : 'Enter Brainfy →';
+      var guestHidden = !g || g.style.display === 'none';
+      proxies.forEach(function (b) {
+        if (b.getAttribute('data-pp-proxy') === 'enter') { if (b.textContent !== label) b.textContent = label; }
+        else if (b.hidden !== guestHidden) b.hidden = guestHidden;
+      });
+    }
+    if (ctaRow && w.MutationObserver) new MutationObserver(syncCTAs).observe(ctaRow, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style'] });
+    syncCTAs();
+
+    /* ── 2. The pinned story ── */
+    var sheet = $('ppSheet'), paper = $('ppPaper'), c1 = $('ppC1'), c2a = $('ppC2a'), c2b = $('ppC2b'), c3 = $('ppC3'), aside = $('ppAside'),
+        dim = $('ppDim'), lamp = $('ppLamp'), timer = $('ppTimer'), dvs = $('ppDividers'), wedge = $('ppWedge'),
+        mmEl = $('ppMM'), ssEl = $('ppSS'), faceG = $('ppFace');
+    var cards = qa('.pp-card', story), flips = cards.map(function (c) { return c.querySelector('.pp-flip'); }),
+        backs = cards.map(function (c) { return c.querySelector('.pp-back'); });
+    var hls = qa('.pp-hl[data-k]', paper).sort(function (a, b) { return a.getAttribute('data-k') - b.getAttribute('data-k'); });
+    var animated = [sheet, c1, c2a, c2b, c3, aside, dim, lamp, timer, dvs].concat(cards, flips, backs);
+    var L = null, last = {}, range = { top: 0, len: 1, end: 1 }, P = -1;
+    function set(el, key, prop, val) { var k = key + prop; if (last[k] !== val) { last[k] = val; el.style[prop] = val; } }
+    function off(el, anc) { var x = 0, y = 0; while (el && el !== anc) { x += el.offsetLeft; y += el.offsetTop; el = el.offsetParent; } return [x, y]; }
+    function measureRange() {
+      var top = story.getBoundingClientRect().top + w.pageYOffset;
+      range = { top: top, len: Math.max(1, story.offsetHeight - stage.clientHeight), end: top + story.offsetHeight };
+    }
+    function prog() { return cl((w.pageYOffset - range.top) / range.len); }
+
+    /* Story timeline, p = 0…1 across the pinned section:
+       .03–.09 hero copy leaves while the cards act copy arrives (.06–.11)
+       .03–.15 the notes slide aside · .05–.31 each highlight lifts into a card
+       .36–.52 cards flip to their questions · .49–.58 deck stacks behind the dividers
+       .61–.69 lights down, deck + notes put away · .62–.71 timer + focus copy come in
+       together · ≥.68 the timer winds itself up, then really counts down */
+    var TL = { lift0: .05, liftStep: .04, liftLen: .14, flip0: .36, flipStep: .03, flipLen: .07 };
+
+    function layout() {
+      var W = stage.clientWidth, H = stage.clientHeight;
+      if (!W || !H) return false;
+      var nar = W < 900 || W < H * .95;
+      var pw = paper.offsetWidth, ph = paper.offsetHeight, f = parseFloat(getComputedStyle(paper).fontSize);
+      var cw = cards[0].offsetWidth, ch = cards[0].offsetHeight;
+      var phr = hls.map(function (h) { var o = off(h, paper); return [o[0] + h.offsetWidth / 2 - pw / 2, o[1] + h.offsetHeight / 2 - ph / 2]; });
+      var ins = backs.map(function (b) {
+        var h = b.querySelector('.pp-hl'), o = off(h, b), hw = h.offsetWidth, hh = h.offsetHeight;
+        return { t: o[1], l: o[0], r: cw - o[0] - hw, b: ch - o[1] - hh, ax: o[0] + hw / 2 - cw / 2, ay: o[1] + hh / 2 - ch / 2 };
+      });
+      var P0, P1, P2, fan, stack, T, s1, pAway;
+      if (!nar) {
+        P0 = { x: W * .73, y: Math.max(H * .555, ph / 2 + 92), r: 3 };
+        P1 = { x: W * .255, y: H * .6 + ph / 2, r: -4 };
+        P2 = { x: W * .2, y: H * 1.3 + ph / 2, r: -11 };
+        s1 = 1.04;
+        fan = [[.575, .3, -6], [.85, .36, 5], [.59, .7, 3], [.855, .74, -4]].map(function (a) { return { x: a[0] * W, y: a[1] * H, r: a[2], s: s1 }; });
+        stack = { x: W * .7, y: H * .56, s: 1.3 };
+        var D = Math.min(W * .35, H * .56);
+        T = { x: W * .69, y: H * .43, D: D };
+        pAway = [.61, .69];
+      } else {
+        // phones / portrait: deal the cards onto one pile between the copy and the
+        // page (each new card lands on top, so nothing readable is ever covered),
+        // and clear the page away before the deck stacks behind its dividers.
+        var cb = c1.offsetTop + c1.offsetHeight;
+        P0 = { x: W * .53, y: Math.max(H * .69, cb + 24 + 2.8 * f) + ph / 2, r: 4 };
+        var top1 = Math.min(H * .6, H - 19.6 * f - 14);
+        P1 = { x: W * .5, y: top1 + ph / 2, r: -3 };
+        P2 = { x: W * .45, y: H * 1.35 + ph / 2, r: -9 };
+        s1 = Math.min(1.1, (W - 32) / cw);
+        var y0 = c2a.offsetTop + c2a.offsetHeight + 16 + ch * s1 / 2;
+        fan = [[-5, 0, -3], [6, 4, 2.5], [-3, 8, -1.5], [4, 12, 1.2]].map(function (a) { return { x: W / 2 + a[0], y: y0 + a[1], r: a[2], s: s1 }; });
+        var ss = Math.min(1.3, (W - 44) / cw), sTop = c2b.offsetTop + c2b.offsetHeight + f * ss * 2.6 + 12;
+        // centre the deck (tabs above, label below) in the space under the copy
+        stack = { x: W / 2, y: Math.max(sTop + ch * ss / 2, (sTop + H - f * ss * 3.4) / 2), s: ss };
+        var top0 = Math.max(62, H * .075), c3top = c3.offsetTop;
+        var Dn = Math.max(120, Math.min(W * .7, H * .34, (c3top - top0 - 56) / 1.24));
+        T = { x: W / 2, y: top0 + Dn / 2, D: Dn };
+        pAway = [.45, .53];
+      }
+      L = { W: W, H: H, nar: nar, flipStep: nar ? 0 : TL.flipStep, pw: pw, ph: ph, cw: cw, ch: ch, f: f, phr: phr, ins: ins, P0: P0, P1: P1, P2: P2, fan: fan, stack: stack, T: T, pAway: pAway };
+      timer.style.setProperty('--D', px(T.D));
+      dim.style.setProperty('--lx', px(T.x)); dim.style.setProperty('--ly', px(T.y)); dim.style.setProperty('--lr', px(T.D));
+      var ls = T.D * 2.3; lamp.style.width = lamp.style.height = px(ls); lamp.style.left = px(T.x - ls / 2); lamp.style.top = px(T.y - ls / 2);
+      last = {};
+      return true;
+    }
+
+    function paperAt(p) {
+      var a = io(seg(p, .03, .15)), b = io(seg(p, L.pAway[0], L.pAway[1])), A = L.P0, B = L.P1, C = L.P2;
+      return { x: lerp(lerp(A.x, B.x, a), C.x, b), y: lerp(lerp(A.y, B.y, a), C.y, b), r: lerp(lerp(A.r, B.r, a), C.r, b) };
+    }
+    function fade(el, key, o, dy) {
+      set(el, key, 'opacity', o.toFixed(3));
+      var v = dy.toFixed(1) + 'px'; if (last[key + 'dy'] !== v) { last[key + 'dy'] = v; el.style.setProperty('--dy', v); }
+      var hide = o < .5; if (last[key + 'off'] !== hide) { last[key + 'off'] = hide; el.classList.toggle('pp-off', hide); }
+    }
+    var tilt = { x: 0, y: 0, tx: 0, ty: 0 };
+    function render(p) {
+      var W = L.W, H = L.H, i;
+      var o1 = 1 - seg(p, .03, .09); fade(c1, 'c1', o1, -50 * (1 - o1));
+      set(aside, 'as', 'opacity', (1 - seg(p, .005, .04)).toFixed(3));
+      var Pp = paperAt(p), tk = 1 - seg(p, 0, .08);
+      set(sheet, 'sh', 'transform', 'translate(' + px(Pp.x - L.pw / 2) + ',' + px(Pp.y - L.ph / 2) + ') rotate(' + Pp.r.toFixed(2) + 'deg)' +
+        (tk > 0 && (tilt.x || tilt.y) ? ' perspective(1800px) rotateX(' + (-tilt.y * 5 * tk).toFixed(2) + 'deg) rotateY(' + (tilt.x * 6 * tk).toFixed(2) + 'deg)' : ''));
+      var i2 = seg(p, .06, .11), u2 = seg(p, .42, .465); fade(c2a, 'c2a', i2 * (1 - u2), 24 * (1 - i2) - 24 * u2);
+      var i3 = seg(p, .46, .51), u3 = seg(p, .615, .645); fade(c2b, 'c2b', i3 * (1 - u3), 24 * (1 - i3) - 24 * u3);
+      var rad = Pp.r * Math.PI / 180, co = Math.cos(rad), si = Math.sin(rad);
+      var st = io(seg(p, .49, .58)), ut = io(seg(p, .61, .69)), S = L.stack;
+      for (i = 0; i < 4; i++) {
+        var c = cards[i], k = 'k' + i, l0 = TL.lift0 + i * TL.liftStep, lt = seg(p, l0, l0 + TL.liftLen);
+        if (lt <= 0) { set(c, k, 'visibility', 'hidden'); continue; }
+        set(c, k, 'visibility', 'visible');
+        var hp = L.phr[i], I = L.ins[i];
+        // where the highlighted phrase sits on the (moving, rotated) page right now
+        var hx = Pp.x + co * hp[0] - si * hp[1], hy = Pp.y + si * hp[0] + co * hp[1];
+        // card centre that puts its answer phrase exactly over the page's phrase
+        var sx = hx - (co * I.ax - si * I.ay), sy = hy - (si * I.ax + co * I.ay);
+        var a = eo(seg(lt, 0, .22)), b = io(seg(lt, .16, 1)), F = L.fan[i];
+        var x = lerp(sx, F.x, b), y = lerp(sy - a * L.f * .5, F.y, b), r = lerp(Pp.r, F.r, b), s = lerp(1 + .06 * a, F.s, b), so = 3 - i;
+        x = lerp(x, S.x + so * L.f * .14, st); y = lerp(y, S.y + so * L.f * .2, st); r = lerp(r, [-2.4, 1.7, -1, .5][i], st); s = lerp(s, S.s, st);
+        y += ut * H * 1.05; r += ut * (i % 2 ? 7 : -6); x += ut * W * (i % 2 ? .04 : -.03);
+        set(c, k, 'transform', 'translate(' + px(x - L.cw / 2) + ',' + px(y - L.ch / 2) + ') rotate(' + r.toFixed(2) + 'deg) scale(' + s.toFixed(4) + ')');
+        // the card grows out of the highlight: clip from the phrase box to the whole card (+ room for its shadow)
+        var m = io(seg(lt, .12, .8)), e = -2.4 * L.f;
+        set(backs[i], k, 'clipPath', m < 1 ? 'inset(' + px(lerp(I.t, e, m)) + ' ' + px(lerp(I.r, e, m)) + ' ' + px(lerp(I.b, e, m)) + ' ' + px(lerp(I.l, e, m)) + ' round ' + px(lerp(.42 * L.f, .22 * L.f, m)) + ')' : 'none');
+        var sh = a * (1 - m);
+        set(c, k, 'filter', sh > .01 ? 'drop-shadow(0 ' + px(L.f * .5 * sh) + ' ' + px(L.f * .7 * sh) + ' rgba(0,0,0,' + (.55 * sh).toFixed(2) + '))' : 'none');
+        var f0 = TL.flip0 + i * L.flipStep, ft = io(seg(p, f0, f0 + TL.flipLen));
+        set(flips[i], k, 'transform', 'perspective(' + (L.f * 80).toFixed(0) + 'px) rotateY(' + (180 - 180 * ft + (i === 3 ? 180 * io(peek) : 0)).toFixed(1) + 'deg)');
+      }
+      var dt = seg(p, .53, .58), dvy = (1 - eo(dt)) * L.f * 1.8 + ut * H * 1.05;
+      set(dvs, 'dv', 'opacity', (ut >= 1 ? 0 : dt).toFixed(3));
+      set(dvs, 'dv', 'transform', 'translate(' + px(S.x - L.cw / 2 - ut * W * .01) + ',' + px(S.y - L.ch / 2 + dvy) + ') rotate(' + (-1.4 - ut * 5).toFixed(2) + 'deg) scale(' + S.s.toFixed(4) + ')');
+      set(dim, 'dm', 'opacity', io(seg(p, .61, .69)).toFixed(3));
+      set(lamp, 'lp', 'opacity', seg(p, .62, .71).toFixed(3));
+      var tm = io(seg(p, .62, .70)), T = L.T;
+      set(timer, 'tm', 'opacity', tm.toFixed(3));
+      set(timer, 'tm', 'transform', 'translate(' + px(T.x - T.D / 2) + ',' + px(T.y - T.D / 2 + (1 - tm) * 30) + ') scale(' + (.95 + .05 * tm).toFixed(4) + ')');
+      var tOff = tm < .5; if (last.tmoff !== tOff) { last.tmoff = tOff; timer.classList.toggle('pp-off', tOff); }
+      var o4 = seg(p, .63, .71); fade(c3, 'c3', o4, 30 * (1 - o4));
+      if (p >= .68) light(true); else if (p < .62) light(false);
+    }
+
+    /* ── 3. The timer really counts down once it is lit; it winds itself up first.
+          Paused when the tab or the splash is hidden. ── */
+    var mode = 25, face = 60, rem = 0, iv = 0, windRaf = 0, lit = false;
+    function drawClock(sec) {
+      var s = Math.max(0, Math.round(sec)), m = Math.floor(s / 60), r = s % 60;
+      mmEl.textContent = (m < 10 ? '0' : '') + m; ssEl.textContent = (r < 10 ? '0' : '') + r;
+      var fr = Math.max(0, Math.min(sec / (face * 60), .99999)), a = fr * 2 * Math.PI, R0 = 130;
+      wedge.setAttribute('d', fr <= 0 ? 'M200 200Z' : 'M200 200L200 ' + (200 - R0) + 'A' + R0 + ' ' + R0 + ' 0 ' + (a > Math.PI ? 1 : 0) + ' 0 ' + (200 - R0 * Math.sin(a)).toFixed(2) + ' ' + (200 - R0 * Math.cos(a)).toFixed(2) + 'Z');
+    }
+    function setFace(n) {
+      if (n === face) return; face = n;
+      qa('text', faceG).forEach(function (t, i) { t.textContent = String(i * n / 12); });
+    }
+    function stopTick() { if (iv) { clearInterval(iv); iv = 0; } }
+    function startTick() {
+      if (iv || windRaf || !lit || !isOn()) return;
+      iv = setInterval(function () { if (!isOn()) { stopTick(); return; } if (rem > 0) { rem--; drawClock(rem); } }, 1000);
+    }
+    function windTo(to) {
+      if (windRaf) { cancelAnimationFrame(windRaf); windRaf = 0; }
+      stopTick();
+      var from = rem, t0 = 0;
+      if (mqReduce.matches || !isOn()) { rem = to; drawClock(rem); startTick(); return; }
+      windRaf = requestAnimationFrame(function step(ts) {
+        if (!t0) t0 = ts;
+        var t = (ts - t0) / 1000;
+        if (t >= 1.3 || !isOn()) { windRaf = 0; rem = to; drawClock(rem); startTick(); return; }
+        rem = from + (to - from) * (1 - Math.exp(-6 * t) * Math.cos(8 * t));
+        drawClock(rem);
+        windRaf = requestAnimationFrame(step);
+      });
+    }
+    function light(on) {
+      if (on === lit) return; lit = on;
+      if (on) windTo(mode * 60);
+      else { if (windRaf) { cancelAnimationFrame(windRaf); windRaf = 0; } stopTick(); rem = pin ? 0 : mode * 60; drawClock(rem); }
+    }
+    qa('[data-pp-mode]', timer).forEach(function (b, _, all) {
+      b.addEventListener('click', function () {
+        mode = +b.getAttribute('data-pp-mode');
+        all.forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+        setFace(mode > 60 ? 120 : 60);
+        lit = true; windTo(mode * 60);
+      });
+    });
+
+    /* ── 4. Header: solid bar once scrolled, Enter appears once the hero CTAs
+          are gone, 01·02·03 follows the story. ── */
+    var hs = {};
+    function header(p) {
+      var y = w.pageYOffset, H = w.innerHeight, step = -1, cta;
+      if (pin) {
+        cta = p > .05;
+        if (y < range.end - H * .55) step = p < .06 ? 0 : p < .62 ? 1 : 2;
+      } else {
+        var cr = ctaRow.getBoundingClientRect();
+        cta = cr.bottom < 70 || cr.top > H;
+        for (var i = 0; i < 3; i++) { var r = acts[i].getBoundingClientRect(); if (r.top < H * .45 && r.bottom > H * .45) step = i; }
+        var tr = timer.getBoundingClientRect(), vis = tr.top < H * .8 && tr.bottom > H * .2;
+        if (vis !== lit) light(vis);
+      }
+      var solid = y > 8;
+      if (hs.solid !== solid) { hs.solid = solid; hd.classList.toggle('pp-solid', solid); }
+      if (hs.cta !== cta) { hs.cta = cta; hd.classList.toggle('pp-cta-on', cta); }
+      if (hs.step !== step) {
+        hs.step = step;
+        stepLinks.forEach(function (a, i) { if (i === step) a.setAttribute('aria-current', 'step'); else a.removeAttribute('aria-current'); });
+      }
+    }
+
+    /* ── 5. Frame loop: one rAF per scroll/resize/pointer burst, nothing when idle ── */
+    var queued = false;
+    /* The finished deck is usable: hover it (or tap it) to see the answer, and if
+       you pause on it the top card turns itself over every few seconds. */
+    var peek = 0, peekTo = 0, peekRaf = 0, autoT = 0, hovering = false;
+    function inReview(p) { return pin && L && p >= .585 && p <= .61; }
+    function overDeck(x, y) { var S = L.stack; return Math.abs(x - S.x) < L.cw * S.s / 2 && y > S.y - L.ch * S.s / 2 - L.f * S.s * 2.2 && y < S.y + L.ch * S.s / 2; }
+    function stepPeek() {
+      peekRaf = 0;
+      var dd = peekTo - peek;
+      if (mqReduce.matches || Math.abs(dd) < .004) peek = peekTo; else { peek += dd * .14; peekRaf = requestAnimationFrame(stepPeek); }
+      P = -1; req();
+    }
+    function setPeek(to) { if (peekTo !== to) { peekTo = to; if (!peekRaf) peekRaf = requestAnimationFrame(stepPeek); } }
+    function autoPeek(p) {
+      if (!inReview(p)) { if (autoT) { clearTimeout(autoT); autoT = 0; } hovering = false; setPeek(0); return; }
+      if (autoT || hovering) return;
+      autoT = setTimeout(function tick() {
+        autoT = 0;
+        if (!isOn() || hovering || !inReview(prog())) return;
+        setPeek(peekTo ? 0 : 1);
+        autoT = setTimeout(tick, peekTo ? 2600 : 2000);
+      }, 1100);
+    }
+    stage.addEventListener('click', function (e) {
+      if (!inReview(prog()) || !overDeck(e.clientX, e.clientY)) return;
+      if (autoT) { clearTimeout(autoT); autoT = 0; }
+      setPeek(peekTo ? 0 : 1);
+    });
+
+    function frame() {
+      queued = false;
+      if (!isOn()) return;
+      var moving = false, p = 0;
+      if (pin && L) {
+        moving = Math.abs(tilt.tx - tilt.x) > .002 || Math.abs(tilt.ty - tilt.y) > .002;
+        if (moving) { tilt.x += (tilt.tx - tilt.x) * .12; tilt.y += (tilt.ty - tilt.y) * .12; }
+        p = prog(); if (p !== P || moving) { P = p; render(p); }
+      }
+      header(p);
+      if (pin && L) autoPeek(p);
+      if (moving) req();
+    }
+    function req() { if (!queued) { queued = true; requestAnimationFrame(frame); } }
+
+    function setPin(on) {
+      if (on === pin) return;
+      pin = on; R.classList.toggle('pp-pin', on);
+      if (!on) { animated.forEach(function (el) { el.removeAttribute('style'); el.classList.remove('pp-off'); }); L = null; last = {}; }
+      var was = lit; lit = !was; light(was);   // re-apply the lit state so the clock re-seeds for the new mode
+    }
+    function onResize() {
+      if (!isOn()) return;
+      setPin(canPin && !mqReduce.matches && w.innerHeight >= 460);
+      measureRange();
+      if (pin && layout()) { P = -1; }
+      req();
+    }
+
+    if (pin) { rem = 0; drawClock(0); layout(); measureRange(); render(P = prog()); }
+    else { rem = mode * 60; drawClock(rem); }
+    header(P < 0 ? 0 : P);
+    w.addEventListener('scroll', req, { passive: true });
+    var rq = false;
+    w.addEventListener('resize', function () { if (!rq) { rq = true; requestAnimationFrame(function () { rq = false; onResize(); }); } }, { passive: true });
+    w.addEventListener('load', onResize);
+    if (d.fonts && d.fonts.ready) d.fonts.ready.then(onResize);
+    if (mqReduce.addEventListener) mqReduce.addEventListener('change', onResize);
+    d.addEventListener('visibilitychange', function () { if (d.hidden) stopTick(); else { startTick(); req(); } });
+    if (w.MutationObserver) new MutationObserver(function () {
+      if (splash.classList.contains('active')) onResize();
+      else { R.classList.add('pp-ready'); stopTick(); if (windRaf) { cancelAnimationFrame(windRaf); windRaf = 0; } }
+    }).observe(splash, { attributes: true, attributeFilter: ['class'] });
+
+    /* ── 6. Navigation: 01·02·03, "See how it works", keyboard focus ── */
+    function goP(p, smooth) { w.scrollTo({ top: Math.round(range.top + range.len * p), behavior: smooth === false || mqReduce.matches ? 'instant' : 'smooth' }); }
+    var stops = [0, .33, .8];
+    function jump(i) {
+      if (pin) { measureRange(); goP(stops[i]); }
+      else acts[i].scrollIntoView({ behavior: mqReduce.matches ? 'instant' : 'smooth', block: 'start' });
+    }
+    stepLinks.forEach(function (a, i) { a.addEventListener('click', function (e) { e.preventDefault(); jump(i); }); });
+    if (how) how.addEventListener('click', function (e) { e.preventDefault(); jump(1); });
+    story.addEventListener('focusin', function (e) {
+      if (!pin) return;
+      var a = e.target.closest && e.target.closest('.pp-act'), p = prog();
+      if (!a) return;
+      if (a.id === 'pp-notes' && p > .05) goP(0); else if (a.id === 'pp-focus' && p < .72) goP(.8);
+    });
+
+    /* ── 7. Tactile hero: the page tilts a touch under a fine pointer, and the
+          cursor is a highlighter that marks whatever line it passes over ── */
+    if (mq('(pointer:fine)').matches) {
+      w.addEventListener('pointermove', function (e) {
+        if (!pin || !L || P > .08 || !isOn()) return;
+        tilt.tx = e.clientX / L.W * 2 - 1; tilt.ty = e.clientY / L.H * 2 - 1; req();
+      }, { passive: true });
+      w.addEventListener('pointermove', function (e) {
+        if (!L || !isOn() || !inReview(P)) return;
+        var h = overDeck(e.clientX, e.clientY);
+        if (h !== hovering) { hovering = h; if (autoT) { clearTimeout(autoT); autoT = 0; } setPeek(h ? 1 : 0); }
+      }, { passive: true });
+      paper.addEventListener('pointerover', function (e) {
+        var ln = e.target.closest && e.target.closest('.pp-ln');
+        if (ln) ln.classList.add('pp-mk');
+      }, { passive: true });
+    }
+  })();
+  </script>
 
   <!-- ════════════════════════════
        BENTO FEATURES
@@ -4063,6 +4745,7 @@
      overflows horizontally). Safe globally — no part of the app uses a
      horizontal scroller. */
   html, body { overflow-x: hidden; }
+  @supports (overflow-x: clip) { html, body { overflow-x: clip; } }
 
   /* Full-height containers: prefer dvh so the iOS Safari toolbar doesn't
      hide the bottom of the page. The 100vh line is the older-browser
@@ -4382,7 +5065,7 @@
 
     // Prefetch the heavy bundle the moment the user shows intent
     // (hovers a CTA / starts touching it) so the click feels instant.
-    var intentSelectors = '#enterBrainBtn,#getStartedBtn,[onclick*="enterGuestMode"],[onclick*="openFooterLink"]';
+    var intentSelectors = '#enterBrainBtn,#getStartedBtn,[onclick*="enterGuestMode"],[onclick*="openFooterLink"],[data-pp-proxy],[data-pp-intent]';
     var triggered = false;
     function intent() {
       if (triggered) return;
