@@ -1,5 +1,5 @@
 // Tests for mergeStates() — the function standing between a user and losing
-// work when guest data meets an existing account, or when a device reconnects
+// work when local data meets an existing account, or when a device reconnects
 // holding edits the cloud never saw. Its whole contract is "lose nothing".
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -30,7 +30,7 @@ test('subjects unique to each side both survive', () => {
   assert.deepEqual(names, ['Biology', 'Chemistry']);
 });
 
-test('a colliding subject id from the guest side is reallocated, never overwritten', () => {
+test('a colliding subject id from the local side is reallocated, never overwritten', () => {
   // Both sides call their first subject id 1 — the classic silent-clobber case.
   const local = { subjects: [{ id: 1, name: 'Chemistry', desc: '', color: '#0891b2', docs: 0, cards: [] }], nextId: 2 };
   const m = mergeStates(cloud(), local);
@@ -77,7 +77,7 @@ test('sessions and tasks dedupe but keep genuinely distinct entries', () => {
   assert.equal(m.tasks.length, 2, 'the identical task should collapse');
 });
 
-test('account-level settings come from the cloud, not the guest device', () => {
+test('account-level settings come from the cloud, not the local device', () => {
   const local = { focusDuration: 60, dailyGoal: 5, subjects: [], nextId: 1 };
   const m = mergeStates(cloud(), local);
   assert.equal(m.focusDuration, 1500);

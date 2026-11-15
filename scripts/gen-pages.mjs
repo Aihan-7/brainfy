@@ -392,7 +392,7 @@ const PAGES = [
       { q: 'Why 25 minutes?', a: 'It’s long enough for real work but short enough to stay sharp and to start without dread. You can tune the length in Brainfy if a different block suits you.' },
       { q: 'What do I do on the break?', a: 'Step away from the screen — stretch, water, look out a window. The point is to let attention recover, not to switch to another screen.' },
       { q: 'Does it work for flashcards?', a: 'Very well. A pomodoro spent clearing due cards pairs focused attention with active recall — two of the best study levers at once.' },
-      { q: 'Is Brainfy’s timer free?', a: 'Yes — the Pomodoro timer (and ambient sound + session logging) is free, no signup needed to try.' },
+      { q: 'Is Brainfy’s timer free?', a: 'Yes — the Pomodoro timer (and ambient sound + session logging) is free with a free account.' },
     ],
     related: ['pomodoro-timer', 'how-to-study-for-exams', 'study-planner', 'active-recall'],
   },

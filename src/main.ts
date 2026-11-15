@@ -1420,12 +1420,10 @@ function load() {
 // Load state from Firestore (called once after sign-in / on auth restoration)
 // ── Cloud state resolution ────────────────────────────────────────────────
 // Reconcile cloud state with whatever is local after Firebase auth resolves —
-// WITHOUT silently destroying work. Three cases:
-//   • cloud empty                  → keep local (a guest who just signed up
-//                                    keeps everything; save() pushes it up).
-//   • cloud has data, no guest work → load cloud (normal returning user).
-//   • cloud has data AND guest work → ASK: merge the guest work in, or use the
-//                                    account's data only. Never overwrite silently.
+// WITHOUT silently destroying work:
+//   • cloud empty    → keep local (save() pushes it up).
+//   • cloud has data → load cloud, merging in any edits this device made that
+//                      never reached it (see localHasUnsyncedEdits).
 
 let authResolution: Promise<void> | null = null;  // resolve once; concurrent callers share it
 let pendingAuthName: string | null = null;         // name captured at signup time
@@ -1438,22 +1436,10 @@ function hasUserData(st: AppState | null | undefined): boolean {
       || (st.timetable?.length || 0) > 0;
 }
 
-function describeGuestData(st: AppState): string {
-  const parts: string[] = [];
-  if (st.subjects?.length) parts.push(`${st.subjects.length} subject${st.subjects.length > 1 ? 's' : ''}`);
-  const cards = (st.subjects || []).reduce((n, s) => n + (s.cards?.length || 0), 0);
-  if (cards)               parts.push(`${cards} flashcard${cards > 1 ? 's' : ''}`);
-  if (st.sessions?.length) parts.push(`${st.sessions.length} focus session${st.sessions.length > 1 ? 's' : ''}`);
-  if (st.tasks?.length)    parts.push(`${st.tasks.length} task${st.tasks.length > 1 ? 's' : ''}`);
-  if (!parts.length) return 'work';
-  if (parts.length === 1) return parts[0]!;
-  return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
-}
-
-// Merge guest state INTO a copy of the cloud state without losing either side.
-// Account-level settings (durations, goal, ambient, milestones, tourSeen) stay
-// from the cloud; the guest's subjects/cards/documents/sessions/tasks/timetable
-// are merged in, with fresh ids allocated to avoid collisions.
+// Merge this device's local state INTO a copy of the cloud state without losing
+// either side. Account-level settings (durations, goal, ambient, milestones,
+// tourSeen) stay from the cloud; the local subjects/cards/documents/sessions/
+// tasks/timetable are merged in, with fresh ids allocated to avoid collisions.
 function mergeStates(base: AppState, incoming: AppState): AppState {
   const merged: AppState = { ...DEFAULT_STATE, ...base } as AppState;
   let nextId = Math.max(base.nextId || 1, incoming.nextId || 1);
@@ -1522,7 +1508,6 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
     setInterval(async () => { if (firebaseUser) idToken = await firebaseUser.getIdToken(true); }, 55 * 60 * 1000);
     setSyncState('syncing');
 
-    const wasGuest     = sessionStorage.getItem('brainfyGuest') === '1';
     const localState   = S;
     const localHasData = hasUserData(localState);
 
@@ -1550,14 +1535,6 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
 
     if (!cloudReadOk) {
       // Unknown cloud state → no reconciliation. S stays exactly as loaded.
-    } else if (cloudHasData && wasGuest && localHasData) {
-      const merge = await showConfirm({
-        title:        'Bring your guest work along?',
-        message:      `This account already has saved data. Merge in the ${describeGuestData(localState)} you created as a guest, or use only your account's data?`,
-        confirmLabel: 'Merge guest work',
-        cancelLabel:  'Use account only',
-      });
-      S = merge ? mergeStates(cloudState as AppState, localState) : { ...DEFAULT_STATE, ...(cloudState as AppState) };
     } else if (cloudHasData) {
       // The cloud copy is normally authoritative. But if this device still holds
       // edits that never reached it — the tab was closed inside save()'s 400 ms
@@ -1568,12 +1545,11 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
         ? mergeStates(cloudState as AppState, localState)
         : { ...DEFAULT_STATE, ...(cloudState as AppState) };
     } else {
-      // Cloud empty → keep local (guest keeps their work; brand-new user starts clean).
+      // Cloud empty → keep local (a brand-new account starts clean).
       S = localHasData ? localState : { ...DEFAULT_STATE, ...(cloudState || {}) };
     }
 
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch (_) {}
-    sessionStorage.removeItem('brainfyGuest');   // authed now, no longer a guest
 
     const realName = displayName || pendingAuthName || user.displayName || user.email?.split('@')[0] || 'Student';
     pendingAuthName = null;
@@ -1613,11 +1589,6 @@ function applySigninHint(): void {
   // we don't end up with stacked handlers on repeat splash visits.
   const fresh = btn.cloneNode(true) as HTMLElement;
   btn.parentNode?.replaceChild(fresh, btn);
-
-  // A returning user (has a hint / "Continue as <name>") doesn't need the
-  // "Try it free — no signup" guest CTA; hide it for them, show it otherwise.
-  const guestBtn = el('tryGuestBtn');
-  if (guestBtn) guestBtn.style.display = hint?.name ? 'none' : '';
 
   if (hint?.name) {
     fresh.textContent = `Continue as ${hint.name} →`;
@@ -4180,10 +4151,22 @@ function importPublicDeckById(id: string): void {
 }
 
 // Open a deck shared via /?deck=<id>: fetch it, offer to copy it in.
+const PENDING_DECK_KEY = 'brainfyPendingDeck';
 async function maybeOpenSharedDeck(): Promise<void> {
-  const id = new URLSearchParams(location.search).get('deck');
+  const fromUrl = new URLSearchParams(location.search).get('deck');
+  if (fromUrl) {
+    try { history.replaceState(null, '', location.pathname); } catch (_) {}   // don't re-trigger on reload
+    try { sessionStorage.setItem(PENDING_DECK_KEY, fromUrl); } catch (_) {}
+  }
+  let id: string | null = fromUrl;
+  try { id = sessionStorage.getItem(PENDING_DECK_KEY) || fromUrl; } catch (_) {}
   if (!id) return;
-  try { history.replaceState(null, '', location.pathname); } catch (_) {}   // don't re-trigger on reload
+  // Copying a deck needs an account: keep it pending through sign-in.
+  if (!firebaseUser) {
+    if (fromUrl) { showToast('Sign in to add this shared deck to your library', 'info'); goTo('signin'); }
+    return;
+  }
+  try { sessionStorage.removeItem(PENDING_DECK_KEY); } catch (_) {}
   if (typeof firebase === 'undefined' || typeof firebase.firestore !== 'function') return;
   try {
     const doc = await firebase.firestore().collection('publicDecks').doc(id).get();
@@ -5722,7 +5705,7 @@ function friendlyAuthError(code: string): string {
 }
 
 // Called after successful Firebase sign-in — reconciles cloud state (merging
-// any guest work) then navigates. The reconcile is memoized in
+// any unsynced local edits) then navigates. The reconcile is memoized in
 // resolveStateAfterAuth, so the auth observer firing in parallel is harmless.
 async function onFirebaseSignIn(user: any, displayName?: string): Promise<void> {
   await resolveStateAfterAuth(user, displayName);
@@ -6721,8 +6704,6 @@ function init() {
 
   // Fire the daily on-open study nudge once state has settled.
   window.setTimeout(nudgeIfDue, 2500);
-  // Handle a /?deck=<id> share link once Firestore is ready.
-  window.setTimeout(() => { void maybeOpenSharedDeck(); }, 1800);
 
   // Capture an invite ?ref= once (attribution for the referral loop), then
   // strip it from the URL so it doesn't linger or re-fire on reload.
@@ -6741,7 +6722,7 @@ function init() {
   // load their cloud state. If not, show splash as normal.
   const authObserver = async (user: any) => {
     if (user) {
-      // Reconcile cloud state (merging any guest work). Memoized, so if an
+      // Reconcile cloud state (merging any unsynced local edits). Memoized, so if an
       // explicit sign-in handler is also resolving, we await the same result.
       await resolveStateAfterAuth(user);
       // Auto-navigate ONLY from active auth flows (signin/signup) — NOT from
@@ -6750,32 +6731,23 @@ function init() {
       // would skip that click and create an "I never clicked anything" UX.
       const navAwayFrom: ViewName[] = ['signin', 'signup'];
       if (navAwayFrom.includes(currentView)) goTo('home');
+      void maybeOpenSharedDeck();
     } else {
       firebaseUser = null;
       idToken      = '';
       setSyncState('idle');
-      // Guest mode escape hatch — if the URL contains #guest (or sessionStorage
-      // has guestMode set), don't bounce signed-out users back to splash.
-      // Lets us preview the dashboard without going through auth.
-      const isGuest = location.hash === '#guest' || sessionStorage.getItem('brainfyGuest') === '1';
-      if (isGuest) {
-        sessionStorage.setItem('brainfyGuest', '1');
-        if (!S.userName) S.userName = 'Guest';
-        const authViews: ViewName[] = ['splash', 'signin', 'signup'];
-        if (authViews.includes(currentView)) goTo('home');
-        return;
-      }
       // Only redirect to splash from app views — don't bounce users off sign-in/sign-up
       const authViews: ViewName[] = ['splash', 'signin', 'signup'];
       if (!authViews.includes(currentView)) goTo('splash');
+      void maybeOpenSharedDeck();     // a /?deck= link waits for sign-in
     }
   };
 
   // If the Firebase SDK never loaded (blocked CDN, privacy extension, gstatic
   // outage) `firebase` is undefined and touching it here would throw, taking
-  // the rest of init() with it. Degrade instead: everything local — the timer,
-  // decks, study modes, guest mode — keeps working; only sync and sign-in wait
-  // for a successful reload. Pairs with the boot fallback in index.html.
+  // the rest of init() with it. Degrade instead: init() finishes and the splash
+  // and sign-in screens still render; sign-in and sync wait for a successful
+  // reload. Pairs with the boot fallback in index.html.
   if (typeof firebase !== 'undefined' && typeof firebase.auth === 'function') {
     firebase.auth().onAuthStateChanged(authObserver);
   } else {
@@ -6786,46 +6758,6 @@ function init() {
   // Initial paint of the chip (before auth resolves)
   renderSyncChip();
 }
-
-// Expose a quick guest-mode toggle so users can also enter from the console
-// or from a button on the splash. Once activated it persists for the session.
-// Seed a single demo subject (with the starter deck + a welcome note) so a
-// brand-new guest lands on a populated Library/Flashcards instead of empty
-// screens — the fastest path to the "aha". Only runs when there's no data yet,
-// so it never clobbers a returning guest's work.
-function seedDemoData(): void {
-  if (S.subjects.length) return;
-  const docId = S.nextId + 1;
-  const demo: Subject = {
-    id:       S.nextId,
-    name:     'Study Science (demo)',
-    desc:     'A sample deck to explore — add your own subjects anytime.',
-    docs:     1,
-    color:    SUBJECT_COLORS[0]!,
-    accessed: Date.now(),
-    cards:    (FLASHCARD_SETS.default || []).map(c => ({ q: c.q, a: c.a })),
-    documents: [{
-      id:      docId,
-      name:    'Welcome to Brainfy',
-      type:    'note',
-      content: '## Welcome 👋\n\nThis is a demo subject so you can look around.\n\n- Open **Flashcards** to review this deck with spaced repetition\n- Start a **Focus session** from Home\n- Add your own subject from the **Library** — drop in a PDF, paste notes, or link a lecture and the AI builds flashcards for you\n\nWhen you sign up, everything you create here comes with you.',
-      date:    Date.now(),
-    }],
-  };
-  S.subjects.push(demo);
-  S.nextId = docId + 1;
-}
-
-function enterGuestMode(): void {
-  sessionStorage.setItem('brainfyGuest', '1');
-  if (!S.userName) S.userName = 'Guest';
-  seedDemoData();
-  save();                 // persist the demo so it survives a reload
-  setSyncState('idle');
-  goTo('home');
-  showToast('Demo mode — data stays on this device. Sign up to back it up.', 'info');
-}
-(window as any).enterGuestMode = enterGuestMode;
 
 // Boot — works whether the script is loaded at parse time (deferred) OR
 // injected later by the inline lazy-loader (after DOMContentLoaded has

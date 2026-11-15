@@ -103,7 +103,7 @@
           { "@type": "Question", "name": "What does Brainfy do?",
             "acceptedAnswer": { "@type": "Answer", "text": "Brainfy turns your notes, PDFs and lecture videos into flashcards with AI, schedules reviews with spaced repetition, and helps you focus with a Pomodoro timer, a weekly planner and an AI tutor — all in one web app." } },
           { "@type": "Question", "name": "Do I need an account to try Brainfy?",
-            "acceptedAnswer": { "@type": "Answer", "text": "No. You can try Brainfy instantly in your browser with no signup. Create a free account when you want your decks and progress synced across devices." } },
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes — a free account (Google or email) is how Brainfy keeps your decks, notes and progress synced across your devices. Signing up takes a few seconds and needs no credit card." } },
           { "@type": "Question", "name": "Can I import decks from Anki or Quizlet?",
             "acceptedAnswer": { "@type": "Answer", "text": "Yes. You can import Anki \"Notes in Plain Text\", Quizlet exports, or CSV files from any deck's Cards tab, and export your decks back to CSV anytime — no lock-in." } },
           { "@type": "Question", "name": "How is Brainfy different from Anki or Quizlet?",
@@ -2087,12 +2087,11 @@
         <p class="pp-eyebrow">Free AI study app</p>
         <h1 class="pp-h1" id="ppH1"><span class="pp-l1">Turn your notes</span> <span class="pp-l2">into <mark class="pp-mark">flashcards.</mark></span> <span class="pp-l3">Then actually <span class="pp-u">focus.<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M4 13C40 8 86 6 128 8s52 3 66 1"/></svg></span></span></h1>
         <p class="pp-sub">The free <strong>AI study app</strong> that turns your PDFs, notes and lecture videos into flashcards — then keeps you in deep focus with a calm timer and an AI tutor. No ads, no streak guilt.</p>
-        <!-- #enterBrainBtn / #tryGuestBtn are wired by the boot script + src/main.ts
-             (applySigninHint rewrites the label and clones the node), so they
-             stay text-only. Every other Enter / Try button proxies to these. -->
+        <!-- #enterBrainBtn is wired by the boot script + src/main.ts
+             (applySigninHint rewrites the label and clones the node), so it
+             stays text-only. Every other Enter button proxies to it. -->
         <div class="pp-ctas" id="ppCtaRow">
           <button class="pp-btn pp-btn-p" type="button" id="enterBrainBtn">Enter Brainfy →</button>
-          <button class="pp-btn pp-btn-s" type="button" id="tryGuestBtn" onclick="enterGuestMode()">Try it free — no signup</button>
           <a class="pp-btn pp-btn-t" href="#pp-cards" id="ppHow"><span>See how it works</span><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2v10M3 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
         </div>
         <p class="pp-for"><b>Made for</b><span>GCSE</span><span>A-level</span><span>AP</span><span>CBSE</span><span>NEET</span><span>Med &amp; nursing</span></p>
@@ -2178,7 +2177,6 @@
         <p class="pp-body">Bring one set of notes; leave with a deck and twenty-five quiet minutes. One calm timer — <b>Pomodoro</b> 25/5, <b>Extended</b> 50/10 or <b>Deep Work</b> 90/20<span class="pp-wide">, with lofi, rain, white noise or forest playing low</span>. Stuck? Ask the <b>AI tutor</b>; it already knows your subjects.</p>
         <div class="pp-ctas">
           <button class="pp-btn pp-btn-p" type="button" data-pp-proxy="enter" onclick="document.getElementById('enterBrainBtn').click()">Enter Brainfy →</button>
-          <button class="pp-btn pp-btn-s" type="button" data-pp-proxy="guest" onclick="document.getElementById('tryGuestBtn').click()">Try it free — no signup</button>
         </div>
       </div>
     </section>
@@ -2227,14 +2225,13 @@
     var stepLinks = qa('[data-pp-step]', hd), acts = [$('pp-notes'), $('pp-cards'), $('pp-focus')];
     function isOn() { return splash.classList.contains('active') && !d.hidden; }
 
-    /* ── 1. Extra Enter / Try buttons mirror the real ones (label + visibility).
-          The boot script and applySigninHint() rewrite #enterBrainBtn ("Continue
-          as <name> →") and hide #tryGuestBtn for returning users. ── */
+    /* ── 1. Extra Enter buttons mirror the real one's label. The boot script
+          and applySigninHint() rewrite #enterBrainBtn ("Continue as <name> →")
+          for returning users. ── */
     var proxies = qa('[data-pp-proxy]');
     function syncCTAs() {
-      var e = $('enterBrainBtn'), g = $('tryGuestBtn');
+      var e = $('enterBrainBtn');
       var label = e ? e.textContent.replace(/\s+/g, ' ').trim() : 'Enter Brainfy →';
-      var guestHidden = !g || g.style.display === 'none';
       proxies.forEach(function (b) {
         if (b.getAttribute('data-pp-proxy') === 'enter') {
           // In the slim header "Continue as <name> →" can ellipsize on narrow
@@ -2244,7 +2241,6 @@
           if (b.textContent !== label) b.textContent = label;
           if (full) { b.setAttribute('aria-label', full); b.title = full; } else if (b.title) { b.removeAttribute('aria-label'); b.removeAttribute('title'); }
         }
-        else if (b.hidden !== guestHidden) b.hidden = guestHidden;
       });
       fitHeaderCta();
     }
@@ -2857,7 +2853,7 @@
         </details>
         <details class="pp-fq">
           <summary><span class="pp-fqn" aria-hidden="true">3</span><span class="pp-fqt">Do I need an account to try Brainfy?</span><span class="pp-fqm" aria-hidden="true">[1]</span></summary>
-          <div class="pp-fqa"><p>No. You can try Brainfy instantly in your browser with no signup. Create a free account when you want your decks and progress synced across devices.</p><svg class="pp-tick" viewBox="0 0 56 44" aria-hidden="true"><path d="M5 25c5 3 9 8 12 14 9-16 20-28 35-36"/></svg></div>
+          <div class="pp-fqa"><p>Yes — a free account (Google or email) is how Brainfy keeps your decks, notes and progress synced across your devices. Signing up takes a few seconds and needs no credit card.</p><svg class="pp-tick" viewBox="0 0 56 44" aria-hidden="true"><path d="M5 25c5 3 9 8 12 14 9-16 20-28 35-36"/></svg></div>
         </details>
         <details class="pp-fq">
           <summary><span class="pp-fqn" aria-hidden="true">4</span><span class="pp-fqt">Can I import decks from Anki or Quizlet?</span><span class="pp-fqm" aria-hidden="true">[1]</span></summary>
@@ -2880,13 +2876,13 @@
          wired by id in the boot script and src/main.ts, so it stays a text-only
          <button>. The other buttons proxy to the hero's real ones and are kept
          in step with them by the script below (returning users get
-         "Continue as <name>" and never see a guest button). ═══ -->
+         "Continue as <name>"). ═══ -->
     <section class="pp-sec pp-s-cta" id="splash-cta" aria-labelledby="ppH2m">
       <div class="pp-wrap pp-two">
         <div class="pp-cc2">
           <p class="pp-label">09 <i>/ Membership</i></p>
           <h2 class="pp-h2" id="ppH2m"><span class="pp-new">Get</span><span class="pp-retx">Here’s</span> your <em>library card.</em></h2>
-          <p class="pp-body"><span class="pp-new">A free account keeps your decks, notes and progress on every device you use. Not ready to sign up? Try Brainfy as a guest first.</span><span class="pp-retx">Welcome back. Your decks, notes and progress are waiting where you left them, on every device you sign in on.</span></p>
+          <p class="pp-body"><span class="pp-new">A free account keeps your decks, notes and progress on every device you use. Sign up with Google or email in a few seconds.</span><span class="pp-retx">Welcome back. Your decks, notes and progress are waiting where you left them, on every device you sign in on.</span></p>
         </div>
         <div class="pp-art pp-art-col">
           <div class="pp-lib pp-sheetp pp-paperish" id="ppLib" data-pp-rv>
@@ -2907,7 +2903,6 @@
             <span class="pp-stamp" id="ppStamp" aria-hidden="true">Issued<span id="ppStampDate">today</span></span>
           </div>
           <div class="pp-cta-more">
-            <button class="pp-btn pp-btn-s" type="button" data-pp-proxy="guest" onclick="document.getElementById('tryGuestBtn').click()">Try it free — no signup</button>
             <p class="pp-cta-login">Already a member? <a href="#" data-pp-intent onclick="goTo('signin');return false;">Log in</a></p>
           </div>
         </div>
@@ -2950,22 +2945,20 @@
     var mqReduce = null; try { mqReduce = w.matchMedia('(prefers-reduced-motion: reduce)'); } catch (e) {}
     function reduced() { return !!(mqReduce && mqReduce.matches); }
 
-    /* ── 1. Final CTA (library card) mirrors the hero's real buttons.
+    /* ── 1. Final CTA (library card) mirrors the hero's real Enter button.
           The boot script and applySigninHint() rewrite #enterBrainBtn
-          ("Continue as <name> →") and hide #tryGuestBtn for returning users. ── */
+          ("Continue as <name> →") for returning users. ── */
     var cta = $('splash-cta'), gs = $('getStartedBtn'), nameEl = $('ppLibName'), hint = $('ppLibHint');
-    var resume = qa('[data-pp-proxy="resume"]', rest), guest = qa('[data-pp-proxy="guest"]', rest);
+    var resume = qa('[data-pp-proxy="resume"]', rest);
     var GS = gs ? gs.textContent : '';
     function syncCTAs() {
-      var e = $('enterBrainBtn'), g = $('tryGuestBtn');
+      var e = $('enterBrainBtn');
       var label = e ? e.textContent.replace(/\s+/g, ' ').trim() : 'Enter Brainfy →';
-      var ret = !g || g.style.display === 'none';
-      var m = /^Continue as (.+) →$/.exec(label), name = ret && m ? m[1] : '';
+      var m = /^Continue as (.+) →$/.exec(label), ret = !!m, name = m ? m[1] : '';
       resume.forEach(function (b) {
         if (b.hidden === ret) b.hidden = !ret;
         if (ret && b.textContent !== label) { b.textContent = label; b.title = label; }
       });
-      guest.forEach(function (b) { if (b.hidden !== ret) b.hidden = ret; });
       if (cta) cta.classList.toggle('pp-ret', ret);
       // returning users already have a card: sign-up becomes the quiet option
       var gl = ret ? 'New account →' : GS;
@@ -5239,7 +5232,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = '69cfe063ec1e';
+  var APP_VERSION = '88e59457086d';
   window.APP_VERSION = APP_VERSION;  // exposed so script.js can include it in telemetry
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {
@@ -5288,8 +5281,8 @@
       // Without this catch the rejected promise stayed cached in appPromise, so
       // every CTA below became a permanent no-op and the user just saw a splash
       // screen where nothing happened — no message, no retry. Instead: load the
-      // app bundle anyway (guest mode, the timer and local decks need no
-      // Firebase at all), and only if THAT fails admit defeat out loud.
+      // app bundle anyway (the sign-in screen can then explain what is wrong and
+      // a later click retries), and only if THAT fails admit defeat out loud.
       .catch(function (e) {
         console.error('[boot] Firebase SDK failed to load', e);
         appPromise = null;                     // let the next click genuinely retry
@@ -5328,7 +5321,7 @@
     });
   }
 
-  // Stub functions so existing inline onclick="enterGuestMode()" etc.
+  // Stub functions so existing inline onclick="goTo('signin')" etc.
   // don't crash before app.js loads. Each stub starts the lazy load
   // and re-dispatches once the real implementation replaces the stub.
   function stub(name) {
@@ -5341,8 +5334,8 @@
     window[name] = fn;
   }
   stub('goTo');
-  stub('enterGuestMode');
   stub('openFooterLink');
+  if (/[?&]deck=/.test(location.search)) window.loadApp();
   stub('openSearch');
   stub('openTTModal');
   stub('startTour');
@@ -5372,9 +5365,6 @@
     var enterBtn = document.getElementById('enterBrainBtn');
     if (enterBtn && hintName) {
       enterBtn.textContent = 'Continue as ' + hintName + ' →';
-      // Returning user → "Try it free, no signup" is irrelevant; hide it.
-      var guestBtn = document.getElementById('tryGuestBtn');
-      if (guestBtn) guestBtn.style.display = 'none';
     }
 
     function wire(id, action) {
@@ -5390,7 +5380,7 @@
 
     // Prefetch the heavy bundle the moment the user shows intent
     // (hovers a CTA / starts touching it) so the click feels instant.
-    var intentSelectors = '#enterBrainBtn,#getStartedBtn,[onclick*="enterGuestMode"],[onclick*="openFooterLink"],[data-pp-proxy],[data-pp-intent]';
+    var intentSelectors = '#enterBrainBtn,#getStartedBtn,[onclick*="openFooterLink"],[data-pp-proxy],[data-pp-intent]';
     var triggered = false;
     function intent() {
       if (triggered) return;

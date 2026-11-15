@@ -2,7 +2,7 @@
 //
 // src/main.ts compiles with `module: "None"` + `outFile`, so it is one big
 // concatenation of globals rather than an importable module — which is why the
-// pure logic at the heart of the app (the SRS scheduler, the guest/cloud merge)
+// pure logic at the heart of the app (the SRS scheduler, the local/cloud merge)
 // had no tests at all while the JWT verifier had 18.
 //
 // Rather than refactor the bundle (a large, risky change) or duplicate the logic
