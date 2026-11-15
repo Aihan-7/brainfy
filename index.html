@@ -2290,12 +2290,10 @@
        section is paint-contained, so nothing inside draws outside its box:
        anything that crosses a gap (.pp-prop) sits between sections. The
        footer is left alone: it is small, and its shadow reaches above it.
-       Left to the browser, each section would be laid out in the scroll
-       frame where it first comes within reach (two at once at the hand-off
-       from the credits: a ~100 ms frame at 4x CPU throttling). So the script
-       lays them out ahead of time, one per idle slot, and marks each .pp-cv:
-       always rendered from then on, with the same containment as before so
-       nothing looks different. */
+       The script lays each section out ahead of time in idle slots and marks
+       it .pp-cv (same containment, so nothing looks different); otherwise
+       it's laid out in the scroll frame it comes into reach (two at once at
+       the hand-off from the credits: ~100 ms at 4x CPU). */
     #ppRest>.pp-sec{content-visibility:auto;contain-intrinsic-size:auto var(--ci,1000px)}
     #ppRest>.pp-sec.pp-cv{content-visibility:visible;contain:layout style paint}
     /* content-box heights (the section's padding comes on top) */
@@ -2317,26 +2315,22 @@
     .pp-note{display:flex;align-items:flex-start;gap:6px;margin-top:26px;font-family:var(--pp-hand);font-weight:500;font-size:25px;line-height:1.1;color:var(--pp-cream2);transform:rotate(-3deg);transform-origin:0 50%}
     .pp-note svg{width:70px;height:40px;flex:none;margin-top:8px;fill:none;stroke:var(--pp-cream2);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 
-    /* arrival (JS adds .pp-rv / .pp-cue, then .pp-in when the thing scrolls
-       into view). Only the two small objects, the about-the-author card and
-       the library card, are set down on the desk as a whole: moving a whole
-       sheet means a layer the size of the sheet, rastered once when the
-       move starts and again when it ends, and with seven of them scrolling
-       stuttered at 4x CPU throttling. The big sheets stay put and something
-       small on them moves instead: a stamp lands, the seal is pressed, the
-       red pen strikes out each rule's crossed-out line, the first answer
-       gets its tick. */
+    /* arrival (JS adds .pp-rv / .pp-cue, then .pp-in on scrolling into view).
+       Only the two small objects (about card, library card) are set down
+       whole. On the big sheets a small mark is inked in instead (stamp,
+       seal, each strike-out, the tick), by fading only: moving a sheet, or
+       any transform animation, makes Chrome lift what's painted after it
+       onto new layers and re-raster them; scrolling stuttered at 4x CPU.
+       The marks are tiny and stay on layers of their own (will-change)
+       once armed, so starting or ending a fade changes no layers. */
     .pp-rv{opacity:0;translate:0 34px;rotate:1.2deg;transition:opacity .6s ease,translate .9s cubic-bezier(.2,.75,.25,1),rotate .9s cubic-bezier(.2,.75,.25,1)}
     .pp-rv.pp-in{opacity:1;translate:none;rotate:none}
-    .pp-rd-stamp.pp-cue,.pp-seal.pp-cue,.pp-tick.pp-cue{opacity:0}
-    .pp-rd-stamp.pp-cue.pp-in{opacity:1;animation:ppLand .5s cubic-bezier(.3,1.5,.5,1) .3s backwards}
-    .pp-seal.pp-cue.pp-in{opacity:1;animation:ppSeal .55s cubic-bezier(.3,1.35,.5,1) .25s backwards}
-    .pp-fq[open] .pp-tick.pp-cue.pp-in{opacity:1;animation:ppTickIn .45s cubic-bezier(.3,1.4,.5,1) .3s backwards}
-    .pp-rs.pp-cue::after{scale:0 1;transform-origin:0 50%}
-    .pp-rs.pp-cue.pp-in::after{scale:1;transition:scale .5s cubic-bezier(.6,.05,.3,1) .2s}
-    @keyframes ppLand{from{opacity:0;scale:1.9;rotate:-9deg}60%{opacity:1}}
-    @keyframes ppSeal{from{opacity:0;scale:1.45}45%{opacity:1}}
-    @keyframes ppTickIn{from{opacity:0;transform:scale(.4) rotate(-14deg)}}
+    .pp-rv.pp-now{transition:none}
+    .pp-rd-stamp.pp-cue,.pp-seal.pp-cue,.pp-tick.pp-cue,.pp-rs.pp-cue{opacity:0;will-change:opacity}
+    #ppLib.pp-rv .pp-stamp{will-change:opacity}
+    .pp-rd-stamp.pp-cue.pp-in,.pp-seal.pp-cue.pp-in{opacity:1;transition:opacity .16s ease-in .35s}
+    .pp-fq[open] .pp-tick.pp-cue.pp-in{opacity:1;transition:opacity .2s ease-in .3s}
+    .pp-rs.pp-cue.pp-in{opacity:1;transition:opacity .2s ease-in .2s}
 
     /* shared paper */
     .pp-sheetp{color:var(--pp-ink);box-shadow:0 .06em .1em rgba(0,0,0,.35),0 26px 46px -18px rgba(0,0,0,.85),inset 0 0 40px rgba(160,130,80,.08)}
@@ -2372,8 +2366,8 @@
     .pp-rest .pp-drh button:focus-visible{outline-offset:-5px;border-radius:5px 5px 0 0}
     .pp-live .pp-drh button[aria-disabled="true"]{cursor:default}
     .pp-drn{flex:none;font-family:var(--pp-mono);font-size:12px;letter-spacing:.08em;color:#a63a24}
-    .pp-drt{flex:1 1 auto;min-width:0;font-size:19.5px;line-height:1.25;font-weight:500;letter-spacing:-.01em;font-variation-settings:'opsz' 24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .pp-drg{flex:none;font-family:var(--pp-mono);font-size:11.5px;letter-spacing:.04em;color:var(--pp-ink2);white-space:nowrap}
+    .pp-drt{flex:0 1 auto;min-width:0;font-size:19.5px;line-height:1.25;font-weight:500;letter-spacing:-.01em;font-variation-settings:'opsz' 24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pp-drg{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:right;font-family:var(--pp-mono);font-size:11.5px;letter-spacing:.04em;color:var(--pp-ink2);white-space:nowrap}
     .pp-live .pp-drh button:hover .pp-drt{text-decoration:underline;text-decoration-color:var(--pp-coral);text-decoration-thickness:2px;text-underline-offset:4px}
     .pp-live .pp-drh button[aria-disabled="true"]:hover .pp-drt{text-decoration:none}
     .pp-drb{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 24px;padding:13px 22px 20px}
@@ -2431,11 +2425,8 @@
     .pp-cat.pp-live .pp-drc:not(.pp-open) .pp-drb{visibility:hidden;transition:visibility 0s .55s}
     .pp-cat.pp-live .pp-drc.pp-open .pp-drb{visibility:visible;transition:none}
     .pp-cat.pp-measure .pp-drc,.pp-cat.pp-measure .pp-drb{transition:none!important}
-    /* the cards are laid out in idle slots of their own, after the drawer's
-       section (see the script's part 4): until then an off-screen card's
-       face is skipped. Its box doesn't change (the drawer fixes its size),
-       and nothing in a card reaches outside it, so the containment that
-       comes with this is invisible. */
+    /* until laid out in idle slots of their own (script part 4), an
+       off-screen card's face is skipped; the drawer fixes the card's box */
     .pp-cat.pp-live .pp-drc{content-visibility:auto}
     .pp-cat.pp-live .pp-drc.pp-cv{content-visibility:visible;contain:layout style paint}
 
@@ -2450,7 +2441,7 @@
     .pp-rd-h{margin-top:16px;font-weight:400;font-size:clamp(26px,2.3vw,32px);line-height:1.08;letter-spacing:-.018em;font-variation-settings:'opsz' 72;text-wrap:balance}
     .pp-rd-h em{font-style:italic;font-weight:350}
     .pp-rd-intro{margin:12px 0 14px;max-width:34em;font-size:15px;line-height:1.55;color:#3d4462;text-wrap:pretty}
-    .pp-rd-list a{display:grid;grid-template-columns:minmax(0,11.5em) minmax(0,1fr);gap:16px;align-items:baseline;padding:10px 0 9px;border-top:1px solid rgba(76,124,176,.28);color:var(--pp-ink);text-decoration:none}
+    .pp-rd-list a{display:grid;grid-template-columns:minmax(0,1fr);gap:1px;padding:9px 0 8px;border-top:1px solid rgba(76,124,176,.28);color:var(--pp-ink);text-decoration:none}
     .pp-rd-list a:last-child{border-bottom:1px solid rgba(76,124,176,.28)}
     .pp-rd-list strong{font-weight:500;font-size:18px;line-height:1.3;letter-spacing:-.005em;font-variation-settings:'opsz' 24}
     .pp-rd-list strong span{display:inline-block;margin-left:.2em;color:#a63a24;transition:transform .2s ease}
@@ -2503,6 +2494,7 @@
       background:radial-gradient(circle at 36% 30%,#e76a51,#bb3b27 55%,#8e2717);clip-path:polygon(50% 0,61% 4%,72% 2%,79% 11%,90% 14%,92% 26%,100% 35%,97% 47%,100% 59%,93% 69%,92% 81%,81% 86%,74% 96%,62% 95%,50% 100%,39% 95%,27% 97%,20% 87%,9% 83%,7% 71%,0 61%,3% 49%,0 37%,7% 27%,9% 15%,20% 12%,28% 3%,39% 5%)}
     .pp-seal::before{content:"";position:absolute;inset:11px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(90,20,10,.28),inset 0 2px 3px rgba(0,0,0,.25)}
     .pp-letter{position:relative;z-index:2;margin:166px 3% 0 0;padding:40px 46px 34px;border-radius:2px;transform:rotate(-1deg);background:linear-gradient(172deg,#fbf6ea,#f3ead6)}
+    @media (min-width:1000px) and (max-width:1279px){.pp-letter{padding-right:92px}}
     .pp-lhd{display:flex;justify-content:space-between;gap:12px;padding-bottom:12px;margin-bottom:22px;border-bottom:1px solid rgba(27,36,64,.22);font-family:var(--pp-mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--pp-ink2)}
     /* :where() keeps these at element weight, so .pp-lhd and .pp-sign win */
     :where(.pp-letter) p{font-size:17px;line-height:1.68;color:#262e4c;font-variation-settings:'opsz' 16}
@@ -2585,6 +2577,7 @@
     .pp-lib dd{font-size:16.5px;line-height:1.5;color:#232b49;font-variation-settings:'opsz' 16;min-width:0}
     .pp-lib-name{display:block;font-family:var(--pp-hand);font-weight:500;font-size:30px;line-height:1.05;color:#4b5679;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .pp-lib-name.pp-named{color:#1f2d63}
+    .pp-lib-name.pp-lib-serif{font-family:var(--pp-serif);font-style:italic;font-weight:400;font-size:25px;line-height:1.26}
     .pp-lib dl>div:first-child dd{padding-right:108px}
     .pp-lib-sign{display:flex;flex-wrap:wrap;align-items:center;gap:12px 14px;padding:16px 24px 22px}
     .pp-lib-sign>small{flex:1 1 100%;font-family:var(--pp-mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#5a6078}
@@ -2595,8 +2588,9 @@
     .pp-stamp{position:absolute;right:34px;top:150px;z-index:1;padding:6px 11px 5px;border:2.5px solid rgba(198,58,43,.78);border-radius:4px;font-family:var(--pp-mono);font-size:12px;line-height:1.35;letter-spacing:.2em;text-align:center;text-transform:uppercase;color:rgba(178,50,36,.92);transform:rotate(-11deg);pointer-events:none}
     .pp-stamp b{font-weight:400}
     .pp-stamp span{display:block;font-size:10.5px;letter-spacing:.14em}
-    .pp-stamp.pp-thump{animation:ppThump .5s cubic-bezier(.3,1.5,.5,1) .35s backwards}
-    @keyframes ppThump{from{opacity:0;transform:rotate(-20deg) scale(1.9)}60%{opacity:1}}
+    /* inked in as the card lands (a fade: see "arrival" above) */
+    .pp-stamp.pp-thump{animation:ppThump .16s ease-in .5s backwards}
+    @keyframes ppThump{from{opacity:0}}
     .pp-ret #getStartedBtn{background:none;color:var(--pp-ink);box-shadow:inset 0 0 0 1.5px rgba(27,36,64,.45);font-weight:450}
     .pp-ret #getStartedBtn:hover{box-shadow:inset 0 0 0 1.5px var(--pp-ink);transform:none}
     .pp-art-col{flex-direction:column;align-items:flex-end}
@@ -2642,9 +2636,6 @@
       #splashView .pp-col-in{grid-template-columns:minmax(0,1fr)}
       #splashView .pp-col nav{justify-content:flex-start}
     }
-    @media (min-width:1000px){
-      .pp-rd-list a{grid-template-columns:minmax(0,1fr);gap:1px;padding:9px 0 8px}
-    }
     @media (max-width:639px){
       .pp-sec{padding-top:64px;padding-bottom:64px}
       .pp-s-cat{padding-top:76px}
@@ -2668,7 +2659,7 @@
       .pp-cat-rod{right:16px;bottom:14px}
       .pp-rd{transform:rotate(-.8deg);padding-bottom:50px}
       .pp-rd-card{padding:18px 18px 88px}
-      .pp-rd-list a{grid-template-columns:minmax(0,1fr);gap:2px;padding:11px 0 10px}
+      .pp-rd-list a{gap:2px;padding:11px 0 10px}
       .pp-rd-stamp{right:12px;top:10px;font-size:10px;letter-spacing:.16em}
       .pp-rd-pocket{left:-2%;right:-2%;height:118px;padding-top:42px}
       .pp-rules{padding:66px 20px 26px 22px;transform:rotate(.6deg)}
@@ -2701,6 +2692,7 @@
       .pp-lib dl{padding:10px 16px 2px}
       .pp-lib dl>div{grid-template-columns:minmax(0,1fr);gap:0;padding:7px 0 6px}
       .pp-lib-name{font-size:28px}
+      .pp-lib-name.pp-lib-serif{font-size:23px}
       .pp-lib .pp-bar{top:64px;right:16px;width:70px;height:22px}
       .pp-lib dl>div:first-child dd{padding-right:0}
       .pp-stamp{top:196px;right:16px;font-size:11px}
@@ -2718,8 +2710,7 @@
     @media (prefers-reduced-motion:reduce){
       #splashView .pp-rest *{animation:none!important;transition:none!important}
       .pp-rv{opacity:1;translate:none;rotate:none}
-      .pp-rd-stamp.pp-cue,.pp-seal.pp-cue,.pp-tick.pp-cue{opacity:1}
-      .pp-rs.pp-cue::after{scale:none}
+      .pp-rd-stamp.pp-cue,.pp-seal.pp-cue,.pp-tick.pp-cue,.pp-rs.pp-cue{opacity:1}
     }
     @media (forced-colors:active){.pp-rules h3 span{forced-color-adjust:none}}
   </style>
@@ -2874,7 +2865,7 @@
         <ol>
           <li><h3><span>No ads.</span></h3><p>Not between your cards, not on the timer, not in the tutor. Nobody is paying to interrupt you. <s class="pp-rs" aria-hidden="true" data-pp-cue>sponsored deck</s></p></li>
           <li><h3><span>No streak guilt.</span></h3><p>Your streak counts the days you studied. Every five days in a row earns a freeze for the day life gets in the way, and freezes are never for sale. <s class="pp-rs" aria-hidden="true" data-pp-cue>buy a streak repair</s></p></li>
-          <li><h3><span>Honest numbers.</span></h3><p>Stats come straight from your own sessions: minutes focused, sessions, cards reviewed. No leaderboards, and no “top 3% of learners” badges. <s class="pp-rs" aria-hidden="true" data-pp-cue>you beat 97% of users!</s></p></li>
+          <li><h3><span>Honest numbers.</span></h3><p>Stats come straight from your own sessions: minutes focused, sessions, cards reviewed. No leaderboards, and nothing that compares you with anyone else. <s class="pp-rs" aria-hidden="true" data-pp-cue>you beat 97% of users!</s></p></li>
           <li><h3><span>Your notes stay yours.</span></h3><p>They sync only to your own account and are never sold. Export any deck to CSV whenever you want to leave. <s class="pp-rs" aria-hidden="true" data-pp-cue>shared with partners</s></p></li>
           <li><h3><span>Built in the open.</span></h3><p>Every commit is public on GitHub, so you can see exactly what changed, and say so when something breaks. <s class="pp-rs" aria-hidden="true" data-pp-cue>roadmap-as-marketing</s></p></li>
         </ol>
@@ -2905,7 +2896,7 @@
             <div class="pp-letter pp-sheetp pp-paperish">
               <p class="pp-lhd" aria-hidden="true"><span>From the desk of</span><span>Aihan Mifthas</span></p>
               <p class="pp-dear">Dear student,</p>
-              <p>Brainfy is the study app I wanted during my own exams. Everything I tried seemed built to keep me in the app, with streaks, badges and notifications, more than to help me learn anything.</p>
+              <p>Brainfy is the study app I wanted during my own exams. Everything I tried seemed built to keep me in the app more than to help me learn anything.</p>
               <p>So this one does the dull part for you: notes in, cards out, a quiet timer. Then it gets out of the way.</p>
               <p>I build it on my own and in the open, and I read every message. If something is missing or wrong, write to me at <a class="pp-mlink" href="mailto:help@brainfy.online">help@brainfy.online</a>.</p>
               <p class="pp-sign">Aihan</p>
@@ -3068,7 +3059,31 @@
         var nm = name || 'yours';
         if (nameEl.textContent !== nm) nameEl.textContent = nm;   // textContent only: the name is user data
         nameEl.classList.toggle('pp-named', !!name);
+        nameEl.classList.toggle('pp-lib-serif', !!name && !handFor(name));
       }
+    }
+    /* The handwriting font in <head> is cut to plain A–Z / a–z, so "José"
+       would mix two hands. Accented Latin and Cyrillic come from a second
+       Caveat cut, fetched only for such a name: a fixed request (the whole
+       range, never the name), whose @font-face covers only that range. Any
+       other script gets the serif. */
+    var cuts = {};
+    function handFor(n) {
+      var plain = "A-Za-z0-9\\s!%&()+,.:=?~\u2013\u2014'\u2019\\-", lat = '\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u017F', cyr = '\u0400-\u045F';
+      if (new RegExp('[^' + plain + lat + cyr + ']').test(n)) return false;
+      if (new RegExp('[' + lat + ']').test(n)) cut('lat', 0xC0, 0x17F, [0xD7, 0xF7]);
+      if (new RegExp('[' + cyr + ']').test(n)) cut('cyr', 0x400, 0x45F, []);
+      return true;
+    }
+    function cut(k, a, b, skip) {
+      if (cuts[k]) return;
+      cuts[k] = 1;
+      var t = '';
+      for (var c = a; c <= b; c++) if (skip.indexOf(c) < 0) t += String.fromCharCode(c);
+      var l = d.createElement('link');
+      l.rel = 'stylesheet';
+      l.href = 'https://fonts.googleapis.com/css2?family=Caveat:wght@500&text=' + encodeURIComponent(t) + '&display=swap';
+      d.head.appendChild(l);
     }
     var ctaRow = $('ppCtaRow');
     if (ctaRow && w.MutationObserver) new MutationObserver(syncCTAs).observe(ctaRow, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style'] });
@@ -3111,10 +3126,9 @@
         if (bodies[i].hasAttribute('inert') === on) { if (on) bodies[i].removeAttribute('inert'); else bodies[i].setAttribute('inert', ''); }
       });
     }
-    // Measured in place, without taking the cards out of the drawer: a card
-    // has no padding or border, so its natural height is where its body
-    // ends (a body's height doesn't depend on the card's fixed height, and
-    // transforms don't move offsets). One layout, not one per mode.
+    // Measured in place: a card has no padding or border, so its natural
+    // height is where its body ends (whatever the card's set height; and
+    // transforms don't move offsets). One layout instead of two.
     function measure() {
       if (!cards.length || !cat.offsetWidth) return false;
       var S = btns[0].offsetHeight, H = 0;
@@ -3197,8 +3211,8 @@
 
     /* ── 3. Arrivals, once each (transform + opacity only; IntersectionObserver,
           so there is no scroll handler): the two small objects are set down
-          on the desk ([data-pp-rv]); on the big sheets only a small child
-          moves ([data-pp-cue]: a stamp, the seal, the strike-outs, a tick).
+          on the desk ([data-pp-rv]); on the big sheets only a small mark is
+          inked in ([data-pp-cue]: a stamp, the seal, the strike-outs, a tick).
           The library card's stamp lands once when the card arrives. ── */
     var stamp = $('ppStamp'), lib = $('ppLib');
     if (!reduced() && 'IntersectionObserver' in w) {
@@ -3212,34 +3226,33 @@
       var ioc = new IntersectionObserver(onIn, { rootMargin: '0px 0px -12% 0px', threshold: 0.5 });
       qa('[data-pp-rv]', rest).forEach(function (el) { el.classList.add('pp-rv'); io.observe(el); });
       qa('[data-pp-cue]', rest).forEach(function (el) { el.classList.add('pp-cue'); ioc.observe(el); });
-      // keyboard focus never lands on something that is still fading in
+      // keyboard focus never lands on something that is still fading in:
+      // it is put down at once
       rest.addEventListener('focusin', function (e) {
         var el = e.target.closest && e.target.closest('.pp-rv:not(.pp-in)');
-        if (el) arrive(el, io);
+        if (el) { el.classList.add('pp-now'); arrive(el, io); }
       });
     }
 
-    /* ── 4. Lay the sections out ahead of time. They are content-visibility:
-          auto, so loading the page doesn't pay for them; left alone, though,
-          the browser lays each one out in the scroll frame where it first
-          comes within reach (the drawer and the house rules together at the
-          hand-off from the credits). Instead, once the page and its fonts
-          have loaded and the reader starts down the opening (or has stayed
-          at the top a few seconds), each section gets .pp-cv and is laid
-          out in its own idle slot: one section per slot, in page order,
-          preferably in a pause between scrolls. The drawer is measured in
-          the same slot as its section. Nothing runs while the splash or the
-          tab is hidden; it picks up again when they come back. ── */
+    /* ── 4. Lay the sections out ahead of time (see #ppRest>.pp-sec in the
+          CSS), not in the scroll frame where each comes into reach. Once
+          the page and fonts have loaded and the reader starts down the
+          opening (or after a few seconds at the top), one job per idle slot,
+          in page order: a section, or half the drawer's cards, or measuring
+          the drawer. Each is under ~45 ms at 4x CPU. A job waits for a pause
+          in the scrolling unless its section is within three screens.
+          Nothing runs while the splash or the tab is hidden. ── */
     var secs = qa('#ppRest>.pp-sec'), jobs = [], ji = 0, pend = false, armed = false, kicked = false, lastScroll = 0, since = 0;
     function cv(el) { el.classList.add('pp-cv'); }
+    function job(s, f) { jobs.push({ s: s, f: f }); }
     secs.forEach(function (s) {
-      jobs.push(function () { cv(s); void s.offsetHeight; });   // lay it out here, in the idle task
+      job(s, function () { cv(s); void s.offsetHeight; });   // lay it out here, in the idle task
       if (cat && cards.length && s.contains(cat)) {
         // the drawer's ten cards are most of its section: five per slot,
         // then the drawer is measured in a slot of its own
-        jobs.push(function () { cards.slice(0, 5).forEach(cv); void cat.offsetHeight; });
-        jobs.push(function () { cards.slice(5).forEach(cv); void cat.offsetHeight; });
-        jobs.push(start);
+        job(s, function () { cards.slice(0, 5).forEach(cv); void cat.offsetHeight; });
+        job(s, function () { cards.slice(5).forEach(cv); void cat.offsetHeight; });
+        job(s, start);
       }
     });
     var now = function () { return w.performance && performance.now ? performance.now() : Date.now(); };
@@ -3253,11 +3266,13 @@
     function step() {
       pend = false;
       if (ji >= jobs.length || !isOn()) return;
-      var t = now();
-      // wait for a pause in the scrolling, but not for long
-      if (t - lastScroll < 160 && t - since < 1500) { next(); return; }
+      var t = now(), j = jobs[ji];
+      // wait for a pause in the scrolling, but not for long, and not once
+      // the section is within three screens
+      if (t - lastScroll < 160 && t - since < 1500 && j.s.getBoundingClientRect().top > 3 * w.innerHeight) { next(); return; }
       since = 0;
-      jobs[ji++]();
+      ji++;
+      j.f();
       if (ji < jobs.length) next(); else w.removeEventListener('scroll', onScroll);
     }
     function kick() { if (armed && !kicked) { kicked = true; next(); } }
