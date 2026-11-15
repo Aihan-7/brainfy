@@ -138,12 +138,13 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400&amp;family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..600,50,0;1,144,300..500,100,1&amp;family=Manrope:wght@400;500;600;700;800;900&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400&amp;family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..600,50,0;1,144,300..500,100,1&amp;family=Manrope:wght@400;500;600;700;800;900&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap"></noscript>
   <!-- Splash handwriting (Caveat) + the timer readout's DM Mono 300, cut down to
-       the glyphs they draw (text=: a–z, 0–9, the capitals ABCDEFGHIKMNOPTW and
-       !&()+,.:=?~–—'’-). ~39 KB instead of ~66 KB. A glyph outside that set falls
-       back per character to the next font in the splash's hand / mono stacks, so if new
-       handwritten copy needs another capital, add it to text= here. -->
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&amp;family=DM+Mono:wght@300&amp;text=abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIKMNOPTW%21%26%28%29%2B%2C.%3A%3D%3F~%E2%80%93%E2%80%94%27%E2%80%99-&amp;display=swap" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&amp;family=DM+Mono:wght@300&amp;text=abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIKMNOPTW%21%26%28%29%2B%2C.%3A%3D%3F~%E2%80%93%E2%80%94%27%E2%80%99-&amp;display=swap"></noscript>
+       the glyphs they draw (text=: a–z, 0–9, A–Z and !%&()+,.:=?~–—'’-; all the
+       capitals because a returning user's name is handwritten on the library card).
+       A glyph outside that set falls back per character to the next font in the
+       splash's hand / mono stacks, so if new handwritten copy needs another glyph,
+       add it to text= here. -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&amp;family=DM+Mono:wght@300&amp;text=abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ%21%25%26%28%29%2B%2C.%3A%3D%3F~%E2%80%93%E2%80%94%27%E2%80%99-&amp;display=swap" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&amp;family=DM+Mono:wght@300&amp;text=abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ%21%25%26%28%29%2B%2C.%3A%3D%3F~%E2%80%93%E2%80%94%27%E2%80%99-&amp;display=swap"></noscript>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -417,15 +418,6 @@
     }
     #sidebarStartBtn:hover { box-shadow: 0 0 28px rgba(124,58,237,0.55); opacity: 0.92; }
 
-    /* ══ UPGRADE: Splash CTA button pulse ══ */
-    @keyframes subtlePulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(124,58,237,0.4); }
-      50%       { box-shadow: 0 0 0 8px rgba(124,58,237,0); }
-    }
-    #getStartedBtn {
-      animation: subtlePulse 2.8s ease-in-out infinite;
-    }
-
     /* ══ UPGRADE: Subject card color-glow ══ */
     .subj-card {
       transition: border-color 0.2s, transform 0.18s, box-shadow 0.2s;
@@ -683,7 +675,6 @@
     @media (prefers-reduced-motion: reduce) {
       .auth-beam-wrap::before   { animation: none; }
       .view.active, #splashView.active, #signinView.active, #signupView.active { animation: none; }
-      #getStartedBtn { animation: none; }
       .hd-stat, .chart-bar { animation: none; }
       * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
     }
@@ -706,60 +697,6 @@
       animation: liveBlip 1.8s ease-in-out infinite;
     }
 
-    /* Bento feature cards */
-    .bento-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 20px; padding: 28px;
-      position: relative; overflow: hidden;
-      opacity: 1; transform: translateY(0);
-      transition:
-        opacity   0.65s cubic-bezier(0.22,1,0.36,1),
-        transform 0.65s cubic-bezier(0.22,1,0.36,1),
-        border-color 0.2s ease,
-        box-shadow   0.2s ease;
-    }
-    /* JS adds .js-animations to <html> enabling scroll-reveal */
-    .js-animations .bento-card { opacity: 0; transform: translateY(34px); }
-    .bento-card.revealed { opacity: 1; transform: translateY(0); }
-    .bento-card:hover {
-      border-color: rgba(124,58,237,0.32) !important;
-      box-shadow: 0 18px 50px rgba(0,0,0,0.38), 0 0 0 1px rgba(124,58,237,0.1);
-      transform: translateY(-5px) !important;
-    }
-
-    /* Philosophy principle items */
-    .phil-item {
-      display: flex; gap: 18px; align-items: flex-start;
-      padding: 20px; border-radius: 14px;
-      border: 1px solid transparent;
-      opacity: 1; transform: translateX(0);
-      transition:
-        opacity      0.55s ease,
-        transform    0.55s ease,
-        border-color 0.2s,
-        background   0.2s;
-    }
-    .js-animations .phil-item { opacity: 0; transform: translateX(-22px); }
-    .phil-item.revealed { opacity: 1; transform: translateX(0); }
-    .phil-item:hover { background: rgba(255,255,255,0.025); border-color: var(--border); }
-
-    /* Phil right panel */
-    .phil-right {
-      opacity: 1; transform: translateX(0);
-      transition: opacity 0.65s cubic-bezier(0.22,1,0.36,1) 0.15s,
-                  transform 0.65s cubic-bezier(0.22,1,0.36,1) 0.15s;
-    }
-    .js-animations .phil-right { opacity: 0; transform: translateX(24px); }
-    .phil-right.revealed { opacity: 1; transform: translateX(0); }
-
-    /* Phil heading items */
-    .phil-head {
-      opacity: 1; transform: translateY(0);
-      transition: opacity 0.5s ease, transform 0.5s ease;
-    }
-    .js-animations .phil-head { opacity: 0; transform: translateY(18px); }
-    .phil-head.revealed { opacity: 1; transform: translateY(0); }
 
     /* ═══════════════════════════════════════════════
        SMOOTHNESS PASS — Polish & micro-interactions
@@ -947,23 +884,6 @@
       box-shadow: 0 10px 32px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08) !important;
     }
 
-    /* ── Splash CTA glow ring: springier button ── */
-    #getStartedBtn {
-      transition: opacity 0.18s, transform 0.2s cubic-bezier(0.34,1.56,0.64,1),
-                  box-shadow 0.2s !important;
-    }
-    #getStartedBtn:hover {
-      transform: translateY(-2px) scale(1.02) !important;
-      box-shadow: 0 8px 28px rgba(124,58,237,0.5) !important;
-    }
-    #getStartedBtn:active { transform: scale(0.97) !important; }
-
-    /* ── Bento card hover: more lift ── */
-    .bento-card:hover {
-      transform: translateY(-7px) !important;
-      box-shadow: 0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(124,58,237,0.18) !important;
-    }
-
     /* ── Scrollbar: smoother ── */
     * { scroll-behavior: smooth; }
 
@@ -1027,7 +947,7 @@
     }
 
     /* Cursor pointer on all clickable cards/rows */
-    .bento-card, .task-row, .hd-stat, .sess-row { cursor: pointer; }
+    .task-row, .hd-stat, .sess-row { cursor: pointer; }
 
     /* ── Sidebar start btn: spring ── */
     #sidebarStartBtn {
@@ -1036,27 +956,6 @@
     #sidebarStartBtn:hover { transform: translateY(-2px) !important; }
     #sidebarStartBtn:active { transform: scale(0.97) !important; }
 
-    /* ── Founder section ── */
-    .founder-avatar {
-      width: 130px; height: 130px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--primary), var(--cyan));
-      display: flex; align-items: center; justify-content: center;
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 44px; font-weight: 800; color: white;
-      box-shadow: 0 10px 40px rgba(124,58,237,0.42);
-      flex-shrink: 0;
-      letter-spacing: -0.02em;
-    }
-    /* If a real photo is swapped in via <img class="founder-avatar">, the
-       same dimensions apply but we override the background so the image
-       fills the circle without gradient bleed-through. */
-    img.founder-avatar { object-fit: cover; background: none; }
-    @media (max-width: 640px) {
-      .founder-card { grid-template-columns: 1fr !important; text-align: center; gap: 18px !important; }
-      .founder-avatar { width: 100px; height: 100px; font-size: 36px; margin: 0 auto; }
-      .founder-socials { justify-content: center; }
-    }
 
     /* ── Preset focus-time buttons: spring ──
        Inactive baseline lives on .preset-btn (not the inline style) so
@@ -1336,22 +1235,6 @@
       footer { flex-wrap: wrap !important; gap: 12px !important; }
       footer > div { flex-wrap: wrap !important; gap: 14px !important; }
 
-      /* ── Splash bento: 12-col grid → single column on phones ── */
-      #splash-bento > div[style*="grid-template-columns:repeat(12,1fr)"],
-      #splash-bento > div[style*="grid-template-columns: repeat(12, 1fr)"] {
-        grid-template-columns: 1fr !important;
-        gap: 14px !important;
-      }
-      #splash-bento .bento-card { grid-column: 1 / -1 !important; }
-
-      /* ── Splash philosophy: 1fr 1fr → stack ── */
-      #splash-phil > div[style*="grid-template-columns:1fr 1fr"] {
-        grid-template-columns: 1fr !important;
-        gap: 32px !important;
-      }
-
-      /* CTA section bottom: scale type a touch */
-      #splash-cta h2 { font-size: clamp(26px, 7vw, 36px) !important; }
     }
   </style>
 
@@ -1585,7 +1468,7 @@
     /* ───────── end credits: the hand-off into the rest of the page ───────── */
     .pp-end{position:relative;padding:clamp(56px,10vh,110px) var(--pp-gut) clamp(90px,15vh,150px);background:
       radial-gradient(48% 60% at 50% 34%,rgba(255,200,140,.10),rgba(255,200,140,0) 70%),
-      linear-gradient(180deg,#070605 0%,#0a0908 38%,#0b1326 100%)}
+      linear-gradient(180deg,#070605 0%,#0a0807 50%,#0b0907 100%)}
     .pp-ccard{position:relative;max-width:640px;margin:0 auto;padding:2.1em 2.2em 1.8em;font-size:clamp(14px,1.15vw,16px);color:var(--pp-ink);transform:rotate(-1.2deg);
       background:
         linear-gradient(180deg,transparent 3.5em,rgba(212,86,72,.55) 3.5em,rgba(212,86,72,.55) calc(3.5em + 1.5px),transparent calc(3.5em + 1.5px)),
@@ -1733,6 +1616,392 @@
       #splashView .pp-story *,#splashView .pp-hd,#splashView .pp-hd *{animation:none!important;transition:none!important}
     }
     @media (forced-colors:active){.pp-mark,.pp-hl{forced-color-adjust:none}}
+  </style>
+  <!-- ══════════════════════════════════════════════════════════════════
+       SPLASH, PART 2 — the rest of the desk (everything after the end
+       credits): a catalogue drawer of features, a library pocket of further
+       reading, typed house rules, a letter from the maker, an exam paper of
+       FAQs, a library card to sign up, and a colophon. Same scoping as the
+       opening: .pp-* classes, all inside #splashView. Markup + script:
+       <div class="pp-rest"> at the end of #splashView.
+       ══════════════════════════════════════════════════════════════════ -->
+  <style id="pp-rest-css">
+    .pp-rest{position:relative;font-family:var(--pp-serif);font-synthesis:none;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;color:var(--pp-cream);line-height:1.5;text-align:left;overflow:hidden;
+      /* the walnut desk carries on: the room is still dark where the credits
+         ended and the lamp light comes back up over the first screen. Grain is
+         a static SVG tile (paths only, no filters), so it scrolls with the page
+         for the cost of an image. */
+      background:
+        linear-gradient(180deg,#0b0907 0,rgba(11,9,7,.72) 220px,rgba(11,9,7,0) 640px) 0 0/100% 100% no-repeat,
+        linear-gradient(90deg,rgba(5,4,3,.55),rgba(5,4,3,0) 16%,rgba(5,4,3,0) 84%,rgba(5,4,3,.55)),
+        url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221200%22 height=%22720%22 fill=%22none%22%3E%3Cstyle%3E.a{stroke:%23000;stroke-width:0.6;stroke-opacity:0.26;stroke-dasharray:90 18 240 30 50 12}.b{stroke:%23000;stroke-width:1;stroke-opacity:0.18;stroke-dasharray:300 60 120 20 420 40}.c{stroke:%23000;stroke-width:1.6;stroke-opacity:0.2;stroke-dasharray:520 90 200 140}.d{stroke:%23000;stroke-width:0.5;stroke-opacity:0.3;stroke-dasharray:40 10 70 26 18 8 120 30}.e{stroke:%23000;stroke-width:2.6;stroke-opacity:0.14;stroke-dasharray:700 300 260 160}.f{stroke:%23ffcf9a;stroke-width:0.8;stroke-opacity:0.07;stroke-dasharray:160 60 340 90}%3C/style%3E%3Cpath class=%22f%22 stroke-dashoffset=%22481%22 d=%22M0 3C133 -3 266 4 400 5C533 6 666 6 800 10C933 15 1066 8 1200 3%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22481%22 d=%22M0 723C133 717 266 724 400 725C533 726 666 726 800 730C933 735 1066 728 1200 723%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22399%22 d=%22M0 6C133 -1 266 7 400 8C533 9 666 10 800 13C933 16 1066 14 1200 6%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22275%22 d=%22M0 16C133 10 266 12 400 13C533 14 666 15 800 20C933 25 1066 22 1200 16%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22137%22 d=%22M0 14C133 6 266 20 400 18C533 16 666 15 800 23C933 30 1066 22 1200 14%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22308%22 d=%22M0 24C133 15 266 27 400 27C533 28 666 27 800 30C933 33 1066 34 1200 24%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%2229%22 d=%22M0 27C133 18 266 33 400 31C533 28 666 36 800 34C933 32 1066 36 1200 27%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22216%22 d=%22M0 32C133 27 266 37 400 38C533 40 666 32 800 42C933 51 1066 37 1200 32%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%2268%22 d=%22M0 42C133 36 266 42 400 45C533 47 666 44 800 49C933 54 1066 48 1200 42%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%2246%22 d=%22M0 45C133 38 266 48 400 47C533 46 666 48 800 50C933 53 1066 51 1200 45%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22548%22 d=%22M0 48C133 42 266 52 400 49C533 46 666 57 800 55C933 54 1066 53 1200 48%22/%3E%3Cpath class=%22e%22 stroke-dashoffset=%22321%22 d=%22M0 50C133 46 266 49 400 53C533 56 666 51 800 57C933 63 1066 55 1200 50%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22572%22 d=%22M0 53C133 43 266 58 400 57C533 56 666 53 800 60C933 67 1066 63 1200 53%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22264%22 d=%22M0 56C133 47 266 62 400 59C533 57 666 65 800 62C933 60 1066 64 1200 56%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22136%22 d=%22M0 58C133 57 266 63 400 61C533 60 666 65 800 69C933 72 1066 60 1200 58%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%2222%22 d=%22M0 62C133 52 266 66 400 64C533 63 666 68 800 69C933 70 1066 72 1200 62%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22181%22 d=%22M0 67C133 63 266 66 400 67C533 69 666 73 800 75C933 78 1066 70 1200 67%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22582%22 d=%22M0 70C133 66 266 68 400 71C533 75 666 72 800 76C933 80 1066 73 1200 70%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%2299%22 d=%22M0 76C133 70 266 76 400 79C533 81 666 79 800 83C933 86 1066 82 1200 76%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22223%22 d=%22M0 77C133 71 266 80 400 80C533 79 666 80 800 83C933 87 1066 84 1200 77%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22588%22 d=%22M0 84C133 78 266 88 400 87C533 87 666 86 800 93C933 99 1066 90 1200 84%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22277%22 d=%22M0 87C133 79 266 89 400 89C533 90 666 89 800 95C933 102 1066 94 1200 87%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22522%22 d=%22M0 93C133 85 266 95 400 94C533 94 666 101 800 99C933 98 1066 101 1200 93%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22556%22 d=%22M0 96C133 92 266 94 400 95C533 96 666 102 800 104C933 106 1066 99 1200 96%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22524%22 d=%22M0 98C133 93 266 100 400 103C533 105 666 106 800 107C933 109 1066 102 1200 98%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22244%22 d=%22M0 106C133 96 266 109 400 108C533 107 666 111 800 112C933 114 1066 115 1200 106%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22553%22 d=%22M0 113C133 108 266 110 400 114C533 117 666 109 800 119C933 130 1066 118 1200 113%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22131%22 d=%22M0 119C133 114 266 119 400 121C533 122 666 119 800 125C933 131 1066 124 1200 119%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%2252%22 d=%22M0 123C133 116 266 123 400 126C533 129 666 122 800 130C933 137 1066 129 1200 123%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%2233%22 d=%22M0 126C133 123 266 133 400 129C533 126 666 129 800 135C933 141 1066 129 1200 126%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22311%22 d=%22M0 135C133 126 266 134 400 137C533 140 666 137 800 141C933 144 1066 143 1200 135%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%2281%22 d=%22M0 137C133 129 266 139 400 140C533 142 666 143 800 145C933 147 1066 146 1200 137%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22441%22 d=%22M0 141C133 131 266 145 400 145C533 145 666 142 800 149C933 156 1066 151 1200 141%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22276%22 d=%22M0 145C133 138 266 149 400 146C533 144 666 153 800 153C933 152 1066 152 1200 145%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22572%22 d=%22M0 150C133 145 266 151 400 153C533 155 666 153 800 157C933 161 1066 156 1200 150%22/%3E%3Cpath class=%22e%22 stroke-dashoffset=%22385%22 d=%22M0 154C133 143 266 157 400 156C533 155 666 160 800 161C933 163 1066 164 1200 154%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%2245%22 d=%22M0 160C133 156 266 162 400 163C533 164 666 167 800 171C933 174 1066 164 1200 160%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22493%22 d=%22M0 167C133 162 266 167 400 170C533 173 666 169 800 175C933 181 1066 172 1200 167%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22109%22 d=%22M0 170C133 162 266 170 400 173C533 175 666 173 800 178C933 184 1066 178 1200 170%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22184%22 d=%22M0 176C133 168 266 177 400 181C533 186 666 182 800 185C933 188 1066 183 1200 176%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22384%22 d=%22M0 183C133 172 266 184 400 187C533 190 666 184 800 192C933 200 1066 194 1200 183%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22529%22 d=%22M0 183C133 176 266 185 400 188C533 191 666 181 800 194C933 207 1066 191 1200 183%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22529%22 d=%22M0 191C133 182 266 189 400 194C533 199 666 193 800 201C933 210 1066 200 1200 191%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22237%22 d=%22M0 199C133 188 266 194 400 200C533 206 666 206 800 211C933 215 1066 210 1200 199%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22273%22 d=%22M0 203C133 193 266 202 400 206C533 211 666 205 800 214C933 223 1066 212 1200 203%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22494%22 d=%22M0 211C133 195 266 212 400 215C533 218 666 219 800 224C933 230 1066 227 1200 211%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22570%22 d=%22M0 216C133 204 266 216 400 220C533 225 666 220 800 229C933 238 1066 228 1200 216%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22235%22 d=%22M0 216C133 208 266 220 400 222C533 225 666 222 800 234C933 246 1066 225 1200 216%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22140%22 d=%22M0 224C133 215 266 227 400 230C533 233 666 235 800 241C933 246 1066 233 1200 224%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%2287%22 d=%22M0 227C133 215 266 230 400 231C533 232 666 233 800 244C933 255 1066 239 1200 227%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22342%22 d=%22M0 229C133 216 266 229 400 234C533 239 666 234 800 244C933 255 1066 242 1200 229%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22122%22 d=%22M0 235C133 218 266 229 400 237C533 246 666 239 800 247C933 255 1066 251 1200 235%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22383%22 d=%22M0 240C133 230 266 238 400 244C533 250 666 248 800 256C933 264 1066 251 1200 240%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22109%22 d=%22M0 246C133 233 266 243 400 251C533 259 666 249 800 262C933 276 1066 258 1200 246%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22579%22 d=%22M0 248C133 230 266 253 400 259C533 264 666 255 800 268C933 281 1066 266 1200 248%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22573%22 d=%22M0 258C133 238 266 259 400 261C533 263 666 269 800 274C933 278 1066 278 1200 258%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%2270%22 d=%22M0 258C133 236 266 260 400 265C533 269 666 265 800 275C933 285 1066 280 1200 258%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22490%22 d=%22M0 262C133 246 266 263 400 267C533 270 666 271 800 279C933 288 1066 278 1200 262%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22361%22 d=%22M0 264C133 245 266 264 400 272C533 279 666 266 800 281C933 297 1066 283 1200 264%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22114%22 d=%22M0 272C133 254 266 265 400 275C533 284 666 277 800 286C933 295 1066 290 1200 272%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22407%22 d=%22M0 272C133 257 266 272 400 278C533 284 666 277 800 290C933 302 1066 288 1200 272%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22455%22 d=%22M0 278C133 259 266 279 400 286C533 293 666 282 800 295C933 307 1066 298 1200 278%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22306%22 d=%22M0 287C133 267 266 293 400 295C533 296 666 292 800 304C933 317 1066 307 1200 287%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22239%22 d=%22M0 293C133 277 266 299 400 301C533 303 666 294 800 307C933 321 1066 308 1200 293%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22454%22 d=%22M0 299C133 288 266 301 400 305C533 309 666 303 800 314C933 324 1066 310 1200 299%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22239%22 d=%22M0 300C133 291 266 295 400 304C533 312 666 303 800 315C933 327 1066 310 1200 300%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%2234%22 d=%22M0 304C133 291 266 308 400 309C533 311 666 310 800 321C933 333 1066 316 1200 304%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22226%22 d=%22M0 310C133 302 266 307 400 316C533 325 666 313 800 325C933 337 1066 319 1200 310%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%2269%22 d=%22M0 317C133 306 266 314 400 321C533 329 666 318 800 329C933 340 1066 328 1200 317%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%2238%22 d=%22M0 322C133 307 266 326 400 327C533 327 666 330 800 335C933 340 1066 338 1200 322%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22214%22 d=%22M0 328C133 314 266 328 400 331C533 334 666 336 800 339C933 342 1066 341 1200 328%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22172%22 d=%22M0 330C133 317 266 334 400 334C533 333 666 335 800 341C933 347 1066 343 1200 330%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%2233%22 d=%22M0 336C133 323 266 335 400 339C533 343 666 337 800 346C933 355 1066 349 1200 336%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22195%22 d=%22M0 342C133 334 266 342 400 345C533 348 666 342 800 352C933 362 1066 351 1200 342%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22476%22 d=%22M0 344C133 337 266 342 400 347C533 353 666 345 800 354C933 363 1066 351 1200 344%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%2295%22 d=%22M0 353C133 342 266 354 400 357C533 359 666 354 800 362C933 370 1066 363 1200 353%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22515%22 d=%22M0 352C133 341 266 354 400 357C533 361 666 354 800 362C933 369 1066 362 1200 352%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22359%22 d=%22M0 356C133 346 266 351 400 358C533 365 666 359 800 363C933 368 1066 366 1200 356%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22422%22 d=%22M0 362C133 356 266 360 400 363C533 366 666 367 800 370C933 373 1066 367 1200 362%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22395%22 d=%22M0 365C133 355 266 364 400 366C533 367 666 373 800 372C933 372 1066 374 1200 365%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22353%22 d=%22M0 372C133 361 266 368 400 373C533 378 666 372 800 378C933 384 1066 383 1200 372%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22478%22 d=%22M0 373C133 367 266 371 400 376C533 381 666 376 800 382C933 388 1066 379 1200 373%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%2249%22 d=%22M0 378C133 373 266 371 400 379C533 387 666 376 800 383C933 390 1066 383 1200 378%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22107%22 d=%22M0 380C133 377 266 376 400 382C533 389 666 378 800 388C933 398 1066 384 1200 380%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22146%22 d=%22M0 384C133 378 266 380 400 387C533 394 666 387 800 393C933 398 1066 390 1200 384%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22326%22 d=%22M0 389C133 380 266 390 400 391C533 392 666 394 800 396C933 398 1066 399 1200 389%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%2224%22 d=%22M0 395C133 387 266 395 400 400C533 404 666 398 800 401C933 404 1066 403 1200 395%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22111%22 d=%22M0 402C133 397 266 401 400 405C533 410 666 405 800 409C933 413 1066 406 1200 402%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22454%22 d=%22M0 409C133 399 266 413 400 410C533 407 666 412 800 415C933 419 1066 420 1200 409%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%2273%22 d=%22M0 415C133 405 266 414 400 416C533 418 666 412 800 420C933 427 1066 424 1200 415%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%2263%22 d=%22M0 422C133 408 266 429 400 424C533 419 666 431 800 428C933 426 1066 435 1200 422%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22474%22 d=%22M0 425C133 421 266 420 400 426C533 432 666 425 800 430C933 435 1066 430 1200 425%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22416%22 d=%22M0 432C133 426 266 433 400 435C533 436 666 435 800 439C933 443 1066 439 1200 432%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22154%22 d=%22M0 437C133 432 266 434 400 439C533 444 666 441 800 441C933 441 1066 441 1200 437%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22479%22 d=%22M0 439C133 433 266 436 400 443C533 449 666 436 800 445C933 454 1066 446 1200 439%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22499%22 d=%22M0 447C133 441 266 443 400 449C533 456 666 445 800 453C933 460 1066 453 1200 447%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22474%22 d=%22M0 450C133 451 266 450 400 452C533 455 666 451 800 459C933 466 1066 449 1200 450%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22367%22 d=%22M0 457C133 453 266 453 400 457C533 461 666 460 800 461C933 462 1066 462 1200 457%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22548%22 d=%22M0 462C133 458 266 465 400 464C533 462 666 464 800 469C933 474 1066 465 1200 462%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22371%22 d=%22M0 466C133 459 266 456 400 464C533 472 666 469 800 469C933 469 1066 474 1200 466%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%2296%22 d=%22M0 471C133 465 266 472 400 473C533 474 666 473 800 478C933 482 1066 476 1200 471%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22169%22 d=%22M0 476C133 469 266 479 400 478C533 477 666 480 800 482C933 484 1066 483 1200 476%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22565%22 d=%22M0 481C133 474 266 482 400 484C533 485 666 484 800 490C933 496 1066 488 1200 481%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22527%22 d=%22M0 484C133 476 266 483 400 487C533 490 666 486 800 491C933 496 1066 493 1200 484%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22417%22 d=%22M0 490C133 483 266 487 400 490C533 494 666 491 800 494C933 496 1066 496 1200 490%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22534%22 d=%22M0 493C133 489 266 491 400 496C533 501 666 493 800 501C933 508 1066 498 1200 493%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22562%22 d=%22M0 496C133 489 266 500 400 499C533 499 666 500 800 506C933 511 1066 502 1200 496%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22458%22 d=%22M0 499C133 496 266 497 400 500C533 503 666 503 800 507C933 511 1066 501 1200 499%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%2238%22 d=%22M0 500C133 489 266 500 400 505C533 510 666 501 800 507C933 513 1066 510 1200 500%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%2281%22 d=%22M0 507C133 497 266 509 400 510C533 511 666 513 800 515C933 517 1066 517 1200 507%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%225%22 d=%22M0 509C133 501 266 515 400 516C533 517 666 511 800 520C933 530 1066 517 1200 509%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%2248%22 d=%22M0 521C133 509 266 513 400 523C533 532 666 522 800 525C933 528 1066 533 1200 521%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22407%22 d=%22M0 521C133 512 266 516 400 523C533 530 666 529 800 532C933 534 1066 530 1200 521%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22150%22 d=%22M0 528C133 520 266 523 400 528C533 534 666 534 800 536C933 538 1066 536 1200 528%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22106%22 d=%22M0 530C133 518 266 525 400 532C533 539 666 531 800 536C933 540 1066 541 1200 530%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22379%22 d=%22M0 531C133 525 266 526 400 534C533 543 666 529 800 540C933 551 1066 538 1200 531%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22484%22 d=%22M0 539C133 533 266 535 400 538C533 541 666 548 800 550C933 553 1066 544 1200 539%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22467%22 d=%22M0 539C133 525 266 543 400 543C533 543 666 546 800 551C933 555 1066 553 1200 539%22/%3E%3Cpath class=%22e%22 stroke-dashoffset=%22171%22 d=%22M0 545C133 535 266 544 400 548C533 551 666 544 800 557C933 570 1066 556 1200 545%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22587%22 d=%22M0 548C133 536 266 549 400 551C533 554 666 552 800 562C933 572 1066 560 1200 548%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22474%22 d=%22M0 549C133 540 266 546 400 553C533 560 666 550 800 562C933 573 1066 558 1200 549%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22325%22 d=%22M0 553C133 537 266 556 400 560C533 565 666 555 800 567C933 578 1066 569 1200 553%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22186%22 d=%22M0 557C133 551 266 557 400 561C533 566 666 562 800 572C933 583 1066 564 1200 557%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22489%22 d=%22M0 560C133 548 266 562 400 564C533 566 666 566 800 574C933 582 1066 571 1200 560%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22427%22 d=%22M0 564C133 557 266 566 400 567C533 568 666 575 800 581C933 588 1066 572 1200 564%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22526%22 d=%22M0 570C133 562 266 562 400 573C533 584 666 574 800 583C933 593 1066 579 1200 570%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22380%22 d=%22M0 572C133 552 266 575 400 577C533 579 666 578 800 584C933 589 1066 591 1200 572%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22225%22 d=%22M0 575C133 562 266 571 400 580C533 588 666 579 800 590C933 602 1066 588 1200 575%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%2229%22 d=%22M0 578C133 564 266 576 400 582C533 587 666 583 800 591C933 600 1066 592 1200 578%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22123%22 d=%22M0 581C133 564 266 580 400 584C533 588 666 584 800 595C933 605 1066 597 1200 581%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22177%22 d=%22M0 587C133 568 266 588 400 594C533 601 666 585 800 598C933 610 1066 606 1200 587%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22280%22 d=%22M0 591C133 580 266 596 400 597C533 597 666 596 800 606C933 617 1066 602 1200 591%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%2285%22 d=%22M0 595C133 578 266 594 400 599C533 605 666 599 800 606C933 613 1066 612 1200 595%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%2296%22 d=%22M0 598C133 591 266 595 400 602C533 609 666 598 800 610C933 623 1066 604 1200 598%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%2290%22 d=%22M0 603C133 595 266 600 400 606C533 613 666 607 800 614C933 622 1066 612 1200 603%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22551%22 d=%22M0 605C133 592 266 607 400 611C533 615 666 608 800 616C933 624 1066 617 1200 605%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22136%22 d=%22M0 608C133 595 266 608 400 612C533 616 666 614 800 620C933 626 1066 622 1200 608%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22208%22 d=%22M0 615C133 607 266 614 400 619C533 624 666 617 800 626C933 634 1066 623 1200 615%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22467%22 d=%22M0 619C133 608 266 623 400 621C533 619 666 622 800 627C933 632 1066 630 1200 619%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%2258%22 d=%22M0 620C133 613 266 618 400 623C533 627 666 619 800 629C933 640 1066 627 1200 620%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22113%22 d=%22M0 626C133 620 266 623 400 626C533 630 666 631 800 634C933 637 1066 632 1200 626%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22373%22 d=%22M0 628C133 618 266 629 400 632C533 636 666 629 800 636C933 644 1066 637 1200 628%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%2257%22 d=%22M0 632C133 621 266 632 400 635C533 638 666 638 800 642C933 645 1066 643 1200 632%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22506%22 d=%22M0 635C133 621 266 638 400 639C533 639 666 639 800 643C933 647 1066 649 1200 635%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22429%22 d=%22M0 638C133 629 266 647 400 643C533 639 666 642 800 648C933 655 1066 648 1200 638%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22457%22 d=%22M0 643C133 636 266 639 400 646C533 653 666 641 800 650C933 659 1066 650 1200 643%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22310%22 d=%22M0 644C133 637 266 643 400 648C533 652 666 648 800 653C933 658 1066 651 1200 644%22/%3E%3Cpath class=%22f%22 stroke-dashoffset=%22433%22 d=%22M0 649C133 636 266 656 400 652C533 647 666 658 800 657C933 655 1066 663 1200 649%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22576%22 d=%22M0 658C133 647 266 662 400 659C533 656 666 661 800 664C933 667 1066 668 1200 658%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22476%22 d=%22M0 662C133 649 266 669 400 665C533 660 666 671 800 669C933 668 1066 675 1200 662%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22171%22 d=%22M0 666C133 661 266 666 400 669C533 672 666 665 800 673C933 681 1066 671 1200 666%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22491%22 d=%22M0 668C133 662 266 672 400 670C533 669 666 675 800 677C933 680 1066 674 1200 668%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22378%22 d=%22M0 673C133 665 266 667 400 674C533 682 666 672 800 677C933 683 1066 680 1200 673%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22109%22 d=%22M0 677C133 670 266 682 400 681C533 681 666 678 800 685C933 692 1066 684 1200 677%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22169%22 d=%22M0 683C133 676 266 678 400 681C533 684 666 682 800 686C933 690 1066 690 1200 683%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22587%22 d=%22M0 684C133 672 266 685 400 685C533 685 666 688 800 688C933 688 1066 696 1200 684%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22441%22 d=%22M0 689C133 682 266 688 400 690C533 692 666 694 800 695C933 696 1066 695 1200 689%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%2244%22 d=%22M0 690C133 682 266 692 400 693C533 695 666 692 800 696C933 701 1066 699 1200 690%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22295%22 d=%22M0 698C133 695 266 696 400 701C533 705 666 698 800 705C933 712 1066 702 1200 698%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%227%22 d=%22M0 700C133 695 266 697 400 701C533 705 666 703 800 705C933 706 1066 706 1200 700%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%222%22 d=%22M0 703C133 693 266 706 400 705C533 703 666 709 800 709C933 710 1066 713 1200 703%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%22370%22 d=%22M0 708C133 703 266 707 400 710C533 714 666 709 800 715C933 721 1066 713 1200 708%22/%3E%3Cpath class=%22c%22 stroke-dashoffset=%22451%22 d=%22M0 708C133 706 266 705 400 711C533 716 666 707 800 715C933 723 1066 711 1200 708%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22586%22 d=%22M0 -5C133 -9 266 -6 400 -3C533 0 666 -2 800 2C933 6 1066 -1 1200 -5%22/%3E%3Cpath class=%22b%22 stroke-dashoffset=%22586%22 d=%22M0 715C133 711 266 714 400 717C533 720 666 718 800 722C933 726 1066 719 1200 715%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22465%22 d=%22M0 -3C133 -11 266 -8 400 -3C533 2 666 -1 800 1C933 4 1066 5 1200 -3%22/%3E%3Cpath class=%22a%22 stroke-dashoffset=%22465%22 d=%22M0 717C133 709 266 712 400 717C533 722 666 719 800 721C933 724 1066 725 1200 717%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%2264%22 d=%22M0 -1C133 -12 266 4 400 1C533 -2 666 6 800 6C933 5 1066 10 1200 -1%22/%3E%3Cpath class=%22d%22 stroke-dashoffset=%2264%22 d=%22M0 719C133 708 266 724 400 721C533 718 666 726 800 726C933 725 1066 730 1200 719%22/%3E%3C/svg%3E") 0 0/1200px 720px,
+        radial-gradient(80% 460px at 26% 620px,rgba(130,86,48,.20),rgba(130,86,48,0) 72%) 0 0/100% 1800px,
+        radial-gradient(64% 380px at 76% 1360px,rgba(122,80,45,.17),rgba(122,80,45,0) 72%) 0 0/100% 1800px,
+        linear-gradient(180deg,#16110c,#1b150f 40%,#17120d)}
+    @supports (overflow:clip){.pp-rest{overflow:clip}}
+    .pp-rest :focus-visible{outline:2px dashed var(--pp-marker);outline-offset:4px;border-radius:2px}
+    .pp-paperish :focus-visible{outline-color:var(--pp-ink)}
+    :where(.pp-rest) :where(button){font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webkit-appearance:none;appearance:none;padding:0}
+    :where(.pp-rest) :where(h2,h3,p,ol,ul,dl,dd,figure){margin:0}
+    :where(.pp-rest) :where(ol,ul){padding:0;list-style:none}
+
+    /* sections: each object sits in its own pool of lamp light */
+    .pp-sec{position:relative;padding:clamp(60px,9vh,104px) var(--pp-gut)}
+    .pp-sec::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(var(--lw,44%) var(--lh,50%) at var(--lx,68%) var(--ly,50%),rgba(255,196,128,.13),rgba(255,196,128,.045) 55%,rgba(255,196,128,0))}
+    .pp-sec>*{position:relative}
+    .pp-wrap{max-width:1240px;margin:0 auto}
+    .pp-two{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(36px,5vw,84px);align-items:center}
+    .pp-two.pp-rev{grid-template-columns:minmax(0,7fr) minmax(0,5fr)}
+    .pp-two.pp-rev>.pp-cc2{grid-column:2;grid-row:1}
+    .pp-two.pp-rev>.pp-art{grid-column:1;grid-row:1}
+    .pp-art{display:flex;justify-content:center;min-width:0}
+    .pp-cc2 .pp-body{max-width:27em}
+    .pp-note{display:flex;align-items:flex-start;gap:6px;margin-top:26px;font-family:var(--pp-hand);font-weight:500;font-size:25px;line-height:1.1;color:var(--pp-cream2);transform:rotate(-3deg);transform-origin:0 50%}
+    .pp-note svg{width:70px;height:40px;flex:none;margin-top:8px;fill:none;stroke:var(--pp-cream2);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+    /* reveal: an object is set down on the desk as it scrolls in (JS adds
+       .pp-rv only to objects still below the fold, then .pp-in) */
+    .pp-rv{opacity:0;translate:0 34px;rotate:1.2deg;transition:opacity .6s ease,translate .9s cubic-bezier(.2,.75,.25,1),rotate .9s cubic-bezier(.2,.75,.25,1)}
+    .pp-rv.pp-in{opacity:1;translate:none;rotate:none}
+
+    /* shared paper */
+    .pp-sheetp{color:var(--pp-ink);box-shadow:0 .06em .1em rgba(0,0,0,.35),0 26px 46px -18px rgba(0,0,0,.85),inset 0 0 40px rgba(160,130,80,.08)}
+    .pp-mlink{color:#a63a24;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:rgba(166,58,36,.5)}
+    .pp-mlink:hover{text-decoration-color:currentColor;background:rgba(255,220,69,.45)}
+
+    /* ═════════ 04 · the catalogue drawer ═════════ */
+    .pp-s-cat{--lx:70%;--ly:46%;--lw:46%;--lh:56%;padding-top:clamp(36px,6vh,72px)}
+    .pp-s-cat .pp-two{align-items:start}
+    .pp-s-cat .pp-cc2{padding-top:clamp(0px,6vh,70px)}
+    .pp-cat{--S:56px;--H:340px;--n:10;position:relative;width:100%;max-width:640px;font-size:16px;margin-left:auto}
+    .pp-cat-box{position:relative;padding:22px 20px 0;border-radius:7px 7px 0 0;background:linear-gradient(180deg,#7a5232 0,#5b3b22 5px,#120c08 6px,#1c140e 34%,#241910);box-shadow:inset 0 20px 16px -10px rgba(0,0,0,.9)}
+    .pp-cat-box::before,.pp-cat-box::after{content:"";position:absolute;top:0;bottom:0;width:20px;background:linear-gradient(90deg,#86593a,#6a4429 55%,#56371f);box-shadow:inset 0 2px 0 rgba(255,226,182,.22),inset -1px 0 0 rgba(0,0,0,.35)}
+    .pp-cat-box::before{left:0;border-radius:7px 0 0 0}
+    .pp-cat-box::after{right:0;border-radius:7px 0 0 0;transform:scaleX(-1)}
+    .pp-cat-in{position:relative}
+    .pp-drc{--c:#e5cc90;position:relative;color:var(--pp-ink);border-radius:5px 5px 0 0;
+      background:
+        repeating-linear-gradient(180deg,transparent 0 27px,rgba(76,124,176,.22) 27px 28px) 0 calc(var(--S) + 13px)/100% 100% no-repeat,
+        linear-gradient(170deg,#fefaf1,#f4ecd9);
+      box-shadow:0 -1px 0 rgba(70,46,24,.3),0 -12px 18px -14px rgba(0,0,0,.85)}
+    .pp-drc::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;border-radius:5px 5px 0 0;background:var(--c);opacity:.9}
+    .pp-drc+.pp-drc{margin-top:16px}
+    .pp-drh{font:inherit}
+    .pp-drh button{display:flex;align-items:baseline;gap:14px;width:100%;min-height:var(--S);padding:17px 22px 9px;text-align:left;border-bottom:1.5px solid rgba(212,86,72,.55);cursor:default}
+    .pp-live .pp-drh button{cursor:pointer}
+    .pp-rest .pp-drh button:focus-visible{outline-offset:-5px;border-radius:5px 5px 0 0}
+    .pp-live .pp-drh button[aria-disabled="true"]{cursor:default}
+    .pp-drn{flex:none;font-family:var(--pp-mono);font-size:12px;letter-spacing:.08em;color:#a63a24}
+    .pp-drt{flex:1 1 auto;min-width:0;font-size:19.5px;line-height:1.25;font-weight:500;letter-spacing:-.01em;font-variation-settings:'opsz' 24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pp-drg{flex:none;font-family:var(--pp-mono);font-size:11.5px;letter-spacing:.04em;color:var(--pp-ink2);white-space:nowrap}
+    .pp-live .pp-drh button:hover .pp-drt{text-decoration:underline;text-decoration-color:var(--pp-coral);text-decoration-thickness:2px;text-underline-offset:4px}
+    .pp-live .pp-drh button[aria-disabled="true"]:hover .pp-drt{text-decoration:none}
+    .pp-drb{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 24px;padding:13px 22px 20px}
+    .pp-drb>p:first-child{font-size:16.5px;line-height:28px;color:#26304f;font-variation-settings:'opsz' 16}
+    .pp-drg2{display:none}
+    .pp-see{grid-column:1/-1;font-family:var(--pp-mono);font-size:12.5px;line-height:28px;letter-spacing:.03em;color:var(--pp-ink2)}
+    .pp-see a{margin-left:.35em}
+    /* specimens: a small honest example on each card */
+    .pp-spec{align-self:start;margin-top:4px;font-family:var(--pp-mono);font-size:11.5px;line-height:1.55;letter-spacing:.02em;color:var(--pp-ink2)}
+    .pp-spec b{font-weight:400;color:#a63a24}
+    .pp-sp-io{display:grid;grid-template-columns:auto auto;gap:3px 10px;max-width:15em}
+    .pp-sp-rate{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,5.6em)) minmax(0,1fr);gap:0 6px;align-items:center;text-align:center;margin-top:0}
+    .pp-sp-rate span{padding:5px 7px 4px;border:1px solid rgba(27,36,64,.22);border-radius:3px;background:rgba(255,255,255,.5)}
+    .pp-sp-rate span i{display:block;font-style:normal;font-size:10.5px;color:#7a6e58}
+    .pp-sp-rate span:nth-child(3){border-color:var(--pp-coral);box-shadow:inset 0 -2px 0 var(--pp-coral)}
+    .pp-sp-rate small{padding-left:8px;font-size:10.5px;color:#7a6e58;text-align:left}
+    .pp-sp-tabs{display:flex;gap:4px;padding-top:2px}
+    .pp-sp-tabs span{padding:6px 9px 14px;border-radius:5px 5px 0 0;color:var(--pp-ink);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase}
+    .pp-sp-clock{font-size:34px;line-height:1;font-weight:400;color:var(--pp-ink);letter-spacing:.02em;font-variant-numeric:tabular-nums}
+    .pp-sp-chat{display:grid;gap:6px;max-width:17em;font-size:11px}
+    .pp-sp-chat p{padding:6px 9px;border-radius:9px 9px 9px 2px;background:#e9eef5;color:#2b3350;line-height:1.45}
+    .pp-sp-chat p:first-child{justify-self:end;border-radius:9px 9px 2px 9px;background:#fff1b8}
+    .pp-sp-lib{display:flex;flex-direction:column;align-items:flex-start;gap:9px}
+    .pp-sp-lib>span{display:flex;gap:3px}
+    .pp-sp-lib>span i{font-style:normal;padding:4px 9px 3px;border-radius:5px 5px 0 0;background:#e3d3a8;color:var(--pp-ink);font-size:10.5px}
+    .pp-sp-lib>span i:nth-child(2){background:#bcc9a4}.pp-sp-lib>span i:nth-child(3){background:#a9bdd0}
+    .pp-kbd{display:inline-block;min-width:1.9em;padding:3px 6px;margin-right:3px;border-radius:4px;background:#fffdf7;border:1px solid rgba(27,36,64,.3);box-shadow:0 2px 0 rgba(27,36,64,.25);text-align:center;color:var(--pp-ink)}
+    .pp-sp-heat{width:168px}
+    .pp-sp-heat svg{display:block;width:100%;height:auto}
+    .pp-sp-heat small{display:block;margin-top:5px;font-size:10.5px;color:#7a6e58}
+    .pp-sp-week{display:grid;grid-template-columns:repeat(7,18px);gap:3px;align-items:end}
+    .pp-sp-week i{display:block;height:var(--h);border-radius:2px;background:var(--c,#a9bdd0)}
+    .pp-sp-week span{grid-row:2;font-size:10px;text-align:center;color:#7a6e58}
+    .pp-sp-sync{display:grid;gap:6px;justify-items:start}
+    .pp-sp-sync span{display:inline-flex;align-items:center;gap:7px;padding:4px 10px;border-radius:99px;border:1px solid rgba(27,36,64,.25);background:#fff}
+    .pp-sp-sync span::before{content:"";width:7px;height:7px;border-radius:50%;background:#d9902f}
+    .pp-sp-sync span+span::before{background:#5f9a5b}
+    .pp-sp-csv{grid-column:1/-1;margin-top:0;padding:6px 10px 7px;border:1px dashed rgba(27,36,64,.3);background:rgba(255,255,255,.55);white-space:pre;overflow:hidden;text-overflow:ellipsis;line-height:1.6}
+    .pp-sp-csv b{color:var(--pp-ink2)}
+    /* the drawer front: brass label holder, cup pull, rod */
+    .pp-cat-front{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;height:124px;margin:0 -5px;border-radius:3px 3px 6px 6px;
+      background:
+        linear-gradient(180deg,rgba(0,0,0,.5),rgba(0,0,0,0) 9px),
+        repeating-linear-gradient(178.6deg,rgba(0,0,0,0) 0 5px,rgba(0,0,0,.07) 5px 6px,rgba(0,0,0,0) 6px 13px,rgba(255,222,176,.05) 13px 14px,rgba(0,0,0,0) 14px 22px),
+        linear-gradient(180deg,#8a5c3a,#6b4529 52%,#563620);
+      box-shadow:inset 0 3px 0 rgba(255,226,182,.28),inset 0 -5px 0 rgba(0,0,0,.32),0 30px 40px -22px rgba(0,0,0,.95)}
+    .pp-cat-plate{display:block;padding:3px;border-radius:2px;background:linear-gradient(135deg,#f0d687,#a8802f 48%,#dcb95e 70%,#8f6a26);box-shadow:0 2px 3px rgba(0,0,0,.45)}
+    .pp-cat-plate b{display:block;padding:7px 18px 6px;background:#f4ecd6;box-shadow:inset 0 1px 3px rgba(0,0,0,.35);font-family:var(--pp-mono);font-weight:400;font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--pp-ink);white-space:nowrap}
+    .pp-cat-pull{display:block;width:104px;height:24px;border-radius:2px 2px 52px 52px/2px 2px 24px 24px;background:linear-gradient(180deg,#f2d98c,#b88d38 50%,#7a581c);box-shadow:0 4px 5px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,246,214,.7)}
+    .pp-cat-rod{position:absolute;right:22px;bottom:18px;width:13px;height:13px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f6e1a2,#a8802f 60%,#5f4413);box-shadow:0 1px 2px rgba(0,0,0,.6)}
+    /* live (JS): cards stand in the drawer and only one is pulled up */
+    .pp-cat.pp-live .pp-cat-in{height:calc(var(--S) * (var(--n) - 1) + var(--H) + 8px);overflow:hidden;padding-top:8px}
+    .pp-cat.pp-live .pp-drc{position:absolute;left:0;right:0;top:8px;height:var(--H);margin:0;transition:transform .55s cubic-bezier(.3,.72,.2,1),translate .2s ease}
+    .pp-cat.pp-live .pp-drc:not(.pp-open):hover{translate:0 -5px}
+    .pp-cat.pp-live .pp-drc:not(.pp-open) .pp-drb{visibility:hidden;transition:visibility 0s .55s}
+    .pp-cat.pp-live .pp-drc.pp-open .pp-drb{visibility:visible;transition:none}
+    .pp-cat.pp-measure .pp-drc,.pp-cat.pp-measure .pp-drb{transition:none!important}
+
+    /* ═════════ 05 · further reading: library pocket + checkout card ═════════ */
+    .pp-s-read{--lx:34%;--ly:52%;--lw:44%;--lh:58%}
+    .pp-rd{position:relative;width:100%;max-width:600px;padding-bottom:58px;transform:rotate(-1.3deg)}
+    .pp-rd-card{position:relative;padding:24px 28px 96px;border-radius:3px;
+      background:
+        linear-gradient(180deg,transparent 64px,rgba(212,86,72,.55) 64px,rgba(212,86,72,.55) 65.5px,transparent 65.5px),
+        linear-gradient(170deg,#fdf8ec,#f2e8d2)}
+    .pp-rd-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;height:40px;font-family:var(--pp-mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--pp-ink2)}
+    .pp-rd-top b{font-weight:400;color:#a63a24}
+    .pp-rd-hd{display:grid;grid-template-columns:minmax(0,11.5em) minmax(0,1fr);gap:16px;padding:12px 0 6px;font-family:var(--pp-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6250}
+    .pp-rd-list a{display:grid;grid-template-columns:minmax(0,11.5em) minmax(0,1fr);gap:16px;align-items:baseline;padding:10px 0 9px;border-top:1px solid rgba(76,124,176,.28);color:var(--pp-ink);text-decoration:none}
+    .pp-rd-list a:last-child{border-bottom:1px solid rgba(76,124,176,.28)}
+    .pp-rd-list strong{font-weight:500;font-size:18px;line-height:1.3;letter-spacing:-.005em;font-variation-settings:'opsz' 24}
+    .pp-rd-list strong span{display:inline-block;margin-left:.2em;color:#a63a24;transition:transform .2s ease}
+    .pp-rd-list a span:last-child{font-size:14.5px;line-height:1.5;color:#3d4462;font-variation-settings:'opsz' 14}
+    .pp-rd-list a:hover strong{background:linear-gradient(transparent 52%,rgba(255,220,69,.85) 52%,rgba(255,220,69,.85) 92%,transparent 92%)}
+    .pp-rd-list a:hover strong span{transform:translateX(3px)}
+    .pp-rd-ex{display:flex;flex-wrap:wrap;align-items:baseline;margin-top:16px;font-size:15px;line-height:1.9;color:#3d4462}
+    .pp-rd-ex b{flex:1 1 100%;font-family:var(--pp-mono);font-weight:400;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6250}
+    .pp-rd-ex a{color:var(--pp-ink);text-decoration:underline;text-decoration-color:rgba(166,58,36,.45);text-underline-offset:3px;white-space:nowrap}
+    .pp-rd-ex a:hover{text-decoration-color:#a63a24;background:rgba(255,220,69,.45)}
+    .pp-rd-ex i{font-style:normal;margin:0 .45em;color:#9b8f77}
+    .pp-rd-stamp{position:absolute;right:26px;top:10px;padding:5px 10px 4px;border:2px solid rgba(198,58,43,.72);border-radius:3px;font-family:var(--pp-mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:rgba(178,52,38,.9);transform:rotate(7deg);pointer-events:none}
+    .pp-rd-pocket{position:absolute;left:-2.5%;right:-2.5%;bottom:0;height:128px;padding:44px 20px 0;text-align:center;font-family:var(--pp-mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(70,48,20,.82);
+      background:linear-gradient(180deg,rgba(80,55,20,.25),rgba(80,55,20,0) 3px),linear-gradient(170deg,#e2c68e,#d3b073 70%,#c9a466);
+      clip-path:polygon(0 0,38% 0,41% 4px,44% 13px,50% 18px,56% 13px,59% 4px,62% 0,100% 0,100% 100%,0 100%);box-shadow:0 1px 0 rgba(0,0,0,.2)}
+    .pp-rd-pocket b{display:block;font-family:var(--pp-serif);font-style:italic;font-weight:400;font-size:19px;letter-spacing:0;text-transform:none;color:#4a3214;margin-bottom:3px}
+
+    /* ═════════ 06 · house rules ═════════ */
+    .pp-s-rules{--lx:68%;--ly:50%;--lw:42%;--lh:58%}
+    .pp-rules{position:relative;width:100%;max-width:600px;margin-left:auto;padding:76px 46px 40px 54px;border-radius:2px;transform:rotate(1.1deg);
+      background:linear-gradient(90deg,transparent 30px,rgba(212,86,72,.0) 30px),linear-gradient(175deg,#fbf8f1,#f1ebdd);font-family:var(--pp-mono)}
+    .pp-clip{position:absolute;left:50%;top:-26px;width:96px;height:58px;margin-left:-48px;pointer-events:none}
+    .pp-clip svg{display:block;width:100%;height:100%;overflow:visible}
+    .pp-dymo2{position:absolute;left:46px;top:30px;display:inline-block;padding:6px 16px 5px;border-radius:3px;background:#c63a2b linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 45%,rgba(0,0,0,.18));box-shadow:0 2px 4px rgba(0,0,0,.4);font-family:var(--pp-mono);font-weight:400;font-size:14px;letter-spacing:.3em;text-transform:uppercase;color:#fff6ee;text-shadow:0 -1px 0 rgba(0,0,0,.35);transform:rotate(-1.8deg)}
+    .pp-rules ol{counter-reset:pprule}
+    .pp-rules li{position:relative;display:grid;grid-template-columns:2.1em minmax(0,1fr);padding:15px 0 14px;border-top:1px dashed rgba(27,36,64,.2)}
+    .pp-rules li:first-child{border-top:0}
+    .pp-rules li::before{counter-increment:pprule;content:counter(pprule) ".";font-size:15px;line-height:1.6;color:var(--pp-ink)}
+    .pp-rules h3{font:inherit;font-size:15.5px;line-height:1.6;color:var(--pp-ink)}
+    .pp-rules h3 span{padding:0 .3em;margin-left:-.3em;border-radius:.3em .15em .35em .2em;background:linear-gradient(99deg,rgba(255,220,69,0) .1em,rgba(255,220,69,.85) .35em,rgba(255,214,52,.75) calc(100% - .35em),rgba(255,220,69,0))}
+    .pp-rules p{grid-column:2;margin-top:4px;font-size:13.5px;line-height:1.7;color:#3a4160}
+    .pp-rs{display:inline-block;position:relative;margin-left:.2em;font-family:var(--pp-hand);font-weight:500;font-size:19px;line-height:1;color:#6f6450;white-space:nowrap}
+    .pp-rs::after{content:"";position:absolute;left:-4px;right:-4px;top:54%;height:2.5px;border-radius:2px;background:rgba(212,64,42,.9);transform:rotate(-2.5deg)}
+    .pp-rules .pp-rules-sig{grid-column:auto;margin-top:18px;padding-top:14px;border-top:1px dashed rgba(27,36,64,.2);font-family:var(--pp-hand);font-weight:500;font-size:22px;color:#2a3560;transform:rotate(-1.5deg)}
+
+    /* ═════════ 07 · from the maker: letter, envelope, about-the-author card ═════════ */
+    .pp-s-fnd{--lx:36%;--ly:54%;--lw:48%;--lh:60%}
+    .pp-fnd{position:relative;width:100%;max-width:620px}
+    .pp-env{position:absolute;left:5%;right:9%;top:0;height:250px;border-radius:4px;transform:rotate(-4.5deg);background:linear-gradient(165deg,#ecdfc3,#dccaa5);box-shadow:0 22px 36px -18px rgba(0,0,0,.85)}
+    .pp-env::before{content:"";position:absolute;inset:0;clip-path:polygon(0 0,100% 0,50% 52%);background:linear-gradient(180deg,#e4d4b3,#d4c099);border-radius:4px 4px 0 0}
+    .pp-env::after{content:"";position:absolute;inset:0;background:linear-gradient(-28deg,transparent 49.5%,rgba(90,64,30,.22) 49.8%,transparent 50.3%) 0 0/50% 52% no-repeat,linear-gradient(28deg,transparent 49.5%,rgba(90,64,30,.22) 49.8%,transparent 50.3%) 100% 0/50% 52% no-repeat}
+    .pp-seal{position:absolute;left:47%;top:84px;width:70px;height:70px;margin-left:-35px;z-index:1;display:grid;place-items:center;font-style:italic;font-weight:500;font-size:25px;letter-spacing:-.04em;color:rgba(84,18,10,.55);text-shadow:0 1px 0 rgba(255,160,130,.35);
+      background:radial-gradient(circle at 36% 30%,#e76a51,#bb3b27 55%,#8e2717);clip-path:polygon(50% 0,61% 4%,72% 2%,79% 11%,90% 14%,92% 26%,100% 35%,97% 47%,100% 59%,93% 69%,92% 81%,81% 86%,74% 96%,62% 95%,50% 100%,39% 95%,27% 97%,20% 87%,9% 83%,7% 71%,0 61%,3% 49%,0 37%,7% 27%,9% 15%,20% 12%,28% 3%,39% 5%)}
+    .pp-seal::before{content:"";position:absolute;inset:11px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(90,20,10,.28),inset 0 2px 3px rgba(0,0,0,.25)}
+    .pp-letter{position:relative;z-index:2;margin:166px 3% 0 0;padding:40px 46px 34px;border-radius:2px;transform:rotate(-1deg);background:linear-gradient(172deg,#fbf6ea,#f3ead6)}
+    .pp-lhd{display:flex;justify-content:space-between;gap:12px;padding-bottom:12px;margin-bottom:22px;border-bottom:1px solid rgba(27,36,64,.22);font-family:var(--pp-mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--pp-ink2)}
+    .pp-letter p{font-size:17px;line-height:1.68;color:#262e4c;font-variation-settings:'opsz' 16}
+    .pp-letter p+p{margin-top:14px}
+    .pp-letter .pp-dear{font-style:italic;font-variation-settings:normal}
+    .pp-sign{margin-top:18px!important;font-family:var(--pp-hand)!important;font-weight:500;font-size:46px!important;line-height:1!important;color:#22306a!important;transform:rotate(-4deg);transform-origin:0 50%}
+    .pp-about{position:relative;width:min(100%,400px);padding:16px 24px 18px;border-radius:3px;transform:rotate(2deg);color:var(--pp-ink);
+      background:
+        linear-gradient(180deg,transparent 42px,rgba(212,86,72,.55) 42px,rgba(212,86,72,.55) 43.5px,transparent 43.5px),
+        linear-gradient(165deg,#fefaf1,#f3ebd8)}
+    .pp-s-fnd .pp-two{grid-template-rows:auto 1fr;align-items:start}
+    .pp-s-fnd .pp-two>.pp-art{grid-row:1/span 2}
+    .pp-s-fnd .pp-two>.pp-cc2{grid-row:1;padding-top:clamp(40px,9vh,110px)}
+    .pp-s-fnd .pp-two>.pp-about-c{grid-column:2;grid-row:2;padding-top:38px;margin-left:calc(-1 * clamp(36px,5vw,84px) - 22px);position:relative;z-index:3}
+    .pp-s-fnd .pp-about{transform:rotate(-2.4deg)}
+    .pp-about-top{height:28px;font-family:var(--pp-mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--pp-ink2)}
+    .pp-about h3{margin-top:14px;font-weight:500;font-size:22px;line-height:1.1;letter-spacing:-.01em}
+    .pp-about-role{margin-top:4px;font-family:var(--pp-mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:#a63a24}
+    .pp-about-bio{margin-top:10px!important;font-size:14.5px;line-height:23px;color:#33395a}
+    .pp-about-more{margin-top:10px!important;font-size:15px;line-height:24px}
+    .pp-about-more a{color:var(--pp-ink);font-weight:500;text-decoration:underline;text-decoration-color:rgba(166,58,36,.5);text-underline-offset:3px}
+    .pp-about-more a:hover{background:rgba(255,220,69,.5);text-decoration-color:#a63a24}
+    .pp-socials{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-family:var(--pp-mono);font-size:12.5px;letter-spacing:.03em}
+    .pp-socials a{display:inline-flex;align-items:center;min-height:32px;color:var(--pp-ink2);text-decoration:none;border-bottom:1px solid transparent}
+    .pp-socials a:hover{color:var(--pp-ink);border-bottom-color:var(--pp-coral)}
+
+    /* ═════════ 08 · questions: the exam paper ═════════ */
+    .pp-s-faq{--lx:50%;--ly:48%;--lw:52%;--lh:56%}
+    .pp-s-faq .pp-label{max-width:860px;margin-left:auto;margin-right:auto}
+    .pp-exam{position:relative;max-width:860px;margin:0 auto;padding:30px 48px 34px;border-radius:2px;transform:rotate(-.45deg);background:linear-gradient(175deg,#fdfcf8,#f3f1ea);color:var(--pp-ink)}
+    .pp-exam-hd{display:flex;justify-content:space-between;align-items:center;gap:12px 20px;flex-wrap:wrap;padding-bottom:12px;border-bottom:2px solid var(--pp-ink);font-family:var(--pp-mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--pp-ink2)}
+    .pp-exam-hd b{font-weight:400;color:var(--pp-ink)}
+    .pp-cand{display:flex;align-items:center;gap:8px}
+    .pp-cand i{display:inline-flex;gap:3px}
+    .pp-cand i::before{content:"";width:96px;height:20px;background:linear-gradient(90deg,var(--pp-ink2) 1px,transparent 1px) 0 0/24px 100%;border:1px solid var(--pp-ink2);border-left:0}
+    .pp-exam h2{margin-top:22px;font-weight:400;font-size:clamp(30px,3.2vw,44px);line-height:1.05;letter-spacing:-.02em;font-variation-settings:'opsz' 96}
+    .pp-ins{display:flex;flex-wrap:wrap;gap:4px 22px;margin:16px 0 8px!important;padding:10px 14px;border:1.5px solid var(--pp-ink);font-family:var(--pp-mono);font-size:12px;letter-spacing:.04em;color:var(--pp-ink)}
+    .pp-ins b{font-weight:400;text-transform:uppercase;letter-spacing:.14em}
+    .pp-fq{border-bottom:1px solid rgba(27,36,64,.16)}
+    .pp-fq summary{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:16px;align-items:center;padding:17px 0 16px;cursor:pointer;list-style:none;-webkit-tap-highlight-color:transparent}
+    .pp-fq summary::-webkit-details-marker{display:none}
+    .pp-fq summary::marker{content:""}
+    .pp-fqn{display:grid;place-items:center;width:30px;height:30px;border:1.5px solid var(--pp-ink);font-family:var(--pp-mono);font-size:14px;line-height:1}
+    .pp-fqt{font-size:19px;line-height:1.3;font-weight:500;letter-spacing:-.008em;font-variation-settings:'opsz' 24}
+    .pp-fqm{font-family:var(--pp-mono);font-size:12px;letter-spacing:.04em;color:var(--pp-ink2);white-space:nowrap}
+    .pp-fqm::after{content:"";display:inline-block;width:8px;height:8px;margin-left:12px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:translateY(-3px) rotate(45deg);transition:transform .25s ease}
+    .pp-fq[open] .pp-fqm::after{transform:translateY(1px) rotate(-135deg)}
+    .pp-fq summary:hover .pp-fqt{text-decoration:underline;text-decoration-color:var(--pp-coral);text-decoration-thickness:2px;text-underline-offset:4px}
+    .pp-fqa{position:relative;padding:0 76px 20px 50px}
+    .pp-fqa p{max-width:40em;font-size:16.5px;line-height:28px;color:#2b3352;font-variation-settings:'opsz' 16}
+    .pp-fqa a{color:#a63a24;text-decoration:underline;text-underline-offset:3px}
+    .pp-tick{position:absolute;right:6px;top:-6px;width:56px;height:44px;overflow:visible;fill:none;stroke:#d23a26;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+    .pp-fq[open] .pp-fqa{animation:ppAns .4s cubic-bezier(.2,.75,.25,1) both}
+    .pp-fq[open] .pp-tick{animation:ppTick .45s cubic-bezier(.3,1.4,.5,1) .12s both}
+    @keyframes ppAns{from{opacity:0;transform:translateY(-6px)}}
+    @keyframes ppTick{from{opacity:0;transform:scale(.4) rotate(-14deg)}}
+    .pp-exam-end{margin-top:22px!important;text-align:center;font-family:var(--pp-mono);font-size:11.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--pp-ink2)}
+    .pp-exam-end span{display:block;margin-top:8px;letter-spacing:.04em;text-transform:none;font-size:12.5px}
+    .pp-exam-pencil{position:absolute;right:-34px;bottom:112px;width:250px;height:18px;transform:rotate(-12deg);transform-origin:100% 50%;filter:drop-shadow(5px 9px 6px rgba(0,0,0,.5));pointer-events:none}
+
+    /* ═════════ 09 · membership: the library card ═════════ */
+    .pp-s-cta{--lx:68%;--ly:50%;--lw:46%;--lh:62%;padding-bottom:clamp(80px,13vh,140px)}
+    .pp-s-cta .pp-h2{font-size:clamp(38px,4.4vw,72px);color:#fff4de}
+    .pp-lib{position:relative;width:100%;max-width:560px;margin-left:auto;border-radius:14px;overflow:hidden;transform:rotate(-1.6deg);color:var(--pp-ink);background:linear-gradient(165deg,#fcf6e8,#efe4cb)}
+    .pp-lib-hd{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px 24px 14px;background:#bf3a29 linear-gradient(180deg,rgba(255,255,255,.12),rgba(0,0,0,.08));font-family:var(--pp-mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#fff6ee}
+    .pp-lib-hd b{font-weight:400;font-family:var(--pp-serif);font-style:italic;font-size:22px;letter-spacing:-.01em;text-transform:none}
+    .pp-lib dl{padding:14px 24px 4px}
+    .pp-lib dl>div{display:grid;grid-template-columns:8.6em minmax(0,1fr);gap:12px;align-items:baseline;min-height:36px;padding:5px 0 0;border-bottom:1px dotted rgba(27,36,64,.3)}
+    .pp-lib dt{font-family:var(--pp-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#5a6078}
+    .pp-lib dd{font-size:16.5px;line-height:1.5;color:#232b49;font-variation-settings:'opsz' 16;min-width:0}
+    .pp-lib-name{display:block;font-family:var(--pp-hand);font-weight:500;font-size:30px;line-height:1.05;color:#4b5679;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pp-lib-name.pp-named{color:#1f2d63}
+    .pp-lib-sign{display:flex;flex-wrap:wrap;align-items:center;gap:12px 14px;padding:16px 24px 22px}
+    .pp-lib-sign>small{flex:1 1 100%;font-family:var(--pp-mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#5a6078}
+    .pp-lib-sign .pp-btn{min-height:50px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;line-height:50px;font-size:17px}
+    .pp-lib .pp-bar{position:absolute;right:24px;top:70px;width:96px;height:30px;opacity:.85;background:repeating-linear-gradient(90deg,var(--pp-ink) 0 2px,transparent 2px 4px,var(--pp-ink) 4px 5px,transparent 5px 8px,var(--pp-ink) 8px 11px,transparent 11px 12px,var(--pp-ink) 12px 13px,transparent 13px 16px)}
+    .pp-stamp{position:absolute;right:34px;top:150px;z-index:1;padding:6px 11px 5px;border:2.5px solid rgba(198,58,43,.78);border-radius:4px;font-family:var(--pp-mono);font-size:12px;line-height:1.35;letter-spacing:.2em;text-align:center;text-transform:uppercase;color:rgba(178,50,36,.92);transform:rotate(-11deg);pointer-events:none}
+    .pp-stamp span{display:block;font-size:10.5px;letter-spacing:.14em}
+    .pp-stamp.pp-thump{animation:ppThump .5s cubic-bezier(.3,1.5,.5,1) .35s both}
+    @keyframes ppThump{from{opacity:0;transform:rotate(-20deg) scale(1.9)}60%{opacity:1}}
+    .pp-ret #getStartedBtn{background:none;color:var(--pp-ink);box-shadow:inset 0 0 0 1.5px rgba(27,36,64,.45);font-weight:450}
+    .pp-ret #getStartedBtn:hover{box-shadow:inset 0 0 0 1.5px var(--pp-ink);transform:none}
+    .pp-art-col{flex-direction:column;align-items:flex-end}
+    .pp-art-col>*{width:100%;max-width:560px}
+    .pp-cta-more{display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;margin-top:34px;padding-left:6px}
+    .pp-cta-login{font-family:var(--pp-mono);font-size:13.5px;letter-spacing:.03em;color:#cfc4ad}
+    .pp-cta-login a{color:var(--pp-cream);text-decoration:none;border-bottom:1px dashed rgba(243,233,211,.6);padding-bottom:2px}
+    .pp-cta-login a:hover{border-bottom-style:solid}
+    .pp-ret .pp-cta-login,.pp-ret .pp-new,.pp-retx{display:none}
+    .pp-ret .pp-retx{display:inline}
+
+    /* ═════════ colophon: the desk's front edge ═════════ */
+    #splashView .pp-col{display:block!important;position:relative;padding:34px var(--pp-gut) 40px;color:#b9ad95;font-size:14px;
+      background:linear-gradient(180deg,#6a4a30 0,#4a3220 2px,#20160e 3px,#140e09 22px,#0b0806)}
+    .pp-col::before{content:"";position:absolute;left:0;right:0;top:-18px;height:18px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.35));pointer-events:none}
+    #splashView .pp-col-in{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px 40px!important;align-items:center}
+    .pp-col .pp-brand{min-height:40px}
+    #splashView .pp-col nav{display:flex!important;flex-wrap:wrap!important;justify-content:flex-end;gap:6px 26px!important;font-family:var(--pp-mono);font-size:13px;letter-spacing:.04em}
+    #splashView .pp-col nav a{display:inline-flex;align-items:center;min-height:40px;padding:0;color:#d3c7af;text-decoration:none;background:linear-gradient(var(--pp-marker),var(--pp-marker)) 0 calc(100% - 8px)/0 2px no-repeat;transition:color .2s,background-size .25s}
+    #splashView .pp-col nav a:hover{color:var(--pp-cream);background-size:100% 2px}
+    .pp-colo{grid-column:1/-1;display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px 30px;padding-top:18px;border-top:1px solid rgba(243,233,211,.1);font-size:13.5px;line-height:1.6;color:#a99d86}
+    .pp-colo p:first-child{max-width:52em}
+    .pp-colo b{font-family:var(--pp-mono);font-weight:400;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#cfc4ad;margin-right:.6em}
+
+    /* ═════════ widths ═════════ */
+    @media (max-width:999px){
+      .pp-two,.pp-two.pp-rev{grid-template-columns:minmax(0,1fr);gap:44px}
+      .pp-two.pp-rev>.pp-cc2,.pp-two.pp-rev>.pp-art,.pp-s-fnd .pp-two>.pp-art,.pp-s-fnd .pp-two>.pp-cc2,.pp-s-fnd .pp-two>.pp-about-c{grid-column:auto;grid-row:auto}
+      .pp-s-fnd .pp-two>.pp-cc2{padding-top:0}
+      .pp-s-fnd .pp-two>.pp-about-c{margin-left:0;display:flex;justify-content:center;padding-top:0;margin-top:-58px;position:relative;z-index:3}
+      .pp-s-cat .pp-cc2{position:static;padding-top:0}
+      .pp-cat,.pp-rules,.pp-lib{margin-left:auto;margin-right:auto}
+      .pp-art-col{align-items:center}
+      .pp-cc2{max-width:640px;margin:0 auto;width:100%}
+      .pp-note{display:none}
+      .pp-exam-pencil{display:none}
+      .pp-sec{--lx:50%!important;--lw:70%!important}
+      #splashView .pp-col-in{grid-template-columns:minmax(0,1fr)}
+      #splashView .pp-col nav{justify-content:flex-start}
+    }
+    @media (min-width:1000px){
+      .pp-s-cat .pp-cc2{position:sticky;top:120px}
+    }
+    @media (max-width:639px){
+      .pp-sec{padding-top:64px;padding-bottom:64px}
+      .pp-s-cat{padding-top:76px}
+      .pp-two,.pp-two.pp-rev{gap:34px}
+      .pp-cat{--S:50px}
+      .pp-cat-box{padding:14px 12px 0}
+      .pp-cat-box::before,.pp-cat-box::after{width:12px}
+      .pp-drh button{padding:15px 16px 8px;gap:12px}
+      .pp-drt{font-size:18px}
+      .pp-drg{display:none}
+      .pp-drg2{display:block;grid-column:1/-1;margin-top:-4px;font-family:var(--pp-mono);font-size:11px;line-height:20px;letter-spacing:.06em;text-transform:uppercase;color:#a63a24}
+      .pp-drb{grid-template-columns:minmax(0,1fr);padding:10px 16px 18px;gap:10px}
+      .pp-drb>p:first-child{font-size:16px}
+      .pp-sp-rate{grid-template-columns:repeat(4,minmax(0,1fr))}
+      .pp-sp-rate small{grid-column:1/-1;padding:5px 0 0}
+      .pp-sp-csv{font-size:10.5px}
+      .pp-drc{background:repeating-linear-gradient(180deg,transparent 0 27px,rgba(76,124,176,.22) 27px 28px) 0 calc(var(--S) + 30px)/100% 100% no-repeat,linear-gradient(170deg,#fefaf1,#f4ecd9)}
+      .pp-cat-front{height:100px;gap:9px}
+      .pp-cat-plate b{font-size:10.5px;letter-spacing:.16em;padding:6px 12px 5px}
+      .pp-cat-pull{width:84px;height:20px}
+      .pp-cat-rod{right:16px;bottom:14px}
+      .pp-rd{transform:rotate(-.8deg);padding-bottom:50px}
+      .pp-rd-card{padding:18px 18px 88px}
+      .pp-rd-hd{display:none}
+      .pp-rd-list a{grid-template-columns:minmax(0,1fr);gap:2px;padding:11px 0 10px}
+      .pp-rd-stamp{right:14px;top:-14px}
+      .pp-rd-pocket{left:-2%;right:-2%;height:118px;padding-top:42px}
+      .pp-rules{padding:66px 20px 26px 22px;transform:rotate(.6deg)}
+      .pp-dymo2{left:20px;top:26px;font-size:12.5px}
+      .pp-rules li{grid-template-columns:1.9em minmax(0,1fr)}
+      .pp-rules p{grid-column:1/-1;margin-top:6px}
+      .pp-env{left:0;right:4%;height:190px}
+      .pp-seal{top:62px;width:58px;height:58px;margin-left:-29px;font-size:20px}
+      .pp-seal::before{inset:9px}
+      .pp-letter{margin:126px 0 0;padding:28px 20px 26px;transform:rotate(-.6deg)}
+      .pp-letter p{font-size:16px;line-height:1.65}
+      .pp-lhd{flex-direction:column;gap:2px}
+      .pp-sign{font-size:40px!important}
+      .pp-about{margin:0 4px 0 auto;padding:14px 18px 16px;transform:rotate(1.4deg)}
+      .pp-exam{padding:22px 18px 26px;transform:none}
+      .pp-cand{display:none}
+      .pp-fq summary{grid-template-columns:28px minmax(0,1fr) auto;gap:12px;padding:15px 0 14px}
+      .pp-fqn{width:26px;height:26px;font-size:13px}
+      .pp-fqt{font-size:17.5px}
+      .pp-fqm{font-size:0}
+      .pp-fqm::after{margin-left:0}
+      .pp-fqa{padding:0 0 18px 40px}
+      .pp-fqa p{font-size:16px}
+      .pp-tick{right:-4px;top:auto;bottom:-8px;width:44px;height:34px}
+      .pp-lib{transform:rotate(-.8deg)}
+      .pp-lib-hd{padding:13px 16px 12px;font-size:10.5px;letter-spacing:.18em}
+      .pp-lib-hd b{font-size:19px}
+      .pp-lib dl{padding:10px 16px 2px}
+      .pp-lib dl>div{grid-template-columns:minmax(0,1fr);gap:0;padding:7px 0 6px}
+      .pp-lib-name{font-size:28px}
+      .pp-lib .pp-bar{top:64px;right:16px;width:70px;height:22px}
+      .pp-stamp{top:196px;right:16px;font-size:11px}
+      .pp-lib-sign{padding:14px 16px 18px}
+      .pp-lib-sign .pp-btn{flex:1 1 100%;text-align:center}
+      .pp-cta-more .pp-btn{flex:1 1 100%}
+      .pp-colo{flex-direction:column}
+    }
+    @media (max-width:379px){
+      .pp-drn{display:none}
+      .pp-cat-plate b{letter-spacing:.1em}
+      .pp-rd-top{font-size:10.5px;letter-spacing:.12em}
+    }
+    @media (prefers-reduced-motion:reduce){
+      #splashView .pp-rest *{animation:none!important;transition:none!important}
+      .pp-rv{opacity:1;translate:none;rotate:none}
+    }
+    @media (forced-colors:active){.pp-rules h3 span{forced-color-adjust:none}}
   </style>
 </head>
 <body>
@@ -2347,519 +2616,468 @@
   })();
   </script>
 
-  <!-- ════════════════════════════
-       BENTO FEATURES
-  ════════════════════════════ -->
-  <section id="splash-bento" style="padding:0 40px 110px;max-width:1240px;margin:0 auto;width:100%;">
+  <!-- ══════════════════════════════════════════════════════════════════
+       THE REST OF THE DESK (after the end credits): features drawer →
+       further reading → house rules → letter from the maker → exam-paper
+       FAQ → library card → colophon. Styles: <style id="pp-rest-css"> in
+       <head>. Script: end of this block. Section ids are the old ones, so
+       existing #splash-* links keep working.
+       ══════════════════════════════════════════════════════════════════ -->
+  <div class="pp-rest" id="ppRest">
 
-    <!-- Section label -->
-    <div style="text-align:center;margin-bottom:52px;">
-      <p style="font-size:10px;letter-spacing:0.18em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;margin-bottom:12px;">PRODUCT FEATURES</p>
-      <h2 style="font-size:clamp(26px,3.5vw,40px);font-weight:900;letter-spacing:-0.025em;color:white;">Everything you need to enter flow state</h2>
-    </div>
-
-    <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:20px;">
-
-      <!-- ① Analytics card — 7 cols -->
-      <div class="bento-card" style="grid-column:span 7;transition-delay:0s;">
-        <div style="position:absolute;top:-50px;right:-50px;width:200px;height:200px;background:radial-gradient(circle,rgba(76,215,246,0.07),transparent 70%);pointer-events:none;"></div>
-
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;">
-          <div>
-            <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">
-              <span class="live-dot"></span>
-              <p style="font-size:10px;letter-spacing:0.12em;color:var(--muted);font-family:'Space Grotesk';">AI-POWERED ANALYTICS · EXAMPLE</p>
-            </div>
-            <h3 style="font-size:20px;font-weight:800;color:white;letter-spacing:-0.015em;">Cognitive Performance</h3>
-            <p style="font-size:13px;color:var(--muted);margin-top:4px;line-height:1.5;">Visualize cognitive load and focus peaks in real-time.</p>
-          </div>
-          <div style="width:42px;height:42px;background:rgba(76,215,246,0.1);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(76,215,246,0.15);">
-            <span class="ms" style="color:var(--cyan);font-size:20px;">monitoring</span>
-          </div>
+    <!-- ═══ 04 · FEATURES — a card-catalogue drawer, one feature per card ═══ -->
+    <section class="pp-sec pp-s-cat" id="splash-bento" aria-labelledby="ppH2d">
+      <div class="pp-wrap pp-two">
+        <div class="pp-cc2">
+          <p class="pp-label">04 <i>/ The drawer</i></p>
+          <h2 class="pp-h2" id="ppH2d">Ten cards. <em>The whole app.</em></h2>
+          <p class="pp-body">Everything Brainfy does is filed in this drawer, one feature to a card. Pull one out to read it. All ten are free, and none of them come with ads.</p>
+          <p class="pp-note" aria-hidden="true">pull one out<svg viewBox="0 0 70 40"><path d="M3 12c20-6 40-2 56 12 3 3 5 6 7 9M66 33l-9 1M66 33l1-9"/></svg></p>
         </div>
-
-        <!-- Bar chart -->
-        <div style="height:88px;display:flex;align-items:flex-end;gap:7px;">
-          <div style="flex:1;height:38%;background:rgba(124,58,237,0.3);border-radius:5px 5px 0 0;border-top:2px solid rgba(124,58,237,0.5);"></div>
-          <div style="flex:1;height:60%;background:rgba(124,58,237,0.38);border-radius:5px 5px 0 0;border-top:2px solid rgba(124,58,237,0.58);"></div>
-          <div style="flex:1;height:45%;background:rgba(124,58,237,0.32);border-radius:5px 5px 0 0;border-top:2px solid rgba(124,58,237,0.52);"></div>
-          <div style="flex:1;height:74%;background:rgba(124,58,237,0.42);border-radius:5px 5px 0 0;border-top:2px solid rgba(124,58,237,0.65);"></div>
-          <div style="flex:1;height:100%;background:linear-gradient(to top,rgba(76,215,246,0.5),var(--cyan));border-radius:5px 5px 0 0;box-shadow:0 0 22px rgba(76,215,246,0.38);"></div>
-          <div style="flex:1;height:83%;background:rgba(124,58,237,0.42);border-radius:5px 5px 0 0;border-top:2px solid rgba(124,58,237,0.65);"></div>
-          <div style="flex:1;height:52%;background:rgba(124,58,237,0.32);border-radius:5px 5px 0 0;border-top:2px solid rgba(124,58,237,0.52);"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:10px;color:var(--muted);letter-spacing:0.07em;text-transform:uppercase;">
-          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span style="color:var(--cyan);">Today</span><span>Sat</span><span>Sun</span>
-        </div>
-
-        <!-- Mini metrics -->
-        <div style="display:flex;gap:24px;margin-top:20px;padding-top:18px;border-top:1px solid var(--border);">
-          <div>
-            <div style="font-size:16px;font-weight:800;color:var(--cyan);font-family:'Space Grotesk';">94%</div>
-            <div style="font-size:9px;color:var(--muted);letter-spacing:0.08em;margin-top:2px;">FOCUS RATE</div>
-          </div>
-          <div>
-            <div style="font-size:16px;font-weight:800;color:var(--plight);font-family:'Space Grotesk';">3.2h</div>
-            <div style="font-size:9px;color:var(--muted);letter-spacing:0.08em;margin-top:2px;">DEEP WORK</div>
-          </div>
-          <div>
-            <div style="font-size:16px;font-weight:800;color:var(--green);font-family:'Space Grotesk';">+18%</div>
-            <div style="font-size:9px;color:var(--muted);letter-spacing:0.08em;margin-top:2px;">VS LAST WEEK</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ② Timer card — 5 cols -->
-      <div class="bento-card" style="grid-column:span 5;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;transition-delay:0.12s;">
-        <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 25%,rgba(76,215,246,0.06) 0%,transparent 65%);pointer-events:none;"></div>
-
-        <div style="position:relative;width:136px;height:136px;margin-bottom:22px;">
-          <svg width="136" height="136" style="overflow:visible;">
-            <defs>
-              <linearGradient id="timerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#7c3aed"/>
-                <stop offset="100%" stop-color="#4cd7f6"/>
-              </linearGradient>
-            </defs>
-            <circle cx="68" cy="68" r="56" fill="transparent" stroke="rgba(255,255,255,0.04)" stroke-width="7"/>
-            <circle cx="68" cy="68" r="56" fill="transparent" stroke="url(#timerGrad)" stroke-dasharray="352" stroke-dashoffset="88" stroke-width="9" stroke-linecap="round" style="transform:rotate(-90deg);transform-origin:68px 68px;filter:drop-shadow(0 0 10px rgba(76,215,246,0.5));"/>
-          </svg>
-          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-            <span style="font-size:28px;font-weight:900;color:white;letter-spacing:-0.025em;font-family:'Space Grotesk';">25:00</span>
-            <span style="font-size:9px;letter-spacing:0.2em;color:var(--muted);font-family:'Space Grotesk';margin-top:2px;">POMODORO</span>
-          </div>
-        </div>
-
-        <h3 style="font-size:19px;font-weight:800;color:white;margin-bottom:8px;letter-spacing:-0.01em;">Deep Work Timers</h3>
-        <p style="font-size:13px;color:var(--muted);line-height:1.6;max-width:220px;">Adaptive intervals tuned to your personal focus rhythm.</p>
-
-        <!-- Mode chips -->
-        <div style="display:flex;gap:7px;margin-top:20px;flex-wrap:wrap;justify-content:center;">
-          <span style="padding:4px 13px;border-radius:999px;font-size:11px;font-weight:600;background:rgba(124,58,237,0.16);color:var(--plight);border:1px solid rgba(124,58,237,0.22);">Focus</span>
-          <span style="padding:4px 13px;border-radius:999px;font-size:11px;font-weight:600;background:rgba(255,255,255,0.05);color:var(--muted);border:1px solid var(--border);">Short Break</span>
-          <span style="padding:4px 13px;border-radius:999px;font-size:11px;font-weight:600;background:rgba(255,255,255,0.05);color:var(--muted);border:1px solid var(--border);">Long Break</span>
-        </div>
-      </div>
-
-      <!-- ③ Knowledge Base card — 5 cols -->
-      <div class="bento-card" style="grid-column:span 5;transition-delay:0.08s;">
-        <div style="position:absolute;bottom:-40px;left:-40px;width:180px;height:180px;background:radial-gradient(circle,rgba(124,58,237,0.07),transparent 70%);pointer-events:none;"></div>
-
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
-          <div style="width:40px;height:40px;background:rgba(167,139,250,0.1);border-radius:11px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(167,139,250,0.15);flex-shrink:0;">
-            <span class="ms" style="color:var(--plight);font-size:20px;">description</span>
-          </div>
-          <div>
-            <h3 style="font-size:17px;font-weight:800;color:white;letter-spacing:-0.01em;">Knowledge Base</h3>
-            <p style="font-size:11px;color:var(--muted);margin-top:1px;">AI-generated flashcards</p>
-          </div>
-        </div>
-
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(124,58,237,0.14);">
-            <div style="width:26px;height:26px;background:rgba(124,58,237,0.16);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <span class="ms" style="color:var(--primary);font-size:14px;">book</span>
-            </div>
-            <div style="flex:1;">
-              <div style="font-size:13px;font-weight:600;color:var(--text);">Quantum Mechanics</div>
-              <div style="font-size:10px;color:var(--muted);margin-top:1px;">42 flashcards generated</div>
-            </div>
-            <span style="font-size:9px;color:var(--plight);font-weight:700;letter-spacing:0.06em;white-space:nowrap;">ACTIVE</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(76,215,246,0.13);">
-            <div style="width:26px;height:26px;background:rgba(76,215,246,0.1);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <span class="ms" style="color:var(--cyan);font-size:14px;">biotech</span>
-            </div>
-            <div style="flex:1;">
-              <div style="font-size:13px;font-weight:600;color:var(--text);">Neuroscience</div>
-              <div style="font-size:10px;color:var(--muted);margin-top:1px;">31 flashcards generated</div>
-            </div>
-            <span style="font-size:9px;color:var(--cyan);font-weight:700;letter-spacing:0.06em;white-space:nowrap;">ACTIVE</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid var(--border);">
-            <div style="width:26px;height:26px;background:rgba(78,222,163,0.1);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <span class="ms" style="color:var(--green);font-size:14px;">calculate</span>
-            </div>
-            <div style="flex:1;">
-              <div style="font-size:13px;font-weight:600;color:var(--text);">Linear Algebra</div>
-              <div style="font-size:10px;color:var(--muted);margin-top:1px;">18 flashcards generated</div>
-            </div>
-            <span style="font-size:9px;color:var(--green);font-weight:700;letter-spacing:0.06em;white-space:nowrap;">NEW</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- ④ Smart Library card — 7 cols -->
-      <div class="bento-card" style="grid-column:span 7;transition-delay:0.20s;">
-        <div style="position:absolute;top:-30px;right:-30px;width:200px;height:200px;background:radial-gradient(circle,rgba(78,222,163,0.07),transparent 70%);pointer-events:none;"></div>
-
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;">
-          <div style="display:flex;align-items:center;gap:12px;">
-            <div style="width:44px;height:44px;background:rgba(78,222,163,0.1);border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(78,222,163,0.15);flex-shrink:0;">
-              <span class="ms" style="color:var(--green);font-size:22px;">auto_stories</span>
-            </div>
-            <div>
-              <h3 style="font-size:19px;font-weight:800;color:white;letter-spacing:-0.01em;">Smart Library</h3>
-              <p style="font-size:11px;color:var(--muted);margin-top:1px;">All resources, distraction-free</p>
-            </div>
-          </div>
-          <div style="padding:4px 10px;border-radius:999px;background:rgba(78,222,163,0.1);border:1px solid rgba(78,222,163,0.2);font-size:9px;color:var(--green);font-weight:700;letter-spacing:0.1em;white-space:nowrap;flex-shrink:0;">AI POWERED</div>
-        </div>
-
-        <p style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:18px;">Write freely — flashcards are generated from your notes automatically. All resources organized in one distraction-free space.</p>
-
-        <!-- Feature grid — every Brainfy study capability -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;">
-          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);">
-            <div style="width:18px;height:18px;border-radius:50%;background:rgba(78,222,163,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <span class="ms" style="font-size:11px;color:var(--green);">check</span>
-            </div>
-            Auto flashcard generation
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);">
-            <div style="width:18px;height:18px;border-radius:50%;background:rgba(124,58,237,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <span class="ms" style="font-size:11px;color:var(--plight);">check</span>
-            </div>
-            Spaced repetition review
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);">
-            <div style="width:18px;height:18px;border-radius:50%;background:rgba(76,215,246,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <span class="ms" style="font-size:11px;color:var(--cyan);">check</span>
-            </div>
-            Subject progress tracking
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);">
-            <div style="width:18px;height:18px;border-radius:50%;background:rgba(78,222,163,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <span class="ms" style="font-size:11px;color:var(--green);">check</span>
-            </div>
-            Distraction-free mode
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);">
-            <div style="width:18px;height:18px;border-radius:50%;background:rgba(124,58,237,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <span class="ms" style="font-size:11px;color:var(--plight);">check</span>
-            </div>
-            File uploads up to 1&nbsp;GB
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);">
-            <div style="width:18px;height:18px;border-radius:50%;background:rgba(76,215,246,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <span class="ms" style="font-size:11px;color:var(--cyan);">check</span>
-            </div>
-            YouTube&nbsp;→&nbsp;flashcards &amp; notes
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);">
-            <div style="width:18px;height:18px;border-radius:50%;background:rgba(78,222,163,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <span class="ms" style="font-size:11px;color:var(--green);">check</span>
-            </div>
-            AI summaries &amp; outlines
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);">
-            <div style="width:18px;height:18px;border-radius:50%;background:rgba(124,58,237,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <span class="ms" style="font-size:11px;color:var(--plight);">check</span>
-            </div>
-            PDF, image &amp; video support
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);">
-            <div style="width:18px;height:18px;border-radius:50%;background:rgba(76,215,246,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <span class="ms" style="font-size:11px;color:var(--cyan);">check</span>
-            </div>
-            Cloud sync across devices
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);">
-            <div style="width:18px;height:18px;border-radius:50%;background:rgba(78,222,163,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <span class="ms" style="font-size:11px;color:var(--green);">check</span>
-            </div>
-            ⌘K search across everything
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </section>
-
-  <!-- ════════════════════════════
-       PHILOSOPHY OF DEEP COGNITION
-  ════════════════════════════ -->
-  <section id="splash-phil" style="padding:0 40px 110px;max-width:1240px;margin:0 auto;width:100%;">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:start;">
-
-      <!-- Left: text + principles -->
-      <div>
-        <p class="phil-head" style="font-size:10px;letter-spacing:0.18em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;margin-bottom:14px;transition-delay:0s;">PHILOSOPHY</p>
-
-        <h2 class="phil-head" style="font-size:clamp(28px,3.8vw,46px);font-weight:900;line-height:1.12;letter-spacing:-0.028em;color:white;margin-bottom:22px;transition-delay:0.08s;">
-          Philosophy of<br/>Deep Cognition
-        </h2>
-
-        <p class="phil-head" style="font-size:15px;color:var(--muted);line-height:1.76;margin-bottom:38px;transition-delay:0.16s;">
-          We believe focus is the modern superpower. Brainfy doesn't just manage your time — it optimizes your cognitive environment, activating the right mental energy at exactly the right moment.
-        </p>
-
-        <!-- Principle 1 -->
-        <div class="phil-item" style="transition-delay:0.24s;">
-          <div style="width:38px;height:38px;background:linear-gradient(135deg,rgba(124,58,237,0.22),rgba(124,58,237,0.06));border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(124,58,237,0.22);">
-            <span class="ms" style="color:var(--plight);font-size:19px;">bolt</span>
-          </div>
-          <div>
-            <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:5px;">FlowState Activation</div>
-            <div style="font-size:13px;color:var(--muted);line-height:1.55;">Reach peak performance through curated environments and adaptive timing that works with your brain, not against it.</div>
-          </div>
-        </div>
-
-        <!-- Principle 2 -->
-        <div class="phil-item" style="transition-delay:0.33s;">
-          <div style="width:38px;height:38px;background:linear-gradient(135deg,rgba(76,215,246,0.16),rgba(76,215,246,0.05));border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(76,215,246,0.16);">
-            <span class="ms" style="color:var(--cyan);font-size:19px;">psychology</span>
-          </div>
-          <div>
-            <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:5px;">Cognitive Clarity</div>
-            <div style="font-size:13px;color:var(--muted);line-height:1.55;">Clear your mental cache. Brainfy reduces decision fatigue so you can think deeper, retain more, and recall faster.</div>
-          </div>
-        </div>
-
-        <!-- Principle 3 -->
-        <div class="phil-item" style="transition-delay:0.42s;">
-          <div style="width:38px;height:38px;background:linear-gradient(135deg,rgba(78,222,163,0.16),rgba(78,222,163,0.05));border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(78,222,163,0.16);">
-            <span class="ms" style="color:var(--green);font-size:19px;">trending_up</span>
-          </div>
-          <div>
-            <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:5px;">Compound Learning</div>
-            <div style="font-size:13px;color:var(--muted);line-height:1.55;">Small daily sessions compound into massive knowledge gains. Consistency, not intensity, is the real secret.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Right: stats card -->
-      <div class="phil-right">
-        <div style="border-radius:24px;background:linear-gradient(135deg,rgba(124,58,237,0.12),rgba(76,215,246,0.06));border:1px solid rgba(124,58,237,0.16);padding:40px;position:relative;overflow:hidden;">
-          <div style="position:absolute;top:-70px;right:-70px;width:220px;height:220px;background:radial-gradient(circle,rgba(76,215,246,0.08),transparent 70%);pointer-events:none;"></div>
-          <div style="position:absolute;bottom:-50px;left:-50px;width:180px;height:180px;background:radial-gradient(circle,rgba(124,58,237,0.08),transparent 70%);pointer-events:none;"></div>
-
-          <div style="text-align:center;margin-bottom:30px;position:relative;">
-            <span class="ms" style="font-size:70px;color:rgba(167,139,250,0.22);">favorite</span>
-            <div style="font-size:11px;letter-spacing:0.14em;color:var(--plight);font-family:'Space Grotesk';margin-top:10px;font-weight:700;">BUILT DIFFERENTLY</div>
-          </div>
-
-          <!-- 3 honest principle cards -->
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center;position:relative;">
-            <div style="padding:18px 6px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid var(--border);">
-              <div style="display:flex;justify-content:center;margin-bottom:8px;">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--plight)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <div class="pp-art">
+          <div class="pp-cat pp-paperish" id="ppCat" data-pp-rv>
+            <div class="pp-cat-box">
+              <div class="pp-cat-in" id="ppCatIn">
+                <article class="pp-drc pp-open" style="--c:#a9bdd0">
+                  <h3 class="pp-drh"><button type="button" id="ppDrB1" aria-expanded="true" aria-controls="ppDr1"><span class="pp-drn">01</span><span class="pp-drt">AI import</span><span class="pp-drg">PDFs · notes · photos · YouTube</span></button></h3>
+                  <div class="pp-drb" id="ppDr1">
+                    <p>Drop in a PDF, typed notes, a photo of the whiteboard or a YouTube lecture. The AI pulls out what matters, writes the flashcards, and adds an outline and a summary to revise from.</p>
+                    <div class="pp-spec pp-sp-io" aria-hidden="true"><b>in</b><span>slides.pdf<br>board.jpg<br>a YouTube link</span><b>out</b><span>flashcards<br>outline · summary</span></div>
+                    <p class="pp-drg2">PDFs · notes · photos · YouTube</p>
+                    <p class="pp-see">See also <a class="pp-mlink" href="/pdf-to-flashcards.html">PDF to flashcards</a> · <a class="pp-mlink" href="/image-to-flashcards.html">Image to flashcards</a></p>
+                  </div>
+                </article>
+                <article class="pp-drc" style="--c:#bcc9a4">
+                  <h3 class="pp-drh"><button type="button" id="ppDrB2" aria-expanded="true" aria-controls="ppDr2"><span class="pp-drn">02</span><span class="pp-drt">Spaced repetition</span><span class="pp-drg">one queue a day</span></button></h3>
+                  <div class="pp-drb" id="ppDr2">
+                    <p>Rate each card again, hard, good or easy and it is rescheduled, Anki-style: the better you know it, the longer it stays away. Each day brings one queue of what’s due, and a session adds at most 20 new cards, so a big import can’t bury you.</p>
+                    <div class="pp-spec pp-sp-rate" aria-hidden="true"><span>again<i>now</i></span><span>hard<i>1 day</i></span><span>good<i>3 days</i></span><span>easy<i>7 days</i></span><small>a new card’s first review</small></div>
+                    <p class="pp-drg2">one queue a day</p>
+                    <p class="pp-see">See also <a class="pp-mlink" href="/spaced-repetition.html">How spaced repetition works</a></p>
+                  </div>
+                </article>
+                <article class="pp-drc" style="--c:#dcae90">
+                  <h3 class="pp-drh"><button type="button" id="ppDrB3" aria-expanded="true" aria-controls="ppDr3"><span class="pp-drn">03</span><span class="pp-drt">Four ways to study</span><span class="pp-drg">Learn · Match · Test · Cloze</span></button></h3>
+                  <div class="pp-drb" id="ppDr3">
+                    <p>Learn is multiple choice. Match is a race against the clock to pair questions with answers. Test makes you type the answer, and Cloze blanks out a word for you to fill in.</p>
+                    <div class="pp-spec pp-sp-tabs" aria-hidden="true"><span style="background:#a9bdd0">Learn</span><span style="background:#bcc9a4">Match</span><span style="background:#dcae90">Test</span><span style="background:#e5cc90">Cloze</span></div>
+                    <p class="pp-see">See also <a class="pp-mlink" href="/ai-quiz-generator.html">AI quiz generator</a></p>
+                  </div>
+                </article>
+                <article class="pp-drc" style="--c:#e5cc90">
+                  <h3 class="pp-drh"><button type="button" id="ppDrB4" aria-expanded="true" aria-controls="ppDr4"><span class="pp-drn">04</span><span class="pp-drt">Focus timer</span><span class="pp-drg">25/5 · 50/10 · 90/20</span></button></h3>
+                  <div class="pp-drb" id="ppDr4">
+                    <p>Pomodoro 25/5, Extended 50/10 or Deep Work 90/20, with lofi, rain, white noise or forest wind playing underneath. While the clock runs, the screen goes quiet.</p>
+                    <div class="pp-spec" aria-hidden="true"><div class="pp-sp-clock">25:00</div>lofi · rain<br>white noise · forest</div>
+                    <p class="pp-drg2">25/5 · 50/10 · 90/20</p>
+                    <p class="pp-see">See also <a class="pp-mlink" href="/pomodoro-timer.html">Pomodoro timer</a></p>
+                  </div>
+                </article>
+                <article class="pp-drc" style="--c:#a9bdd0">
+                  <h3 class="pp-drh"><button type="button" id="ppDrB5" aria-expanded="true" aria-controls="ppDr5"><span class="pp-drn">05</span><span class="pp-drt">AI tutor</span><span class="pp-drg">knows your subjects</span></button></h3>
+                  <div class="pp-drb" id="ppDr5">
+                    <p>A streaming chat that explains, quizzes you, and writes flashcards when you ask. It already knows your subjects, today’s focus time and what’s left on your task list.</p>
+                    <div class="pp-spec pp-sp-chat" aria-hidden="true"><p>why do old books say 38 ATP?</p><p>They assumed 3 ATP per NADH. Today’s figure is nearer 2.5, so the total comes to about 30–32.</p></div>
+                    <p class="pp-drg2">knows your subjects</p>
+                    <p class="pp-see">See also <a class="pp-mlink" href="/ai-tutor.html">AI tutor</a></p>
+                  </div>
+                </article>
+                <article class="pp-drc" style="--c:#bcc9a4">
+                  <h3 class="pp-drh"><button type="button" id="ppDrB6" aria-expanded="true" aria-controls="ppDr6"><span class="pp-drn">06</span><span class="pp-drt">Library</span><span class="pp-drg">notes · links · files</span></button></h3>
+                  <div class="pp-drb" id="ppDr6">
+                    <p>A shelf for every subject, holding your notes, links and files of up to 1&nbsp;GB. Brainfy can make cards straight from the notes you write there, and ⌘K or Ctrl+K searches every subject, note, file and task.</p>
+                    <div class="pp-spec pp-sp-lib" aria-hidden="true"><span><i>Biology</i><i>History</i><i>Maths</i></span><span><span class="pp-kbd">⌘</span><span class="pp-kbd">K</span></span></div>
+                    <p class="pp-drg2">notes · links · files</p>
+                    <p class="pp-see">See also <a class="pp-mlink" href="/notes-to-flashcards.html">Notes to flashcards</a></p>
+                  </div>
+                </article>
+                <article class="pp-drc" style="--c:#dcae90">
+                  <h3 class="pp-drh"><button type="button" id="ppDrB7" aria-expanded="true" aria-controls="ppDr7"><span class="pp-drn">07</span><span class="pp-drt">Honest stats</span><span class="pp-drg">time · streak · heatmap</span></button></h3>
+                  <div class="pp-drb" id="ppDr7">
+                    <p>Minutes focused, sessions, your streak, and a heatmap of the hours you actually studied over the last two weeks. All of it comes from your own sessions, with no leaderboard to compare yourself against.</p>
+                    <div class="pp-spec pp-sp-heat" aria-hidden="true"><svg viewBox="0 0 167 48"><defs><pattern id="ppHeatP" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="6" height="6" rx="1" fill="#1b2440" fill-opacity=".08"/></pattern></defs><rect width="167" height="48" fill="url(#ppHeatP)"/><g fill="#d9573a"><rect x="112" y="0" width="6" height="6" rx="1" fill-opacity="0.5"/><rect x="119" y="0" width="6" height="6" rx="1" fill-opacity="0.5"/><rect x="140" y="0" width="6" height="6" rx="1" fill-opacity="0.35"/><rect x="147" y="0" width="6" height="6" rx="1" fill-opacity="0.95"/><rect x="112" y="7" width="6" height="6" rx="1" fill-opacity="0.5"/><rect x="119" y="7" width="6" height="6" rx="1" fill-opacity="0.65"/><rect x="126" y="7" width="6" height="6" rx="1" fill-opacity="0.95"/><rect x="126" y="14" width="6" height="6" rx="1" fill-opacity="0.5"/><rect x="147" y="14" width="6" height="6" rx="1" fill-opacity="0.65"/><rect x="133" y="21" width="6" height="6" rx="1" fill-opacity="0.8"/><rect x="140" y="21" width="6" height="6" rx="1" fill-opacity="0.35"/><rect x="147" y="21" width="6" height="6" rx="1" fill-opacity="0.95"/><rect x="49" y="28" width="6" height="6" rx="1" fill-opacity="0.8"/><rect x="112" y="28" width="6" height="6" rx="1" fill-opacity="0.35"/><rect x="126" y="28" width="6" height="6" rx="1" fill-opacity="0.8"/><rect x="147" y="28" width="6" height="6" rx="1" fill-opacity="0.95"/><rect x="70" y="35" width="6" height="6" rx="1" fill-opacity="0.35"/><rect x="77" y="35" width="6" height="6" rx="1" fill-opacity="0.95"/><rect x="70" y="42" width="6" height="6" rx="1" fill-opacity="0.95"/><rect x="91" y="42" width="6" height="6" rx="1" fill-opacity="0.65"/></g></svg><small>example · hour of day</small></div>
+                    <p class="pp-drg2">time · streak · heatmap</p>
+                    <p class="pp-see">See also <a class="pp-mlink" href="/study-timer.html">Study timer</a></p>
+                  </div>
+                </article>
+                <article class="pp-drc" style="--c:#e5cc90">
+                  <h3 class="pp-drh"><button type="button" id="ppDrB8" aria-expanded="true" aria-controls="ppDr8"><span class="pp-drn">08</span><span class="pp-drt">Planner</span><span class="pp-drg">timetable · tasks</span></button></h3>
+                  <div class="pp-drb" id="ppDr8">
+                    <p>A weekly timetable for when you’ll study and a task list for what comes next, so you plan the focus, not just the to-do list.</p>
+                    <div class="pp-spec pp-sp-week" aria-hidden="true"><i style="--h:30px"></i><i style="--h:14px;--c:#bcc9a4"></i><i style="--h:38px;--c:#dcae90"></i><i style="--h:22px"></i><i style="--h:10px;--c:#e5cc90"></i><i style="--h:26px;--c:#bcc9a4"></i><i style="--h:6px;--c:#e5cc90"></i><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+                    <p class="pp-drg2">timetable · tasks</p>
+                    <p class="pp-see">See also <a class="pp-mlink" href="/study-planner.html">Study planner</a></p>
+                  </div>
+                </article>
+                <article class="pp-drc" style="--c:#a9bdd0">
+                  <h3 class="pp-drh"><button type="button" id="ppDrB9" aria-expanded="true" aria-controls="ppDr9"><span class="pp-drn">09</span><span class="pp-drt">Offline &amp; sync</span><span class="pp-drg">laptop · phone</span></button></h3>
+                  <div class="pp-drb" id="ppDr9">
+                    <p>Lost the Wi-Fi? Keep studying. Changes save on your device and sync to your account when you’re back online, so the same decks are on your laptop and your phone.</p>
+                    <div class="pp-spec pp-sp-sync" aria-hidden="true"><span>Offline · saved locally</span><span>Back online · synced</span></div>
+                    <p class="pp-drg2">laptop · phone</p>
+                  </div>
+                </article>
+                <article class="pp-drc" style="--c:#bcc9a4">
+                  <h3 class="pp-drh"><button type="button" id="ppDrB10" aria-expanded="true" aria-controls="ppDr10"><span class="pp-drn">10</span><span class="pp-drt">Import &amp; export</span><span class="pp-drg">Anki · Quizlet · CSV</span></button></h3>
+                  <div class="pp-drb" id="ppDr10">
+                    <p>Bring decks in from Anki (Notes in Plain Text), Quizlet exports or CSV files, and export any deck back to CSV whenever you like. Your cards are never locked in.</p>
+                    <div class="pp-spec pp-sp-csv" aria-hidden="true"><b>biology.csv</b>
+"Where does glycolysis happen?","cytoplasm"
+"Where is the Krebs cycle?","mitochondrial matrix"</div>
+                    <p class="pp-drg2">Anki · Quizlet · CSV</p>
+                    <p class="pp-see">See also <a class="pp-mlink" href="/csv-to-flashcards.html">CSV to flashcards</a></p>
+                  </div>
+                </article>
               </div>
-              <div style="font-size:11px;color:var(--text);letter-spacing:0.08em;line-height:1.4;font-weight:700;font-family:'Space Grotesk';">PRIVATE<br/><span style="color:var(--muted);font-weight:500;letter-spacing:0;font-family:'Manrope';font-size:10px;">Your notes,<br/>your data</span></div>
             </div>
-            <div style="padding:18px 6px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid var(--border);">
-              <div style="display:flex;justify-content:center;margin-bottom:8px;">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <div class="pp-cat-front" aria-hidden="true"><span class="pp-cat-plate"><b>Brainfy · features 01–10</b></span><i class="pp-cat-pull"></i><i class="pp-cat-rod"></i></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ 05 · FEATURE PAGES — a library pocket with its checkout card.
+         Internal links to each feature's own indexable landing page (keep
+         them visible so crawlers can follow them from /). ═══ -->
+    <section class="pp-sec pp-s-read" id="splash-features" aria-labelledby="ppH2r">
+      <div class="pp-wrap pp-two pp-rev">
+        <div class="pp-cc2">
+          <p class="pp-label">05 <i>/ Further reading</i></p>
+          <h2 class="pp-h2" id="ppH2r">The long version, <em>if you want it.</em></h2>
+          <p class="pp-body">Each of these pages takes one part of Brainfy and explains it properly: what it does, how it works, and how to get the most out of it.</p>
+        </div>
+        <div class="pp-art">
+          <div class="pp-rd pp-paperish" data-pp-rv>
+            <div class="pp-rd-card pp-sheetp">
+              <p class="pp-rd-top"><span>Further reading</span></p>
+              <p class="pp-rd-hd" aria-hidden="true"><span>Title</span><span>About</span></p>
+              <div class="pp-rd-list">
+                <a href="/pomodoro-timer.html"><strong>Pomodoro Timer<span aria-hidden="true">→</span></strong><span>A free, distraction-free focus timer with honest analytics.</span></a>
+                <a href="/ai-flashcards.html"><strong>AI Flashcards<span aria-hidden="true">→</span></strong><span>Turn notes, PDFs and images into spaced-repetition cards.</span></a>
+                <a href="/pdf-to-flashcards.html"><strong>PDF to Flashcards<span aria-hidden="true">→</span></strong><span>Upload a PDF and get a full deck in seconds.</span></a>
+                <a href="/ai-tutor.html"><strong>AI Tutor<span aria-hidden="true">→</span></strong><span>Streaming chat that explains concepts and quizzes you.</span></a>
+                <a href="/study-planner.html"><strong>Study Planner<span aria-hidden="true">→</span></strong><span>A weekly timetable that plans the focus, not just the work.</span></a>
               </div>
-              <div style="font-size:11px;color:var(--text);letter-spacing:0.08em;line-height:1.4;font-weight:700;font-family:'Space Grotesk';">HONEST<br/><span style="color:var(--muted);font-weight:500;letter-spacing:0;font-family:'Manrope';font-size:10px;">No fake<br/>vanity stats</span></div>
+              <p class="pp-rd-ex"><b>Shelved by exam</b><a href="/gcse-revision-app.html">GCSE revision</a><i aria-hidden="true">·</i><a href="/a-level-revision-app.html">A-level revision</a><i aria-hidden="true">·</i><a href="/ap-biology-flashcards.html">AP Biology</a><i aria-hidden="true">·</i><a href="/flashcards-for-nursing-students.html">Nursing</a><i aria-hidden="true">·</i><a href="/ai-flashcards-for-medical-school.html">Medical school</a></p>
+              <span class="pp-rd-stamp" aria-hidden="true">No due date</span>
             </div>
-            <div style="padding:18px 6px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid var(--border);">
-              <div style="display:flex;justify-content:center;margin-bottom:8px;">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-              </div>
-              <div style="font-size:11px;color:var(--text);letter-spacing:0.08em;line-height:1.4;font-weight:700;font-family:'Space Grotesk';">OPEN<br/><span style="color:var(--muted);font-weight:500;letter-spacing:0;font-family:'Manrope';font-size:10px;">Built in<br/>the open</span></div>
+            <div class="pp-rd-pocket" aria-hidden="true"><b>Brainfy library</b>Please return this card to the pocket</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ 06 · PRINCIPLES — house rules, typed up and clipped to the desk ═══ -->
+    <section class="pp-sec pp-s-rules" id="splash-phil" aria-labelledby="ppH2h">
+      <div class="pp-wrap pp-two">
+        <div class="pp-cc2">
+          <p class="pp-label">06 <i>/ House rules</i></p>
+          <h2 class="pp-h2" id="ppH2h">Five rules, <em>in writing.</em></h2>
+          <p class="pp-body">Most study apps are built to keep you in the app. Brainfy is built to a different list, and it’s short enough to type on one page. Hold us to it.</p>
+        </div>
+        <div class="pp-art">
+          <div class="pp-rules pp-sheetp pp-paperish" data-pp-rv>
+            <span class="pp-clip" aria-hidden="true"><svg viewBox="0 0 96 58"><defs><linearGradient id="ppClipB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3a3e"/><stop offset=".5" stop-color="#151517"/><stop offset="1" stop-color="#0a0a0b"/></linearGradient></defs><path d="M31 30V9q0-6 6-6h22q6 0 6 6v21" fill="none" stroke="#c9ccd2" stroke-width="3.2" stroke-linecap="round"/><path d="M27 31V12q0-6 6-6h30q6 0 6 6v19" fill="none" stroke="#9ea2aa" stroke-width="2.6" stroke-linecap="round" opacity=".85"/><path d="M14 28h68l-5 24H19z" fill="url(#ppClipB)"/><path d="M15 29h66" stroke="#5b5b62" stroke-width="1.4"/><path d="M19 52h58" stroke="rgba(0,0,0,.5)" stroke-width="2"/></svg></span>
+            <p class="pp-dymo2" aria-hidden="true">House rules</p>
+            <ol>
+              <li><h3><span>No ads.</span></h3><p>Not between your cards, not on the timer, not in the tutor. Nobody is paying to interrupt you. <s class="pp-rs" aria-hidden="true">sponsored deck</s></p></li>
+              <li><h3><span>No streak guilt.</span></h3><p>Your streak counts the days you studied. Every five days in a row earns a freeze for the day life gets in the way, and freezes are never for sale. <s class="pp-rs" aria-hidden="true">buy a streak repair</s></p></li>
+              <li><h3><span>Honest numbers.</span></h3><p>Stats come straight from your own sessions: minutes focused, sessions, cards reviewed. No leaderboards, and no “top 3% of learners” badges. <s class="pp-rs" aria-hidden="true">you beat 97% of users!</s></p></li>
+              <li><h3><span>Your notes stay yours.</span></h3><p>They sync only to your own account and are never sold. Export any deck to CSV whenever you want to leave. <s class="pp-rs" aria-hidden="true">shared with partners</s></p></li>
+              <li><h3><span>Built in the open.</span></h3><p>Every commit is public on GitHub, so you can see exactly what changed, and say so when something breaks. <s class="pp-rs" aria-hidden="true">roadmap-as-marketing</s></p></li>
+            </ol>
+            <p class="pp-rules-sig" aria-hidden="true">broke one? tell me. — A.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ 07 · FOUNDER — a letter, its envelope, and an about-the-author card.
+         Visible identity for SEO ("who built this?"): the Person entity in the
+         JSON-LD graph in <head> points here (#splash-founder), and the
+         microdata below keeps name / jobTitle / description / sameAs in sync
+         with it (sameAs mirrors the JSON-LD list 1:1). ═══ -->
+    <section class="pp-sec pp-s-fnd" id="splash-founder" aria-labelledby="ppH2f">
+      <div class="pp-wrap pp-two pp-rev">
+        <div class="pp-cc2">
+          <p class="pp-label">07 <i>/ From the maker</i></p>
+          <h2 class="pp-h2" id="ppH2f">Built by a student, <em>for students.</em></h2>
+          <p class="pp-body">Brainfy has no team, no investors and no marketing department. It has one founder, who builds it in public and answers his own email.</p>
+        </div>
+        <div class="pp-art">
+          <div class="pp-fnd" data-pp-rv>
+            <div class="pp-env" aria-hidden="true"></div>
+            <span class="pp-seal" aria-hidden="true">AM</span>
+            <div class="pp-letter pp-sheetp pp-paperish">
+              <p class="pp-lhd" aria-hidden="true"><span>From the desk of</span><span>Aihan Mifthas</span></p>
+              <p class="pp-dear">Dear student,</p>
+              <p>Brainfy is the study app I wanted during my own exams. Everything I tried seemed built to keep me in the app, with streaks, badges and notifications, more than to help me learn anything.</p>
+              <p>So this one does the dull part for you: notes in, cards out, a quiet timer. Then it gets out of the way.</p>
+              <p>I build it on my own and in the open, and I read every message. If something is missing or wrong, write to me at <a class="pp-mlink" href="mailto:help@brainfy.online">help@brainfy.online</a>.</p>
+              <p class="pp-sign">Aihan</p>
             </div>
           </div>
-
+        </div>
+        <div class="pp-about-c" data-pp-rv>
+          <div class="pp-about pp-sheetp pp-paperish" itemscope itemtype="https://schema.org/Person">
+            <p class="pp-about-top">About the author</p>
+            <h3 itemprop="name">Aihan Mifthas</h3>
+            <p class="pp-about-role"><span itemprop="jobTitle">Founder &amp; CEO</span> · Brainfy</p>
+            <p class="pp-about-bio" itemprop="description">Aihan Mifthas built Brainfy as the focused, calm study tool he wished he'd had during his own exams — frustrated by apps that optimise for engagement metrics instead of actual learning. Solo founder, shipping in the open, every commit visible on GitHub.</p>
+            <!-- Dedicated, crawlable founder page: its own canonical URL for
+                 "Aihan Mifthas" searches instead of a hash on the home page. -->
+            <p class="pp-about-more"><a href="/founder.html" rel="author">Read the founder's story →</a></p>
+            <p class="pp-socials">
+              <a href="https://github.com/Aihan-7" target="_blank" rel="noopener author" itemprop="sameAs" aria-label="Aihan Mifthas on GitHub">GitHub</a>
+              <a href="https://www.linkedin.com/in/aihan-mifthas-004954408/" target="_blank" rel="noopener author" itemprop="sameAs" aria-label="Aihan Mifthas on LinkedIn">LinkedIn</a>
+              <a href="https://www.instagram.com/stillaihantho_/" target="_blank" rel="noopener author" itemprop="sameAs" aria-label="Aihan Mifthas on Instagram">Instagram</a>
+              <a href="https://www.facebook.com/aihan.mifthas.16" target="_blank" rel="noopener author" itemprop="sameAs" aria-label="Aihan Mifthas on Facebook">Facebook</a>
+            </p>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ════════════════════════════
-       FOUNDER SECTION
-       Visible identity for SEO ("who built this?") + branding ("real
-       human, shipping in the open"). The Person entity in the JSON-LD
-       graph at the top of <head> links back to this via creator on
-       SoftwareApplication + founder on Organization, so Google can
-       connect the name on this section to the same identity across
-       its knowledge graph.
+    <!-- ═══ 08 · FAQ — an exam paper. Questions and answers must stay word for
+         word identical to the FAQPage JSON-LD in <head> (Google requires the
+         visible text to match the structured data). ═══ -->
+    <section class="pp-sec pp-s-faq" id="splash-faq" aria-labelledby="ppH2q">
+      <p class="pp-label">08 <i>/ Questions</i></p>
+      <div class="pp-exam pp-sheetp pp-paperish" data-pp-rv>
+        <div class="pp-exam-hd" aria-hidden="true"><span><b>Brainfy</b> · Paper 1</span><span class="pp-cand">Candidate no.<i></i></span><span>Time allowed: about a minute</span></div>
+        <h2 id="ppH2q">Frequently asked questions</h2>
+        <p class="pp-ins"><span><b>Instructions</b></span><span>Answer all questions.</span><span>Open one to see the model answer.</span></p>
+        <details class="pp-fq" open>
+          <summary><span class="pp-fqn" aria-hidden="true">1</span><span class="pp-fqt">Is Brainfy free?</span><span class="pp-fqm" aria-hidden="true">[1]</span></summary>
+          <div class="pp-fqa"><p>Yes. Brainfy is free during beta — AI flashcards, spaced repetition, the AI tutor, the Pomodoro timer and the study planner are all unlocked at no cost, with no ads.</p><svg class="pp-tick" viewBox="0 0 56 44" aria-hidden="true"><path d="M5 25c5 3 9 8 12 14 9-16 20-28 35-36"/></svg></div>
+        </details>
+        <details class="pp-fq">
+          <summary><span class="pp-fqn" aria-hidden="true">2</span><span class="pp-fqt">What does Brainfy do?</span><span class="pp-fqm" aria-hidden="true">[1]</span></summary>
+          <div class="pp-fqa"><p>Brainfy turns your notes, PDFs and lecture videos into flashcards with AI, schedules reviews with spaced repetition, and helps you focus with a Pomodoro timer, a weekly planner and an AI tutor — all in one web app.</p><svg class="pp-tick" viewBox="0 0 56 44" aria-hidden="true"><path d="M5 25c5 3 9 8 12 14 9-16 20-28 35-36"/></svg></div>
+        </details>
+        <details class="pp-fq">
+          <summary><span class="pp-fqn" aria-hidden="true">3</span><span class="pp-fqt">Do I need an account to try Brainfy?</span><span class="pp-fqm" aria-hidden="true">[1]</span></summary>
+          <div class="pp-fqa"><p>No. You can try Brainfy instantly in your browser with no signup. Create a free account when you want your decks and progress synced across devices.</p><svg class="pp-tick" viewBox="0 0 56 44" aria-hidden="true"><path d="M5 25c5 3 9 8 12 14 9-16 20-28 35-36"/></svg></div>
+        </details>
+        <details class="pp-fq">
+          <summary><span class="pp-fqn" aria-hidden="true">4</span><span class="pp-fqt">Can I import decks from Anki or Quizlet?</span><span class="pp-fqm" aria-hidden="true">[1]</span></summary>
+          <div class="pp-fqa"><p>Yes. You can import Anki "Notes in Plain Text", Quizlet exports, or CSV files from any deck's Cards tab, and export your decks back to CSV anytime — no lock-in.</p><svg class="pp-tick" viewBox="0 0 56 44" aria-hidden="true"><path d="M5 25c5 3 9 8 12 14 9-16 20-28 35-36"/></svg></div>
+        </details>
+        <details class="pp-fq">
+          <summary><span class="pp-fqn" aria-hidden="true">5</span><span class="pp-fqt">How is Brainfy different from Anki or Quizlet?</span><span class="pp-fqm" aria-hidden="true">[1]</span></summary>
+          <div class="pp-fqa"><p>Brainfy combines Anki-style spaced repetition, Quizlet-style study modes (Learn, Match, Test), and AI that builds the cards from your notes — free and ad-free, in one place.</p><svg class="pp-tick" viewBox="0 0 56 44" aria-hidden="true"><path d="M5 25c5 3 9 8 12 14 9-16 20-28 35-36"/></svg></div>
+        </details>
+        <details class="pp-fq">
+          <summary><span class="pp-fqn" aria-hidden="true">6</span><span class="pp-fqt">Is my study data private?</span><span class="pp-fqm" aria-hidden="true">[1]</span></summary>
+          <div class="pp-fqa"><p>Yes. Your data syncs only to your own account, is never sold, and Brainfy shows no ads. See our <a href="/privacy.html">Privacy Policy</a> for details.</p><svg class="pp-tick" viewBox="0 0 56 44" aria-hidden="true"><path d="M5 25c5 3 9 8 12 14 9-16 20-28 35-36"/></svg></div>
+        </details>
+        <p class="pp-exam-end">End of questions<span>Still stuck? Email <a class="pp-mlink" href="mailto:help@brainfy.online">help@brainfy.online</a></span></p>
+        <svg class="pp-exam-pencil" viewBox="0 0 400 28" aria-hidden="true"><rect x="0" y="3" width="30" height="22" rx="4" fill="#efe6d6"/><rect x="26" y="2" width="30" height="24" fill="url(#ppPf)"/><path d="M33 2v24M40 2v24M47 2v24" stroke="#7c5c20" stroke-width="1"/><rect x="56" y="3" width="282" height="22" fill="url(#ppPb)"/><path d="M338 3 384 12.4V15.6L338 25z" fill="#d8b588"/><path d="M370 9.6 396 14 370 18.4z" fill="#2c2c2e"/><text x="80" y="18" font-family="DM Mono,monospace" font-size="9.5" letter-spacing="2" fill="#c9a24a">BRAINFY · HB</text></svg>
+      </div>
+    </section>
 
-       Avatar placeholder: when a real photo is ready, replace the
-       <div class="founder-avatar">AM</div> with
-       <img src="/founder.jpg" alt="Aihan Mifthas" class="founder-avatar" />
-       — the CSS already sizes it correctly.
-  ════════════════════════════ -->
-  <section id="splash-founder" style="padding:60px 40px;max-width:920px;margin:0 auto;width:100%;">
-    <div style="text-align:center;margin-bottom:34px;">
-      <p style="font-size:10px;letter-spacing:0.18em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;margin-bottom:12px;">THE FOUNDER</p>
-      <h2 style="font-size:clamp(26px,3.5vw,38px);font-weight:900;letter-spacing:-0.025em;color:white;margin-bottom:10px;">Built by a student, for students</h2>
-      <p style="font-size:14px;color:var(--muted);max-width:520px;margin:0 auto;line-height:1.65;">One person, one obsession: a study tool that respects your attention.</p>
-    </div>
-
-    <div class="glass founder-card" itemscope itemtype="https://schema.org/Person" style="padding:36px 32px;border-radius:22px;display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:center;">
-      <!-- Avatar — see comment block above for swapping in a real photo -->
-      <div class="founder-avatar" aria-hidden="true">AM</div>
-
-      <div>
-        <h3 itemprop="name" style="font-size:22px;font-weight:800;color:white;margin-bottom:4px;letter-spacing:-0.01em;">Aihan Mifthas</h3>
-        <p style="font-size:11px;letter-spacing:0.1em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;margin-bottom:16px;">
-          <span itemprop="jobTitle">Founder &amp; CEO</span> · Brainfy
-        </p>
-        <p itemprop="description" style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:18px;">
-          Aihan Mifthas built Brainfy as the focused, calm study tool he wished he'd had during his own exams —
-          frustrated by apps that optimise for engagement metrics instead of actual learning. Solo founder,
-          shipping in the open, every commit visible on GitHub.
-        </p>
-
-        <!-- Dedicated, crawlable founder page — gives Aihan/Brainfy its own
-             canonical URL for "Aihan Mifthas" search queries instead of the
-             hash fragment on the home page. -->
-        <p style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:18px;">
-          <a href="/founder.html" rel="author" style="color:var(--plight);text-decoration:none;font-weight:700;">
-            Read the founder's story →
-          </a>
-        </p>
-
-        <!-- Social row. Add more <a> entries as other profile (e.g. X)
-             URLs become available; the Person schema's sameAs[] in
-             head should mirror this list 1:1 so structured data and visible
-             links stay in sync. -->
-        <div class="founder-socials" style="display:flex;gap:10px;flex-wrap:wrap;">
-          <a href="https://github.com/Aihan-7" target="_blank" rel="noopener author" itemprop="sameAs"
-             aria-label="Aihan Mifthas on GitHub"
-             style="padding:8px 14px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);text-decoration:none;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.15s, transform 0.12s;"
-             onmouseover="this.style.background='rgba(255,255,255,0.08)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='rgba(255,255,255,0.04)';this.style.transform=''">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.79 23.4c.6.11.82-.26.82-.58v-2c-3.34.73-4.04-1.6-4.04-1.6-.55-1.4-1.34-1.77-1.34-1.77-1.09-.75.08-.74.08-.74 1.2.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.3 3.5.99.1-.78.42-1.3.76-1.6-2.66-.3-5.46-1.33-5.46-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.17 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.66 1.65.25 2.87.12 3.17.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.62-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0 0 12 .3"/></svg>
-            GitHub
-          </a>
-          <a href="https://www.linkedin.com/in/aihan-mifthas-004954408/" target="_blank" rel="noopener author" itemprop="sameAs"
-             aria-label="Aihan Mifthas on LinkedIn"
-             style="padding:8px 14px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);text-decoration:none;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.15s, transform 0.12s;"
-             onmouseover="this.style.background='rgba(255,255,255,0.08)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='rgba(255,255,255,0.04)';this.style.transform=''">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28ZM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13ZM7.12 20.45H3.56V9h3.56v11.45ZM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0Z"/></svg>
-            LinkedIn
-          </a>
-          <a href="https://www.instagram.com/stillaihantho_/" target="_blank" rel="noopener author" itemprop="sameAs"
-             aria-label="Aihan Mifthas on Instagram"
-             style="padding:8px 14px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);text-decoration:none;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.15s, transform 0.12s;"
-             onmouseover="this.style.background='rgba(255,255,255,0.08)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='rgba(255,255,255,0.04)';this.style.transform=''">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.43.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.41 2.23a3.72 3.72 0 0 1-.9 1.38 3.72 3.72 0 0 1-1.38.9c-.43.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.23-.41a3.72 3.72 0 0 1-1.38-.9 3.72 3.72 0 0 1-.9-1.38c-.16-.43-.36-1.06-.41-2.23C2.17 15.58 2.16 15.2 2.16 12s.01-3.58.07-4.85c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.43-.16 1.06-.36 2.23-.41C8.42 2.17 8.8 2.16 12 2.16M12 0C8.74 0 8.33.01 7.05.07 5.78.13 4.9.33 4.14.63a5.88 5.88 0 0 0-2.13 1.39A5.88 5.88 0 0 0 .62 4.15C.33 4.9.13 5.78.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.06 1.27.26 2.15.56 2.91a5.88 5.88 0 0 0 1.39 2.13 5.88 5.88 0 0 0 2.13 1.39c.76.3 1.64.5 2.91.56C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c1.27-.06 2.15-.26 2.91-.56a5.88 5.88 0 0 0 2.13-1.39 5.88 5.88 0 0 0 1.39-2.13c.3-.76.5-1.64.56-2.91.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.06-1.27-.26-2.15-.56-2.91a5.88 5.88 0 0 0-1.39-2.13A5.88 5.88 0 0 0 19.86.63c-.76-.3-1.64-.5-2.91-.56C15.67.01 15.26 0 12 0Zm0 5.84a6.16 6.16 0 1 0 0 12.32 6.16 6.16 0 0 0 0-12.32Zm0 10.16a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm6.4-11.85a1.44 1.44 0 1 0 0 2.88 1.44 1.44 0 0 0 0-2.88Z"/></svg>
-            Instagram
-          </a>
-          <a href="https://www.facebook.com/aihan.mifthas.16" target="_blank" rel="noopener author" itemprop="sameAs"
-             aria-label="Aihan Mifthas on Facebook"
-             style="padding:8px 14px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);text-decoration:none;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.15s, transform 0.12s;"
-             onmouseover="this.style.background='rgba(255,255,255,0.08)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='rgba(255,255,255,0.04)';this.style.transform=''">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07c0 6.03 4.39 11.02 10.13 11.93v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.69.23 2.69.23v2.97h-1.52c-1.49 0-1.96.93-1.96 1.88v2.27h3.33l-.53 3.49h-2.8V24C19.61 23.09 24 18.1 24 12.07Z"/></svg>
-            Facebook
-          </a>
+    <!-- ═══ 09 · FINAL CTA — a library card. #getStartedBtn (→ sign-up) is
+         wired by id in the boot script and src/main.ts, so it stays a text-only
+         <button>. The other buttons proxy to the hero's real ones and are kept
+         in step with them by the script below (returning users get
+         "Continue as <name>" and never see a guest button). ═══ -->
+    <section class="pp-sec pp-s-cta" id="splash-cta" aria-labelledby="ppH2m">
+      <div class="pp-wrap pp-two">
+        <div class="pp-cc2">
+          <p class="pp-label">09 <i>/ Membership</i></p>
+          <h2 class="pp-h2" id="ppH2m"><span class="pp-new">Get</span><span class="pp-retx">Here’s</span> your <em>library card.</em></h2>
+          <p class="pp-body"><span class="pp-new">A free account keeps your decks, notes and progress on every device you use. Not ready to sign up? Try Brainfy as a guest first.</span><span class="pp-retx">Welcome back. Your decks, notes and progress are waiting where you left them, on every device you sign in on.</span></p>
+        </div>
+        <div class="pp-art pp-art-col">
+          <div class="pp-lib pp-sheetp pp-paperish" id="ppLib" data-pp-rv>
+            <p class="pp-lib-hd"><b>Brainfy library</b><span>Member’s card</span></p>
+            <span class="pp-bar" aria-hidden="true"></span>
+            <dl>
+              <div><dt>Name</dt><dd><span class="pp-lib-name" id="ppLibName">yours</span></dd></div>
+              <div><dt>Valid at</dt><dd>any browser, laptop or phone</dd></div>
+              <div><dt>Fees</dt><dd>none</dd></div>
+              <div><dt>Late fines</dt><dd>none. No streak guilt.</dd></div>
+              <div><dt>Member since</dt><dd id="ppLibSince">today</dd></div>
+            </dl>
+            <div class="pp-lib-sign">
+              <small aria-hidden="true" id="ppLibHint">Sign here</small>
+              <button class="pp-btn pp-btn-p" type="button" data-pp-proxy="resume" hidden onclick="document.getElementById('enterBrainBtn').click()">Continue →</button>
+              <button class="pp-btn pp-btn-p" type="button" id="getStartedBtn">Sign up free →</button>
+            </div>
+            <span class="pp-stamp" id="ppStamp" aria-hidden="true">Issued<span id="ppStampDate">today</span></span>
+          </div>
+          <div class="pp-cta-more">
+            <button class="pp-btn pp-btn-s" type="button" data-pp-proxy="guest" onclick="document.getElementById('tryGuestBtn').click()">Try it free — no signup</button>
+            <p class="pp-cta-login">Already a member? <a href="#" data-pp-intent onclick="goTo('signin');return false;">Log in</a></p>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ════════════════════════════
-       FEATURE PAGES (internal links → SEO crawlability)
-       Each feature has its own indexable landing page with FAQ
-       schema. Keep these visible so Google can follow them from /
-  ════════════════════════════ -->
-  <section id="splash-features" style="padding:40px 40px 80px;max-width:1100px;margin:0 auto;width:100%;">
-    <div style="text-align:center;margin-bottom:30px;">
-      <p style="font-size:10px;letter-spacing:0.18em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;margin-bottom:12px;">EXPLORE</p>
-      <h2 style="font-size:clamp(22px,3vw,32px);font-weight:900;letter-spacing:-0.025em;color:white;margin-bottom:10px;">Every feature, one focused page</h2>
-      <p style="font-size:14px;color:var(--muted);max-width:520px;margin:0 auto;line-height:1.65;">Dive deeper into the surfaces Brainfy is built on.</p>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">
-      <a href="/pomodoro-timer.html" style="display:block;padding:18px 20px;border-radius:14px;background:var(--card);border:1px solid var(--border);color:var(--text);text-decoration:none;transition:border-color 0.15s, transform 0.12s;"
-         onmouseover="this.style.borderColor='rgba(124,58,237,0.35)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='';this.style.transform=''">
-        <strong style="display:block;color:#fff;font-weight:700;margin-bottom:4px;font-size:14px;">Pomodoro Timer →</strong>
-        <span style="color:var(--muted);font-size:12px;line-height:1.5;">Free, distraction-free focus timer with honest analytics.</span>
-      </a>
-      <a href="/ai-flashcards.html" style="display:block;padding:18px 20px;border-radius:14px;background:var(--card);border:1px solid var(--border);color:var(--text);text-decoration:none;transition:border-color 0.15s, transform 0.12s;"
-         onmouseover="this.style.borderColor='rgba(124,58,237,0.35)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='';this.style.transform=''">
-        <strong style="display:block;color:#fff;font-weight:700;margin-bottom:4px;font-size:14px;">AI Flashcards →</strong>
-        <span style="color:var(--muted);font-size:12px;line-height:1.5;">Turn notes, PDFs, and images into spaced-repetition cards.</span>
-      </a>
-      <a href="/pdf-to-flashcards.html" style="display:block;padding:18px 20px;border-radius:14px;background:var(--card);border:1px solid var(--border);color:var(--text);text-decoration:none;transition:border-color 0.15s, transform 0.12s;"
-         onmouseover="this.style.borderColor='rgba(124,58,237,0.35)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='';this.style.transform=''">
-        <strong style="display:block;color:#fff;font-weight:700;margin-bottom:4px;font-size:14px;">PDF to Flashcards →</strong>
-        <span style="color:var(--muted);font-size:12px;line-height:1.5;">Upload a PDF and get a full deck in seconds.</span>
-      </a>
-      <a href="/ai-tutor.html" style="display:block;padding:18px 20px;border-radius:14px;background:var(--card);border:1px solid var(--border);color:var(--text);text-decoration:none;transition:border-color 0.15s, transform 0.12s;"
-         onmouseover="this.style.borderColor='rgba(124,58,237,0.35)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='';this.style.transform=''">
-        <strong style="display:block;color:#fff;font-weight:700;margin-bottom:4px;font-size:14px;">AI Tutor →</strong>
-        <span style="color:var(--muted);font-size:12px;line-height:1.5;">Streaming chat that explains concepts and quizzes you.</span>
-      </a>
-      <a href="/study-planner.html" style="display:block;padding:18px 20px;border-radius:14px;background:var(--card);border:1px solid var(--border);color:var(--text);text-decoration:none;transition:border-color 0.15s, transform 0.12s;"
-         onmouseover="this.style.borderColor='rgba(124,58,237,0.35)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='';this.style.transform=''">
-        <strong style="display:block;color:#fff;font-weight:700;margin-bottom:4px;font-size:14px;">Study Planner →</strong>
-        <span style="color:var(--muted);font-size:12px;line-height:1.5;">A weekly timetable that plans the focus, not just the work.</span>
-      </a>
-    </div>
-  </section>
-
-  <!-- ════════════════════════════
-       FAQ SECTION (Featured Snippets / AI Overviews)
-  ════════════════════════════ -->
-  <section id="splash-faq" style="padding:0 40px 90px;max-width:820px;margin:0 auto;width:100%;">
-    <p style="font-size:10px;letter-spacing:0.18em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;margin-bottom:12px;text-align:center;">FAQ</p>
-    <h2 style="font-size:clamp(24px,3.5vw,40px);font-weight:900;letter-spacing:-0.025em;color:white;margin-bottom:34px;text-align:center;">Frequently asked questions</h2>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <details style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 20px;">
-        <summary style="cursor:pointer;font-weight:700;color:#fff;font-size:15px;list-style:none;">Is Brainfy free?</summary>
-        <p style="color:#b8c5dd;font-size:14px;line-height:1.65;margin-top:12px;">Yes. Brainfy is free during beta — AI flashcards, spaced repetition, the AI tutor, the Pomodoro timer and the study planner are all unlocked at no cost, with no ads.</p>
-      </details>
-      <details style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 20px;">
-        <summary style="cursor:pointer;font-weight:700;color:#fff;font-size:15px;list-style:none;">What does Brainfy do?</summary>
-        <p style="color:#b8c5dd;font-size:14px;line-height:1.65;margin-top:12px;">Brainfy turns your notes, PDFs and lecture videos into flashcards with AI, schedules reviews with spaced repetition, and helps you focus with a Pomodoro timer, a weekly planner and an AI tutor — all in one web app.</p>
-      </details>
-      <details style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 20px;">
-        <summary style="cursor:pointer;font-weight:700;color:#fff;font-size:15px;list-style:none;">Do I need an account to try Brainfy?</summary>
-        <p style="color:#b8c5dd;font-size:14px;line-height:1.65;margin-top:12px;">No. You can try Brainfy instantly in your browser with no signup. Create a free account when you want your decks and progress synced across devices.</p>
-      </details>
-      <details style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 20px;">
-        <summary style="cursor:pointer;font-weight:700;color:#fff;font-size:15px;list-style:none;">Can I import decks from Anki or Quizlet?</summary>
-        <p style="color:#b8c5dd;font-size:14px;line-height:1.65;margin-top:12px;">Yes. You can import Anki "Notes in Plain Text", Quizlet exports, or CSV files from any deck's Cards tab, and export your decks back to CSV anytime — no lock-in.</p>
-      </details>
-      <details style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 20px;">
-        <summary style="cursor:pointer;font-weight:700;color:#fff;font-size:15px;list-style:none;">How is Brainfy different from Anki or Quizlet?</summary>
-        <p style="color:#b8c5dd;font-size:14px;line-height:1.65;margin-top:12px;">Brainfy combines Anki-style spaced repetition, Quizlet-style study modes (Learn, Match, Test), and AI that builds the cards from your notes — free and ad-free, in one place.</p>
-      </details>
-      <details style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 20px;">
-        <summary style="cursor:pointer;font-weight:700;color:#fff;font-size:15px;list-style:none;">Is my study data private?</summary>
-        <p style="color:#b8c5dd;font-size:14px;line-height:1.65;margin-top:12px;">Yes. Your data syncs only to your own account, is never sold, and Brainfy shows no ads. See our <a href="/privacy.html" style="color:var(--plight);">Privacy Policy</a> for details.</p>
-      </details>
-    </div>
-  </section>
-
-  <!-- ════════════════════════════
-       CTA SECTION
-  ════════════════════════════ -->
-  <section style="padding:0 40px 90px;max-width:1240px;margin:0 auto;width:100%;">
-    <div id="splash-cta" style="text-align:center;padding:76px 40px;border-radius:28px;background:linear-gradient(135deg,rgba(124,58,237,0.14),rgba(76,215,246,0.07));border:1px solid rgba(124,58,237,0.2);position:relative;overflow:hidden;">
-      <div style="position:absolute;top:-100px;left:50%;transform:translateX(-50%);width:500px;height:500px;background:radial-gradient(circle,rgba(124,58,237,0.1),transparent 68%);pointer-events:none;"></div>
-      <div style="position:relative;z-index:1;">
-        <p style="font-size:10px;letter-spacing:0.18em;color:var(--plight);font-family:'Space Grotesk';font-weight:700;margin-bottom:14px;">GET STARTED TODAY</p>
-        <h2 style="font-size:clamp(26px,4vw,50px);font-weight:900;letter-spacing:-0.028em;color:white;margin-bottom:14px;">Ready to enter flow state?</h2>
-        <p style="font-size:16px;color:var(--muted);margin-bottom:36px;max-width:460px;margin-left:auto;margin-right:auto;line-height:1.66;">Join deep workers who have reclaimed their attention span and transformed their study habits.</p>
-        <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:20px;">
-          <button class="btn-primary" id="getStartedBtn" style="padding:16px 56px;font-size:16px;font-weight:700;border-radius:12px;background:linear-gradient(135deg,var(--primary),#6d28d9);box-shadow:0 8px 36px rgba(124,58,237,0.48);letter-spacing:0.01em;">Get Started Free →</button>
+    <!-- ── Colophon: the front edge of the desk ── -->
+    <footer class="pp-col">
+      <div class="pp-col-in">
+        <a class="pp-brand" href="/" aria-label="Brainfy home"><svg viewBox="0 0 30 30" aria-hidden="true"><rect x="3" y="6" width="24" height="17" rx="1.5" fill="#f4ecda" transform="rotate(-8 15 15)"/><path d="M5.6 10.4 26.6 7.5" stroke="#d45648" stroke-width="1.1"/><path d="M8 15.6h12" stroke="#ffdc45" stroke-width="4.2" stroke-linecap="round" transform="rotate(-8 15 15)" opacity=".95"/><path d="M8 20h8" stroke="#1b2440" stroke-width="1.3" stroke-linecap="round" transform="rotate(-8 15 15)"/></svg><b>Brainfy</b></a>
+        <nav aria-label="Footer">
+          <a href="/resources.html">Resources</a>
+          <a href="/resources.html#guides">Guides</a>
+          <a href="/decks">Shared decks</a>
+          <a href="/privacy.html" target="_blank" rel="noopener">Privacy</a>
+          <a href="/terms.html" target="_blank" rel="noopener">Terms</a>
+          <a href="https://github.com/Aihan-7/brainfy" target="_blank" rel="noopener">Community</a>
+          <a href="mailto:help@brainfy.online">Contact</a>
+        </nav>
+        <div class="pp-colo">
+          <p><b>Colophon</b>Set in Fraunces, Caveat and DM Mono. Every object on this page is drawn in HTML, CSS and a little SVG; there are no stock photos. Brainfy itself is made by one student, Aihan Mifthas.</p>
+          <p>© 2026 Brainfy</p>
         </div>
-        <p style="font-size:12px;color:var(--muted2);">No credit card required · Free forever · Instant access</p>
       </div>
-    </div>
-  </section>
+    </footer>
+  </div>
+  <script>
+  /* The rest of the desk: the catalogue drawer, the "set down" reveals and the
+     final CTA's mirror of the hero buttons. Scoped IIFE, passive listeners;
+     nothing runs while idle (no loops), and nothing is measured while the
+     splash is hidden (the app hides it after entering). */
+  (function () {
+    'use strict';
+    var d = document, w = window;
+    var splash = d.getElementById('splashView'), rest = d.getElementById('ppRest');
+    if (!splash || !rest) return;
+    function $(id) { return d.getElementById(id); }
+    function qa(s, c) { return Array.prototype.slice.call((c || d).querySelectorAll(s)); }
+    function isOn() { return splash.classList.contains('active') && !d.hidden; }
+    var mqReduce = null; try { mqReduce = w.matchMedia('(prefers-reduced-motion: reduce)'); } catch (e) {}
+    function reduced() { return !!(mqReduce && mqReduce.matches); }
 
-  <!-- ── FOOTER ── -->
-  <footer style="border-top:1px solid var(--border);padding:28px 40px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px;max-width:1240px;margin:0 auto;width:100%;">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <div style="width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,var(--primary),#6d28d9);display:flex;align-items:center;justify-content:center;">
-        <span class="ms" style="font-size:14px;color:white;">psychology</span>
-      </div>
-      <span style="font-weight:800;font-size:14px;color:var(--plighter);letter-spacing:-0.01em;">Brainfy</span>
-    </div>
-    <div style="display:flex;gap:24px;flex-wrap:wrap;">
-      <a href="/resources.html" style="color:var(--muted);text-decoration:none;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Resources</a>
-      <a href="/resources.html#guides" style="color:var(--muted);text-decoration:none;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Guides</a>
-      <a href="/decks" style="color:var(--muted);text-decoration:none;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Shared decks</a>
-      <a href="/privacy.html" target="_blank" rel="noopener" style="color:var(--muted);text-decoration:none;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Privacy</a>
-      <a href="/terms.html" target="_blank" rel="noopener" style="color:var(--muted);text-decoration:none;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Terms</a>
-      <span style="cursor:pointer;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'" onclick="openFooterLink('community')">Community</span>
-      <span style="cursor:pointer;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'" onclick="openFooterLink('contact')">Contact</span>
-    </div>
-    <p>© 2026 Brainfy. Focus Deeply.</p>
-  </footer>
+    /* ── 1. Final CTA (library card) mirrors the hero's real buttons.
+          The boot script and applySigninHint() rewrite #enterBrainBtn
+          ("Continue as <name> →") and hide #tryGuestBtn for returning users. ── */
+    var cta = $('splash-cta'), gs = $('getStartedBtn'), nameEl = $('ppLibName'), hint = $('ppLibHint');
+    var resume = qa('[data-pp-proxy="resume"]', rest), guest = qa('[data-pp-proxy="guest"]', rest);
+    var GS = gs ? gs.textContent : '';
+    function syncCTAs() {
+      var e = $('enterBrainBtn'), g = $('tryGuestBtn');
+      var label = e ? e.textContent.replace(/\s+/g, ' ').trim() : 'Enter Brainfy →';
+      var ret = !g || g.style.display === 'none';
+      var m = /^Continue as (.+) →$/.exec(label), name = ret && m ? m[1] : '';
+      resume.forEach(function (b) {
+        if (b.hidden === ret) b.hidden = !ret;
+        if (ret && b.textContent !== label) { b.textContent = label; b.title = label; }
+      });
+      guest.forEach(function (b) { if (b.hidden !== ret) b.hidden = ret; });
+      if (cta) cta.classList.toggle('pp-ret', ret);
+      // returning users already have a card: sign-up becomes the quiet option
+      var gl = ret ? 'New account →' : GS;
+      if (gs && gs.textContent !== gl) gs.textContent = gl;
+      if (hint) { var ht = ret ? 'Welcome back' : 'Sign here'; if (hint.textContent !== ht) hint.textContent = ht; }
+      if (nameEl) {
+        var nm = name || 'yours';
+        if (nameEl.textContent !== nm) nameEl.textContent = nm;   // textContent only: the name is user data
+        nameEl.classList.toggle('pp-named', !!name);
+      }
+    }
+    var ctaRow = $('ppCtaRow');
+    if (ctaRow && w.MutationObserver) new MutationObserver(syncCTAs).observe(ctaRow, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style'] });
+    syncCTAs();
+    d.addEventListener('DOMContentLoaded', syncCTAs);
+
+    // the card is issued today: real date, not a made-up one
+    try {
+      var ds = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      var since = $('ppLibSince'), sd = $('ppStampDate');
+      if (since) since.textContent = 'today, ' + ds;
+      if (sd) sd.textContent = ds;
+    } catch (e) {}
+
+    /* ── 2. The catalogue drawer. With JS the cards stand in the drawer and
+          only the pulled-up one shows its face: every card is translated to
+          y = i·strip (+ the open card's extra height for cards in front of it),
+          so switching cards is a transform transition and the drawer never
+          changes height. Without JS every card is shown in normal flow. ── */
+    var cat = $('ppCat'), catIn = $('ppCatIn');
+    var cards = cat ? qa('.pp-drc', catIn) : [];
+    var btns = cards.map(function (c) { return c.querySelector('.pp-drh button'); });
+    var bodies = cards.map(function (c) { return c.querySelector('.pp-drb'); });
+    var open = 0, geo = null, lastW = 0;
+    function place() {
+      if (!geo) return;
+      cards.forEach(function (c, i) {
+        var t = 'translateY(' + (i * geo.S + (i > open ? geo.H - geo.S : 0)) + 'px)', on = i === open;
+        if (c.style.transform !== t) c.style.transform = t;
+        c.classList.toggle('pp-open', on);
+        btns[i].setAttribute('aria-expanded', on ? 'true' : 'false');
+        // one card is always out (APG accordion: its header is aria-disabled)
+        if (on) btns[i].setAttribute('aria-disabled', 'true'); else btns[i].removeAttribute('aria-disabled');
+        if (bodies[i].hasAttribute('inert') === on) { if (on) bodies[i].removeAttribute('inert'); else bodies[i].setAttribute('inert', ''); }
+      });
+    }
+    function measure() {
+      if (!cards.length || !cat.offsetWidth) return false;
+      cat.classList.add('pp-measure');
+      cat.classList.remove('pp-live');
+      cards.forEach(function (c) { c.style.transform = ''; });
+      var S = btns[0].offsetHeight, H = 0;
+      cards.forEach(function (c) { H = Math.max(H, c.offsetHeight); });
+      geo = { S: S, H: Math.ceil(H) + 4 };
+      cat.style.setProperty('--S', S + 'px');
+      cat.style.setProperty('--H', geo.H + 'px');
+      cat.classList.add('pp-live');
+      place();
+      void cat.offsetWidth;                       // commit positions before transitions return
+      cat.classList.remove('pp-measure');
+      lastW = cat.offsetWidth;
+      return true;
+    }
+    btns.forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        if (!geo || !cat.classList.contains('pp-live') || i === open) return;
+        open = i; place();
+      });
+      b.addEventListener('keydown', function (e) {
+        var k = e.key, n = btns.length, j = k === 'ArrowDown' ? (i + 1) % n : k === 'ArrowUp' ? (i - 1 + n) % n : k === 'Home' ? 0 : k === 'End' ? n - 1 : -1;
+        if (j < 0) return;
+        e.preventDefault(); btns[j].focus();
+      });
+    });
+    function remeasure(force) {
+      if (!isOn() || !cat) return;
+      if (force || cat.offsetWidth !== lastW) measure();
+    }
+    var rq = false;
+    w.addEventListener('resize', function () { if (!rq) { rq = true; requestAnimationFrame(function () { rq = false; remeasure(false); }); } }, { passive: true });
+    w.addEventListener('load', function () { remeasure(true); });
+    if (d.fonts) {
+      if (d.fonts.ready) d.fonts.ready.then(function () { remeasure(true); });
+      if (d.fonts.addEventListener) d.fonts.addEventListener('loadingdone', function () { remeasure(true); });
+    }
+    if (w.MutationObserver) new MutationObserver(function () {
+      if (splash.classList.contains('active')) requestAnimationFrame(function () { remeasure(true); });
+    }).observe(splash, { attributes: true, attributeFilter: ['class'] });
+    measure();
+
+    /* ── 3. Each object is set down on the desk as it scrolls in (translate +
+          opacity only; IntersectionObserver, so there is no scroll handler).
+          The library card's stamp lands once when the card arrives. ── */
+    var stamp = $('ppStamp'), lib = $('ppLib');
+    if (!reduced() && 'IntersectionObserver' in w) {
+      var io = new IntersectionObserver(function (es) {
+        es.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          io.unobserve(e.target);
+          e.target.classList.add('pp-in');
+          if (e.target === lib && stamp) stamp.classList.add('pp-thump');
+        });
+      }, { rootMargin: '0px 0px -10% 0px', threshold: 0.06 });
+      qa('[data-pp-rv]', rest).forEach(function (el) { el.classList.add('pp-rv'); io.observe(el); });
+      // keyboard focus never lands on something that is still fading in
+      rest.addEventListener('focusin', function (e) {
+        var el = e.target.closest && e.target.closest('.pp-rv:not(.pp-in)');
+        if (el) { io.unobserve(el); el.classList.add('pp-in'); if (el === lib && stamp) stamp.classList.add('pp-thump'); }
+      });
+    }
+  })();
+  </script>
 
 </div><!-- /splashView -->
 
@@ -4871,7 +5089,7 @@
 
     /* Bump known-small touch targets to 44px — Apple HIG / WCAG 2.5.5. */
     .tt-skip, .tt-next,
-    .founder-socials a, .meta-links a,
+    .meta-links a,
     .faq summary {
       min-height: 44px;
     }
