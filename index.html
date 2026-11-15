@@ -133,11 +133,17 @@
   <script src="/icons.js?v=6839ba028657" defer></script>
 
   <!-- Fonts: load async (non-render-blocking) — preconnect above warms the connection. -->
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap"></noscript>
-  <!-- Splash opening ("Paper & Ink"): Fraunces / Caveat / DM Mono, loaded the same async way. -->
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&amp;family=DM+Mono:wght@300;400&amp;family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..600,50,0;1,144,300..500,100,1&amp;display=swap" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&amp;family=DM+Mono:wght@300;400&amp;family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..600,50,0;1,144,300..500,100,1&amp;display=swap"></noscript>
+  <!-- App fonts (Manrope, Space Grotesk) + the splash opening's Fraunces and DM Mono 400,
+       in one request. -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400&amp;family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..600,50,0;1,144,300..500,100,1&amp;family=Manrope:wght@400;500;600;700;800;900&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400&amp;family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..600,50,0;1,144,300..500,100,1&amp;family=Manrope:wght@400;500;600;700;800;900&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap"></noscript>
+  <!-- Splash handwriting (Caveat) + the timer readout's DM Mono 300, cut down to
+       the glyphs they draw (text=: a–z, 0–9, the capitals ABCDEFGHIKMNOPTW and
+       !&()+,.:=?~–—'’-). ~39 KB instead of ~66 KB. A glyph outside that set falls
+       back per character to the next font in the splash's hand / mono stacks, so if new
+       handwritten copy needs another capital, add it to text= here. -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&amp;family=DM+Mono:wght@300&amp;text=abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIKMNOPTW%21%26%28%29%2B%2C.%3A%3D%3F~%E2%80%93%E2%80%94%27%E2%80%99-&amp;display=swap" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&amp;family=DM+Mono:wght@300&amp;text=abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIKMNOPTW%21%26%28%29%2B%2C.%3A%3D%3F~%E2%80%93%E2%80%94%27%E2%80%99-&amp;display=swap"></noscript>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1361,6 +1367,7 @@
                        the story renders as three static sections.
        ══════════════════════════════════════════════════════════════════ -->
   <style id="pp-css">
+    @property --pp-a{syntax:'<number>';inherits:false;initial-value:1}
     #splashView{
       --pp-desk:#15110d; --pp-paper:#f4ecda; --pp-ink:#1b2440; --pp-ink2:#4a5068;
       --pp-cream:#f3e9d3; --pp-cream2:#cfc4ad; --pp-marker:#ffdc45; --pp-coral:#ff7756;
@@ -1412,7 +1419,13 @@
     .pp-desk{position:absolute;inset:0;overflow:hidden;pointer-events:none;background:
       radial-gradient(80% 70% at 22% 6%,rgba(255,206,150,.10),transparent 62%),
       linear-gradient(180deg,#1f1711,#140f0b)}
-    .pp-desk svg{position:absolute;inset:0;width:100%;height:100%}
+    .pp-desk svg{position:absolute;inset:0;width:100%;height:100%;transition:opacity 1.6s ease}
+    /* The wood grain is a full-screen SVG turbulence filter: cheap on GPU
+       raster, ~100 ms+ on software raster / WebKit. With JS it is left out of
+       the first paint and fades in once the opening animation has played
+       (.pp-wood, set by the splash script); without JS it paints right away. */
+    .pp-js .pp-desk:not(.pp-wood) svg{opacity:0}
+    .pp-js .pp-desk:not(.pp-wood) .pp-grain{display:none}
     .pp-desk::after{content:"";position:absolute;inset:0;background:radial-gradient(140% 120% at 55% 42%,transparent 42%,rgba(0,0,0,.62))}
     .pp-act{position:relative}
 
@@ -1472,8 +1485,11 @@
     .pp-pt svg{position:absolute;left:-.1em;bottom:-.18em;width:105%;height:.32em;overflow:visible}
     .pp-pt path{fill:none;stroke:var(--pp-ink);stroke-width:1.6;stroke-linecap:round}
     .pp-notes{position:absolute;left:4.7em;right:1.2em;top:5.55em}
-    .pp-ln{height:1.40152em;font-family:var(--pp-hand);font-weight:500;font-size:1.32em;line-height:1.40152;white-space:nowrap;color:#1e2a4e;margin-top:-.04em;border-radius:.3em;background:linear-gradient(99deg,rgba(255,221,64,0),rgba(255,221,64,.42) .4em,rgba(255,214,52,.36) calc(100% - .4em),rgba(255,221,64,0)) 0 60%/0 62% no-repeat;transition:background-size .45s cubic-bezier(.5,.1,.2,1)}
-    .pp-ln.pp-mk{background-size:100% 62%}
+    /* hover highlighter: the bar is as long as the writing, sweeps in under
+       the cursor and fades out ~1s after it leaves (--pp-a is the alpha) */
+    .pp-ln{--pp-a:1;width:fit-content;height:1.40152em;font-family:var(--pp-hand);font-weight:500;font-size:1.32em;line-height:1.40152;white-space:nowrap;color:#1e2a4e;margin-top:-.04em;border-radius:.3em;background:linear-gradient(99deg,rgba(255,221,64,0),rgba(255,221,64,calc(.42 * var(--pp-a))) .4em,rgba(255,214,52,calc(.36 * var(--pp-a))) calc(100% - .4em),rgba(255,221,64,0)) 0 60%/0 62% no-repeat;background-origin:content-box}
+    .pp-ln.pp-mk{background-size:100% 62%;transition:background-size .45s cubic-bezier(.5,.1,.2,1),--pp-a .8s ease}
+    .pp-ln.pp-mk.pp-fd{--pp-a:0}
     .pp-ind{padding-left:1.3em}
     .pp-ln b{font-weight:500;-webkit-text-stroke:.02em currentColor}
     .pp-ex{color:#c4472c;margin-left:.3em;-webkit-text-stroke:.02em currentColor}
@@ -1533,6 +1549,7 @@
     .pp-dv{position:absolute;inset:0;border-radius:.25em;transform:translateY(calc((3 - var(--i)) * -.3em - .7em));box-shadow:0 .06em .1em rgba(0,0,0,.3),0 .8em 1.6em -.6em rgba(0,0,0,.6)}
     .pp-dv span{position:absolute;top:-1.55em;left:calc(var(--i) * 24% + 1%);width:23%;height:1.75em;border-radius:.35em .35em 0 0;background:inherit;font-family:var(--pp-mono);font-size:1em;display:flex;align-items:flex-start;justify-content:center;padding-top:.32em}
     .pp-dv span b{font-weight:400;font-size:.62em;letter-spacing:.12em;text-transform:uppercase;color:var(--pp-ink)}
+    .pp-dymo-w{font-size:var(--f);width:20em;height:12.4em;pointer-events:none}
     .pp-dymo{position:absolute;left:-1.3em;bottom:-2.9em;transform:rotate(-3.5deg);padding:.34em .9em .3em;border-radius:.14em;background:#c63a2b linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 45%,rgba(0,0,0,.18));box-shadow:0 .12em .3em rgba(0,0,0,.55);font-family:var(--pp-mono);font-size:.7em;letter-spacing:.24em;text-transform:uppercase;color:#fff6ee;text-shadow:0 -1px 0 rgba(0,0,0,.35);white-space:nowrap}
     .pp-dv:nth-child(1){background:#a9bdd0}.pp-dv:nth-child(2){background:#bcc9a4}.pp-dv:nth-child(3){background:#dcae90}.pp-dv:nth-child(4){background:#e5cc90}
 
@@ -1595,15 +1612,18 @@
     html:not(.pp-pin) .pp-card:nth-child(odd){transform:rotate(-2.5deg)}
     html:not(.pp-pin) .pp-card:nth-child(even){transform:rotate(2deg) translateY(1.2em)}
     html:not(.pp-pin) .pp-card.pp-showa .pp-flip{transform:rotateY(180deg)}
-    html:not(.pp-pin) .pp-dividers{display:none}
+    html:not(.pp-pin) .pp-dividers,html:not(.pp-pin) .pp-dymo-w{display:none}
     html:not(.pp-pin) .pp-a3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:4vw;padding:14vh var(--pp-gut);background:radial-gradient(42vw 42vw at 72% 50%,rgba(255,200,140,.16),rgba(6,4,3,0) 60%),#0b0907}
     html:not(.pp-pin) .pp-a3 .pp-timer{--D:min(34vw,480px);justify-self:center;order:2;margin-top:3vh}
     html:not(.pp-pin) .pp-dim,html:not(.pp-pin) .pp-lamp{display:none}
-    html:not(.pp-pin) .pp-act{scroll-margin-top:64px}
     @media (max-width:899px){
       html:not(.pp-pin) .pp-a1,html:not(.pp-pin) .pp-a2,html:not(.pp-pin) .pp-a3{grid-template-columns:minmax(0,1fr)}
-      html:not(.pp-pin) .pp-a1{padding-top:116px}
-      html:not(.pp-pin) .pp-a1 .pp-sheet{margin:1em auto -10em}
+      html:not(.pp-pin) .pp-a1{padding-top:116px;padding-bottom:8px}
+      /* the whole page, pencil included, sized to fit between the gutters
+         (it used to bleed off the right edge). The slides.pdf sheet behind it
+         rides ~1.6em above its top edge, so the top margin clears the
+         audience line above. */
+      html:not(.pp-pin) .pp-a1 .pp-sheet{font-size:min(calc((100vw - 2 * var(--pp-gut)) / 32.5),1.9vh,16px);margin:4.2em auto 3.4em}
       html:not(.pp-pin) .pp-cards{grid-template-columns:20em;font-size:min(3.4vw,15px)}
       html:not(.pp-pin) .pp-card{font-size:inherit}
       html:not(.pp-pin) .pp-a3 .pp-timer{--D:min(70vw,340px);order:0}
@@ -1620,9 +1640,9 @@
     .pp-pin .pp-a1 .pp-copy{left:var(--pp-gut);top:50%;width:min(48vw,720px,calc(72vw - 17.9 * min(1.22vw,1.95vh) - var(--pp-gut)));transform:translateY(calc(-46% + var(--dy,0px)))}
     .pp-pin .pp-aside{left:38.5vw;bottom:8vh}
     .pp-pin .pp-a2 .pp-copy{left:var(--pp-gut);top:max(13vh,84px);width:min(37vw,560px);transform:translateY(var(--dy,0px));opacity:0}
-    .pp-pin .pp-card,.pp-pin .pp-dividers{position:absolute;left:0;top:0;will-change:transform}
+    .pp-pin .pp-card,.pp-pin .pp-dividers,.pp-pin .pp-dymo-w{position:absolute;left:0;top:0;will-change:transform}
     .pp-pin .pp-card{visibility:hidden}
-    .pp-pin .pp-dividers{opacity:0}
+    .pp-pin .pp-dividers,.pp-pin .pp-dymo-w{opacity:0}
     .pp-pin .pp-a3 .pp-copy{left:var(--pp-gut);top:50%;width:min(40vw,600px);transform:translateY(calc(-50% + var(--dy,0px)));opacity:0}
     .pp-pin .pp-timer{position:absolute;left:0;top:0;opacity:0;will-change:transform,opacity;pointer-events:auto}
     .pp-pin .pp-timer.pp-off{pointer-events:none}
@@ -1688,6 +1708,17 @@
     @media (max-width:380px){.pp-links{gap:16px;font-size:11.5px}.pp-for{font-size:11px}}
     @media (max-width:359px){.pp-hd.pp-solid{column-gap:8px}.pp-hd.pp-solid .pp-steps{margin-left:2px;padding-left:6px}.pp-hd.pp-solid .pp-steps a{padding:0 5px}.pp-hd.pp-solid .pp-steps a::after{left:5px;right:5px}.pp-hd .pp-btn{padding:0 10px;font-size:14px;max-width:calc(100vw - 150px)}}
     @media (max-height:820px){.pp-pin .pp-aside{display:none}}
+    /* wide but short (≈460–700px tall landscape): the hero is centred in the
+       space under the 80px header instead of the whole screen, and the
+       eyebrow + audience line drop out, as they do on short phones */
+    @media (min-width:900px) and (min-aspect-ratio:19/20) and (max-height:700px){
+      .pp-pin .pp-a1 .pp-eyebrow,.pp-pin .pp-a1 .pp-for{display:none}
+      .pp-pin .pp-a1 .pp-copy{top:calc(50% + 38px);transform:translateY(calc(-50% + var(--dy,0px)))}
+      .pp-pin .pp-sub{margin-top:18px}
+      .pp-pin .pp-a1 .pp-ctas{margin-top:22px}
+      .pp-pin .pp-a3 .pp-copy{top:calc(50% + 32px)}
+      .pp-pin .pp-wide{display:none}
+    }
     @media ((max-width:899px) or (max-aspect-ratio:19/20)) and (max-height:740px){
       .pp-pin .pp-a3 .pp-body{display:none}
       .pp-a3 .pp-h2{font-size:clamp(34px,9.6vw,60px)}
@@ -1745,7 +1776,7 @@
   <section class="pp-story pp-anim" id="ppStory" aria-label="Notes to flashcards to focus">
   <div class="pp-stage" id="ppStage">
     <div class="pp-desk" aria-hidden="true">
-      <svg><filter id="ppWood" x="-10%" y="-20%" width="120%" height="140%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.0011 0.0035" numOctaves="1" seed="9" result="fig"/><feColorMatrix in="fig" type="matrix" values="0 0 0 0 .42  0 0 0 0 .28  0 0 0 0 .17  1.5 0 0 0 -.58" result="figure"/><feTurbulence type="fractalNoise" baseFrequency="0 0.032" numOctaves="4" seed="7" result="bands"/><feTurbulence type="fractalNoise" baseFrequency="0.0013 0.0045" numOctaves="2" seed="11" result="warp"/><feDisplacementMap in="bands" in2="warp" scale="80" xChannelSelector="R" yChannelSelector="G" result="grain"/><feColorMatrix in="grain" type="matrix" values="0 0 0 0 .06  0 0 0 0 .04  0 0 0 0 .025  -2.2 0 0 0 1.2" result="dark"/><feTurbulence type="fractalNoise" baseFrequency="0.02 0.7" numOctaves="1" seed="3" result="pore"/><feColorMatrix in="pore" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.4 1.1" result="pores"/><feMerge><feMergeNode in="figure"/><feMergeNode in="dark"/><feMergeNode in="pores"/></feMerge></filter><rect width="100%" height="100%" filter="url(#ppWood)" opacity=".55"/></svg>
+      <svg><filter id="ppWood" x="-10%" y="-20%" width="120%" height="140%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.0011 0.0035" numOctaves="1" seed="9" result="fig"/><feColorMatrix in="fig" type="matrix" values="0 0 0 0 .42  0 0 0 0 .28  0 0 0 0 .17  1.5 0 0 0 -.58" result="figure"/><feTurbulence type="fractalNoise" baseFrequency="0 0.032" numOctaves="4" seed="7" result="bands"/><feTurbulence type="fractalNoise" baseFrequency="0.0013 0.0045" numOctaves="2" seed="11" result="warp"/><feDisplacementMap in="bands" in2="warp" scale="80" xChannelSelector="R" yChannelSelector="G" result="grain"/><feColorMatrix in="grain" type="matrix" values="0 0 0 0 .06  0 0 0 0 .04  0 0 0 0 .025  -2.2 0 0 0 1.2" result="dark"/><feTurbulence type="fractalNoise" baseFrequency="0.02 0.7" numOctaves="1" seed="3" result="pore"/><feColorMatrix in="pore" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.4 1.1" result="pores"/><feMerge><feMergeNode in="figure"/><feMergeNode in="dark"/><feMergeNode in="pores"/></feMerge></filter><rect class="pp-grain" width="100%" height="100%" filter="url(#ppWood)" opacity=".55"/></svg>
     </div>
 
     <!-- ═══ ACT I — NOTES ═══ -->
@@ -1812,7 +1843,7 @@
       </div>
 
       <div class="pp-cards" aria-hidden="true">
-        <div class="pp-dividers" id="ppDividers"><div class="pp-dv" style="--i:0"><span><b>Learn</b></span></div><div class="pp-dv" style="--i:1"><span><b>Match</b></span></div><div class="pp-dv" style="--i:2"><span><b>Test</b></span></div><div class="pp-dv" style="--i:3"><span><b>Cloze</b></span></div><div class="pp-dymo">Due today · 4</div></div>
+        <div class="pp-dividers" id="ppDividers"><div class="pp-dv" style="--i:0"><span><b>Learn</b></span></div><div class="pp-dv" style="--i:1"><span><b>Match</b></span></div><div class="pp-dv" style="--i:2"><span><b>Test</b></span></div><div class="pp-dv" style="--i:3"><span><b>Cloze</b></span></div></div>
         <div class="pp-card"><div class="pp-flip">
           <div class="pp-face pp-front"><div class="pp-ct"><span>Biology · A-level</span><b>Q 1/4</b></div><p class="pp-q">Where in the cell does glycolysis happen?</p><div class="pp-cb"><span>again</span><span>hard</span><span>good</span><span>easy</span></div></div>
           <div class="pp-face pp-back"><div class="pp-ct"><span>Answer · 1/4</span><span>Biology · A-level</span></div><p class="pp-a"><span class="pp-hl">cytoplasm</span></p><p class="pp-ctx">Glycolysis splits glucose here, before any mitochondria get involved.</p><div class="pp-cb"><span>from · your notes</span><i>AI note</i></div></div>
@@ -1829,6 +1860,8 @@
           <div class="pp-face pp-front"><div class="pp-ct"><span>Biology · A-level</span><b>Q 4/4</b></div><p class="pp-q">Roughly how much ATP does one glucose yield?</p><div class="pp-cb"><span>again</span><span>hard</span><span>good</span><span>easy</span></div></div>
           <div class="pp-face pp-back"><div class="pp-ct"><span>Answer · 4/4</span><span>Biology · A-level</span></div><p class="pp-a"><span class="pp-hl">30–32 ATP</span></p><p class="pp-ctx">The modern estimate. Older textbooks round it up to 36–38.</p><div class="pp-cb"><span>from · whiteboard.jpg</span><i>AI note</i></div></div>
         </div></div>
+        <!-- painted after the cards so their shadows don't muddy it; moves with the dividers -->
+        <div class="pp-dymo-w" id="ppDymo"><div class="pp-dymo">Due today · 4</div></div>
       </div>
     </section>
 
@@ -1916,6 +1949,8 @@
     var canPin = !!(w.CSS && CSS.supports && CSS.supports('overflow-x', 'clip') && CSS.supports('position', 'sticky'));
     var pin = R.classList.contains('pp-pin');
     var stage = $('ppStage'), hd = $('ppHd'), how = $('ppHow'), ctaRow = $('ppCtaRow');
+    // wood grain after the opening animation (see .pp-wood in pp-css)
+    setTimeout(function () { var dk = story.querySelector('.pp-desk'); if (dk) dk.classList.add('pp-wood'); }, 2300);
     var stepLinks = qa('[data-pp-step]', hd), acts = [$('pp-notes'), $('pp-cards'), $('pp-focus')];
     function isOn() { return splash.classList.contains('active') && !d.hidden; }
 
@@ -1928,21 +1963,44 @@
       var label = e ? e.textContent.replace(/\s+/g, ' ').trim() : 'Enter Brainfy →';
       var guestHidden = !g || g.style.display === 'none';
       proxies.forEach(function (b) {
-        if (b.getAttribute('data-pp-proxy') === 'enter') { if (b.textContent !== label) b.textContent = label; }
+        if (b.getAttribute('data-pp-proxy') === 'enter') {
+          // The slim header has no room for "Continue as <name> →" (it would
+          // ellipsize at phone widths), so it says "Continue →" and keeps the
+          // full label as its accessible name / tooltip.
+          var t = label, full = hd.contains(b) && /^Continue as /.test(label) ? label : '';
+          if (full) t = 'Continue →';
+          if (b.textContent !== t) b.textContent = t;
+          if (full) { b.setAttribute('aria-label', full); b.title = full; } else if (b.title) { b.removeAttribute('aria-label'); b.removeAttribute('title'); }
+        }
         else if (b.hidden !== guestHidden) b.hidden = guestHidden;
       });
     }
-    if (ctaRow && w.MutationObserver) new MutationObserver(syncCTAs).observe(ctaRow, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style'] });
+    /* applySigninHint() (in the bundle) swaps #enterBrainBtn for a clone. If a
+       keyboard user had focus on it right then, focus fell back to <body>;
+       put it back on the new node. Chrome fires focusout before the removal,
+       so the "forget" is deferred past the observer's microtask. */
+    var ctaFocus = null;
+    function onCtaMutation() {
+      syncCTAs();
+      if (!ctaFocus || ctaFocus.isConnected) return;
+      var t = ctaFocus, a = d.activeElement, n = t.id && $(t.id); ctaFocus = null;
+      if ((!a || a === d.body) && n && n !== t && isOn()) { try { n.focus({ preventScroll: true }); } catch (x) { n.focus(); } }
+    }
+    if (ctaRow) {
+      ctaRow.addEventListener('focusin', function (e) { ctaFocus = e.target; });
+      ctaRow.addEventListener('focusout', function (e) { var t = e.target; setTimeout(function () { if (ctaFocus === t && t.isConnected && d.activeElement !== t) ctaFocus = null; }, 0); });
+      if (w.MutationObserver) new MutationObserver(onCtaMutation).observe(ctaRow, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style'] });
+    }
     syncCTAs();
 
     /* ── 2. The pinned story ── */
     var sheet = $('ppSheet'), paper = $('ppPaper'), c1 = $('ppC1'), c2a = $('ppC2a'), c2b = $('ppC2b'), c3 = $('ppC3'), aside = $('ppAside'),
-        dim = $('ppDim'), lamp = $('ppLamp'), timer = $('ppTimer'), dvs = $('ppDividers'), wedge = $('ppWedge'),
+        dim = $('ppDim'), lamp = $('ppLamp'), timer = $('ppTimer'), dvs = $('ppDividers'), dymo = $('ppDymo'), wedge = $('ppWedge'),
         mmEl = $('ppMM'), ssEl = $('ppSS'), faceG = $('ppFace');
     var cards = qa('.pp-card', story), flips = cards.map(function (c) { return c.querySelector('.pp-flip'); }),
         backs = cards.map(function (c) { return c.querySelector('.pp-back'); });
     var hls = qa('.pp-hl[data-k]', paper).sort(function (a, b) { return a.getAttribute('data-k') - b.getAttribute('data-k'); });
-    var animated = [sheet, c1, c2a, c2b, c3, aside, dim, lamp, timer, dvs].concat(cards, flips, backs);
+    var animated = [sheet, c1, c2a, c2b, c3, aside, dim, lamp, timer, dvs, dymo].concat(cards, flips, backs);
     var L = null, last = {}, range = { top: 0, len: 1, end: 1 }, P = -1;
     function set(el, key, prop, val) { var k = key + prop; if (last[k] !== val) { last[k] = val; el.style[prop] = val; } }
     function off(el, anc) { var x = 0, y = 0; while (el && el !== anc) { x += el.offsetLeft; y += el.offsetTop; el = el.offsetParent; } return [x, y]; }
@@ -1953,8 +2011,9 @@
     function prog() { return cl((w.pageYOffset - range.top) / range.len); }
 
     /* Story timeline, p = 0…1 across the pinned section:
-       .03–.09 hero copy leaves while the cards act copy arrives (.06–.11)
-       .03–.15 the notes slide aside · .05–.31 each highlight lifts into a card
+       .03–.065 hero copy leaves, then the cards act copy arrives (.07–.11)
+       .03–.15 the notes slide aside (on wide screens they drop below the copy
+       first, then slide left) · .05–.31 each highlight lifts into a card
        .36–.52 cards flip to their questions · .49–.58 deck stacks behind the dividers
        .61–.69 lights down, deck + notes put away · .62–.71 timer + focus copy come in
        together · ≥.68 the timer winds itself up, then really counts down */
@@ -1974,7 +2033,10 @@
       var P0, P1, P2, fan, stack, T, s1, pAway;
       if (!nar) {
         P0 = { x: W * .73, y: Math.max(H * .555, ph / 2 + 92), r: 3 };
-        P1 = { x: W * .255, y: H * .6 + ph / 2, r: -4 };
+        // set aside low enough that the slides.pdf sheet riding above the page
+        // never reaches the act II copy (matters on short landscape screens)
+        var cbot = Math.max(c2a.offsetTop + c2a.offsetHeight, c2b.offsetTop + c2b.offsetHeight);
+        P1 = { x: W * .255, y: Math.max(H * .6, cbot + 3.4 * f) + ph / 2, r: -4 };
         P2 = { x: W * .2, y: H * 1.3 + ph / 2, r: -11 };
         s1 = 1.04;
         fan = [[.575, .3, -6], [.85, .36, 5], [.59, .7, 3], [.855, .74, -4]].map(function (a) { return { x: a[0] * W, y: a[1] * H, r: a[2], s: s1 }; });
@@ -2011,23 +2073,26 @@
     }
 
     function paperAt(p) {
-      var a = io(seg(p, .03, .15)), b = io(seg(p, L.pAway[0], L.pAway[1])), A = L.P0, B = L.P1, C = L.P2;
-      return { x: lerp(lerp(A.x, B.x, a), C.x, b), y: lerp(lerp(A.y, B.y, a), C.y, b), r: lerp(lerp(A.r, B.r, a), C.r, b) };
+      // wide: the page drops below the act II copy first (fast ease-out on y),
+      // then slides left under it, so it never crosses the text
+      var a = io(seg(p, .03, .15)), ay = L.nar ? a : eo(seg(p, .03, .11)), b = io(seg(p, L.pAway[0], L.pAway[1])), A = L.P0, B = L.P1, C = L.P2;
+      return { x: lerp(lerp(A.x, B.x, a), C.x, b), y: lerp(lerp(A.y, B.y, ay), C.y, b), r: lerp(lerp(A.r, B.r, a), C.r, b) };
     }
     function fade(el, key, o, dy) {
       set(el, key, 'opacity', o.toFixed(3));
       var v = dy.toFixed(1) + 'px'; if (last[key + 'dy'] !== v) { last[key + 'dy'] = v; el.style.setProperty('--dy', v); }
       var hide = o < .5; if (last[key + 'off'] !== hide) { last[key + 'off'] = hide; el.classList.toggle('pp-off', hide); }
     }
-    var tilt = { x: 0, y: 0, tx: 0, ty: 0 };
+    var tilt = { x: 0, y: 0, tx: 0, ty: 0 }, clearMarks = null;
     function render(p) {
       var W = L.W, H = L.H, i;
-      var o1 = 1 - seg(p, .03, .09); fade(c1, 'c1', o1, -50 * (1 - o1));
+      if (p > .03 && clearMarks) clearMarks();
+      var o1 = 1 - seg(p, .03, .065); fade(c1, 'c1', o1, -50 * (1 - o1));
       set(aside, 'as', 'opacity', (1 - seg(p, .005, .04)).toFixed(3));
       var Pp = paperAt(p), tk = 1 - seg(p, 0, .08);
       set(sheet, 'sh', 'transform', 'translate(' + px(Pp.x - L.pw / 2) + ',' + px(Pp.y - L.ph / 2) + ') rotate(' + Pp.r.toFixed(2) + 'deg)' +
         (tk > 0 && (tilt.x || tilt.y) ? ' perspective(1800px) rotateX(' + (-tilt.y * 5 * tk).toFixed(2) + 'deg) rotateY(' + (tilt.x * 6 * tk).toFixed(2) + 'deg)' : ''));
-      var i2 = seg(p, .06, .11), u2 = seg(p, .42, .465); fade(c2a, 'c2a', i2 * (1 - u2), 24 * (1 - i2) - 24 * u2);
+      var i2 = seg(p, .07, .11), u2 = seg(p, .42, .465); fade(c2a, 'c2a', i2 * (1 - u2), 24 * (1 - i2) - 24 * u2);
       var i3 = seg(p, .46, .51), u3 = seg(p, .615, .645); fade(c2b, 'c2b', i3 * (1 - u3), 24 * (1 - i3) - 24 * u3);
       var rad = Pp.r * Math.PI / 180, co = Math.cos(rad), si = Math.sin(rad);
       var st = io(seg(p, .49, .58)), ut = io(seg(p, .61, .69)), S = L.stack;
@@ -2040,8 +2105,10 @@
         var hx = Pp.x + co * hp[0] - si * hp[1], hy = Pp.y + si * hp[0] + co * hp[1];
         // card centre that puts its answer phrase exactly over the page's phrase
         var sx = hx - (co * I.ax - si * I.ay), sy = hy - (si * I.ax + co * I.ay);
-        var a = eo(seg(lt, 0, .22)), b = io(seg(lt, .16, 1)), F = L.fan[i];
-        var x = lerp(sx, F.x, b), y = lerp(sy - a * L.f * .5, F.y, b), r = lerp(Pp.r, F.r, b), s = lerp(1 + .06 * a, F.s, b), so = 3 - i;
+        // wide: each card slides right (out from under the copy column) before
+        // it rises to its place in the fan, so it never flies across the text
+        var a = eo(seg(lt, 0, .22)), b = io(seg(lt, .16, 1)), bx = L.nar ? b : io(seg(lt, .16, .7)), by = L.nar ? b : io(seg(lt, .3, 1)), F = L.fan[i];
+        var x = lerp(sx, F.x, bx), y = lerp(sy - a * L.f * .5, F.y, by), r = lerp(Pp.r, F.r, b), s = lerp(1 + .06 * a, F.s, b), so = 3 - i;
         x = lerp(x, S.x + so * L.f * .14, st); y = lerp(y, S.y + so * L.f * .2, st); r = lerp(r, [-2.4, 1.7, -1, .5][i], st); s = lerp(s, S.s, st);
         y += ut * H * 1.05; r += ut * (i % 2 ? 7 : -6); x += ut * W * (i % 2 ? .04 : -.03);
         set(c, k, 'transform', 'translate(' + px(x - L.cw / 2) + ',' + px(y - L.ch / 2) + ') rotate(' + r.toFixed(2) + 'deg) scale(' + s.toFixed(4) + ')');
@@ -2054,8 +2121,9 @@
         set(flips[i], k, 'transform', 'perspective(' + (L.f * 80).toFixed(0) + 'px) rotateY(' + (180 - 180 * ft + (i === 3 ? 180 * io(peek) : 0)).toFixed(1) + 'deg)');
       }
       var dt = seg(p, .53, .58), dvy = (1 - eo(dt)) * L.f * 1.8 + ut * H * 1.05;
-      set(dvs, 'dv', 'opacity', (ut >= 1 ? 0 : dt).toFixed(3));
-      set(dvs, 'dv', 'transform', 'translate(' + px(S.x - L.cw / 2 - ut * W * .01) + ',' + px(S.y - L.ch / 2 + dvy) + ') rotate(' + (-1.4 - ut * 5).toFixed(2) + 'deg) scale(' + S.s.toFixed(4) + ')');
+      var dvo = (ut >= 1 ? 0 : dt).toFixed(3), dvt = 'translate(' + px(S.x - L.cw / 2 - ut * W * .01) + ',' + px(S.y - L.ch / 2 + dvy) + ') rotate(' + (-1.4 - ut * 5).toFixed(2) + 'deg) scale(' + S.s.toFixed(4) + ')';
+      set(dvs, 'dv', 'opacity', dvo); set(dvs, 'dv', 'transform', dvt);
+      set(dymo, 'dy', 'opacity', dvo); set(dymo, 'dy', 'transform', dvt);
       set(dim, 'dm', 'opacity', io(seg(p, .61, .69)).toFixed(3));
       set(lamp, 'lp', 'opacity', seg(p, .62, .71).toFixed(3));
       var tm = io(seg(p, .62, .70)), T = L.T;
@@ -2205,7 +2273,13 @@
     if (d.fonts && d.fonts.ready) d.fonts.ready.then(onResize);
     if (mqReduce.addEventListener) mqReduce.addEventListener('change', onResize);
     d.addEventListener('visibilitychange', function () { if (d.hidden) stopTick(); else { startTick(); req(); } });
+    /* The fixed header covers the top ~58px, so anything the browser scrolls
+       into view (keyboard focus, in-page links, "See how it works" in the
+       static layout) must stop below it. Only while the splash is showing. */
+    function scrollPad() { R.style.scrollPaddingTop = splash.classList.contains('active') ? '72px' : ''; }
+    scrollPad();
     if (w.MutationObserver) new MutationObserver(function () {
+      scrollPad();
       if (splash.classList.contains('active')) onResize();
       else { R.classList.add('pp-ready'); stopTick(); if (windRaf) { cancelAnimationFrame(windRaf); windRaf = 0; } }
     }).observe(splash, { attributes: true, attributeFilter: ['class'] });
@@ -2238,10 +2312,23 @@
         var h = overDeck(e.clientX, e.clientY);
         if (h !== hovering) { hovering = h; if (autoT) { clearTimeout(autoT); autoT = 0; } setPeek(h ? 1 : 0); }
       }, { passive: true });
+      // marks are temporary: they fade ~1s after the pointer leaves the line,
+      // and all clear once the story starts so the four real highlights lift
+      // off a clean page
+      var lns = qa('.pp-ln', paper), mkT = [];
+      function lineOf(e) { var t = e.target; return t && t.closest ? t.closest('.pp-ln') : null; }
       paper.addEventListener('pointerover', function (e) {
-        var ln = e.target.closest && e.target.closest('.pp-ln');
-        if (ln) ln.classList.add('pp-mk');
+        var ln = lineOf(e), i = lns.indexOf(ln);
+        if (i < 0 || (pin && P > .03)) return;
+        clearTimeout(mkT[i]); ln.classList.remove('pp-fd'); ln.classList.add('pp-mk');
       }, { passive: true });
+      paper.addEventListener('pointerout', function (e) {
+        var ln = lineOf(e), i = lns.indexOf(ln);
+        if (i < 0 || ln.contains(e.relatedTarget)) return;
+        clearTimeout(mkT[i]);
+        mkT[i] = setTimeout(function () { ln.classList.add('pp-fd'); mkT[i] = setTimeout(function () { ln.classList.remove('pp-mk', 'pp-fd'); }, 850); }, 1000);
+      }, { passive: true });
+      clearMarks = function () { lns.forEach(function (ln, i) { if (ln.classList.contains('pp-mk') && !ln.classList.contains('pp-fd')) { clearTimeout(mkT[i]); ln.classList.add('pp-fd'); mkT[i] = setTimeout(function () { ln.classList.remove('pp-mk', 'pp-fd'); }, 850); } }); };
     }
   })();
   </script>
@@ -4635,9 +4722,15 @@
     color: var(--text);
     font-family: 'Manrope', sans-serif;
     opacity: 0; transform: translateY(8px);
-    transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.34, 1.2, 0.64, 1);
+    /* visibility:hidden (not just opacity:0) while closed: the bundle's dialog
+       focus trap (initDialogA11y) treats any [role=dialog] that isn't
+       display:none / visibility:hidden as open, so an opacity-only hide
+       trapped keyboard users in these invisible Skip / Next buttons. The
+       visibility flip waits for the fade-out to finish. */
+    visibility: hidden;
+    transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.34, 1.2, 0.64, 1), visibility 0s linear 0.22s;
   }
-  #tourTooltip.visible { opacity: 1; transform: translateY(0); }
+  #tourTooltip.visible { opacity: 1; transform: translateY(0); visibility: visible; transition-delay: 0s; }
   #tourTooltip .tt-step {
     font-family: 'Space Grotesk', monospace;
     font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
