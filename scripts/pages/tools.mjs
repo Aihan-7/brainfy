@@ -227,7 +227,7 @@ export default [
       { q: 'Why are my flashcards not working?', a: 'The most common reason is flipping too fast — read the front, guess, then check. Also space your reviews over days rather than cramming them all at once.' },
       { q: 'What are flashcards best for?', a: 'Facts, definitions, vocabulary, formulas — anything with a clear question and answer. For deep concepts, pair them with explaining the idea in your own words.' },
       { q: 'How many cards should I review a day?', a: 'Only what is due. A spaced-repetition scheduler caps new cards and surfaces the rest, so a daily session stays short and finishable.' },
-      { q: 'Can I try it free?', a: 'Yes — generate a deck from your notes in Brainfy and review it daily for a week. It is free during beta.' },
+      { q: 'Is Brainfy free?', a: 'Yes, during beta. Make a free account, generate a deck from your notes and review it daily for a week.' },
     ],
     related: ['active-recall', 'spaced-repetition-app', 'how-to-study-with-flashcards', 'ai-flashcards'],
   },
