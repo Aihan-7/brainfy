@@ -73,13 +73,18 @@
   # Note on frame-src — Firebase Auth popups render iframes from the
   #   project's authDomain (*.firebaseapp.com) and from accounts.google.com.
   # Note on connect-src — *.firebaseapp.com is for auth iframe traffic.
+  # Note on connect-src — www.gstatic.com + fonts.gstatic.com are REQUIRED:
+  #   sw.js intercepts the Firebase SDK (www.gstatic.com) and font files and
+  #   refetches them with fetch(), and a service worker is bound by the CSP of
+  #   its own script (this /* rule covers /sw.js). Without them the worker's
+  #   fetch is refused, the SDK never loads, and sign-in/sync silently fail.
   # Note on cdnjs — lazy-loaded ONLY when the user picks a PDF in AI Import
   #   (PDF.js + its worker). Pinned to a specific version in main.ts.
   # Note on cloudflareinsights — Cloudflare Web Analytics injects its beacon
   #   script into every HTML response. It was NOT in script-src, so the browser
   #   blocked it on every page load and we collected zero traffic data. Both
   #   the script host and the /cdn-cgi/rum endpoint it POSTs to are needed.
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com https://*.firebasestorage.app https://*.firebaseio.com https://*.firebaseapp.com https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; worker-src 'self' https://cdnjs.cloudflare.com blob:
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://www.gstatic.com https://fonts.gstatic.com https://*.googleapis.com https://*.firebasestorage.app https://*.firebaseio.com https://*.firebaseapp.com https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; worker-src 'self' https://cdnjs.cloudflare.com blob:
 
 # ── Long-cache versioned assets ───────────────────────────────────────────
 # script.js is fetched as /script.js?v=APP_VERSION and icons.js as
