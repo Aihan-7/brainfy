@@ -3302,158 +3302,351 @@
 
 
 <!-- ══════════════════════════════════════════
-     SIGN IN VIEW
+     SIGN IN / SIGN UP — "Paper & Ink", the homepage's desk at night.
+     Sign in is the library's front desk (show your member's card); sign up is
+     the library-card application. Styles: <style id="pa-css"> right here,
+     scoped to #signinView / #signupView (classes .pa-*, tokens on the views).
+     .auth-input / .auth-divider / .auth-beam-* are shared with app modals,
+     so these views don't use them.
+     Wiring (src/main.ts): every id below; the inline onclicks; Enter submits
+     (implicit form submission; the password fields keep their own Enter
+     listener, so their keydown cancels the implicit submit to avoid a second
+     call); setAuthLoading() rewrites the submit buttons' text, so they stay
+     text-only; showAuthError() owns #signinError / #signupError (text,
+     display, .is-success); icons.js hydrates the .ms eye icons, whose text
+     the toggles swap.
 ══════════════════════════════════════════ -->
+<style id="pa-css">
+  #signinView,#signupView{
+    --pa-ink:#1b2440; --pa-ink2:#4a5068; --pa-ink3:#5a6078; --pa-cream:#f3e9d3; --pa-cream2:#cfc4ad;
+    --pa-marker:#ffdc45; --pa-coral:#ff7756; --pa-red:#bf3a29; --pa-field:#fffdf7;
+    --pa-serif:'Fraunces','Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+    --pa-hand:'Caveat','Segoe Print','Bradley Hand',cursive;
+    --pa-mono:'DM Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --pa-gut:clamp(16px,4vw,56px);
+    --pa-lx:70%; --pa-ly:50%; --pa-lw:46%; --pa-lh:62%;
+    position:relative;color:var(--pa-cream);font-family:var(--pa-serif);font-synthesis:none;line-height:1.5;text-align:left;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+    /* the walnut desk: a lamp pool behind the card, a vignette, a small static
+       grain tile (paths only, no filters) and the wood colour. Painted once. */
+    background:
+      radial-gradient(var(--pa-lw) var(--pa-lh) at var(--pa-lx) var(--pa-ly),rgba(255,196,128,.15),rgba(255,196,128,.05) 46%,rgba(255,196,128,0) 82%),
+      radial-gradient(140% 120% at 50% 40%,rgba(0,0,0,0) 46%,rgba(0,0,0,.5)),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='960' height='560' fill='none'%3E%3Cstyle%3E.a{stroke:%23000;stroke-width:.6;stroke-opacity:.26;stroke-dasharray:90 18 240 30 50 12}.b{stroke:%23000;stroke-width:1;stroke-opacity:.18;stroke-dasharray:300 60 120 20 420 40}.c{stroke:%23000;stroke-width:1.6;stroke-opacity:.2;stroke-dasharray:520 90 200 140}.d{stroke:%23000;stroke-width:.5;stroke-opacity:.3;stroke-dasharray:40 10 70 26 18 8 120 30}.e{stroke:%23ffcf9a;stroke-width:.8;stroke-opacity:.06;stroke-dasharray:160 60 340 90}%3C/style%3E%3Cpath class='a' stroke-dashoffset='84' d='M0 6C163 -2 317 11 480 13S797 1 960 6'/%3E%3Cpath class='c' stroke-dashoffset='302' d='M0 25C163 21 317 27 480 21S797 22 960 25'/%3E%3Cpath class='d' stroke-dashoffset='96' d='M0 40C163 35 317 44 480 35S797 36 960 40'/%3E%3Cpath class='d' stroke-dashoffset='273' d='M0 53C163 47 317 57 480 55S797 49 960 53'/%3E%3Cpath class='e' stroke-dashoffset='205' d='M0 68C163 61 317 72 480 73S797 63 960 68'/%3E%3Cpath class='d' stroke-dashoffset='364' d='M0 90C163 84 317 93 480 87S797 85 960 90'/%3E%3Cpath class='b' stroke-dashoffset='132' d='M0 111C163 107 317 114 480 108S797 108 960 111'/%3E%3Cpath class='b' stroke-dashoffset='374' d='M0 121C163 116 317 123 480 125S797 117 960 121'/%3E%3Cpath class='d' stroke-dashoffset='109' d='M0 136C163 129 317 141 480 139S797 131 960 136'/%3E%3Cpath class='c' stroke-dashoffset='363' d='M0 152C163 148 317 155 480 157S797 149 960 152'/%3E%3Cpath class='b' stroke-dashoffset='369' d='M0 160C163 156 317 163 480 157S797 157 960 160'/%3E%3Cpath class='a' stroke-dashoffset='145' d='M0 176C163 171 317 178 480 180S797 172 960 176'/%3E%3Cpath class='b' stroke-dashoffset='93' d='M0 189C163 184 317 192 480 186S797 186 960 189'/%3E%3Cpath class='c' stroke-dashoffset='253' d='M0 211C163 204 317 215 480 205S797 206 960 211'/%3E%3Cpath class='c' stroke-dashoffset='158' d='M0 226C163 220 317 230 480 224S797 222 960 226'/%3E%3Cpath class='b' stroke-dashoffset='132' d='M0 244C163 239 317 248 480 249S797 241 960 244'/%3E%3Cpath class='d' stroke-dashoffset='327' d='M0 258C163 250 317 262 480 262S797 253 960 258'/%3E%3Cpath class='c' stroke-dashoffset='398' d='M0 266C163 263 317 268 480 267S797 264 960 266'/%3E%3Cpath class='d' stroke-dashoffset='237' d='M0 276C163 274 317 278 480 277S797 274 960 276'/%3E%3Cpath class='e' stroke-dashoffset='354' d='M0 286C163 278 317 290 480 281S797 281 960 286'/%3E%3Cpath class='d' stroke-dashoffset='99' d='M0 307C163 304 317 309 480 307S797 305 960 307'/%3E%3Cpath class='a' stroke-dashoffset='296' d='M0 315C163 310 317 319 480 321S797 311 960 315'/%3E%3Cpath class='d' stroke-dashoffset='94' d='M0 330C163 327 317 332 480 328S797 328 960 330'/%3E%3Cpath class='e' stroke-dashoffset='1' d='M0 343C163 341 317 345 480 343S797 341 960 343'/%3E%3Cpath class='d' stroke-dashoffset='360' d='M0 365C163 357 317 369 480 366S797 360 960 365'/%3E%3Cpath class='e' stroke-dashoffset='106' d='M0 375C163 369 317 378 480 370S797 371 960 375'/%3E%3Cpath class='b' stroke-dashoffset='307' d='M0 385C163 380 317 389 480 387S797 382 960 385'/%3E%3Cpath class='d' stroke-dashoffset='44' d='M0 404C163 399 317 407 480 405S797 400 960 404'/%3E%3Cpath class='a' stroke-dashoffset='14' d='M0 425C163 419 317 429 480 422S797 421 960 425'/%3E%3Cpath class='e' stroke-dashoffset='305' d='M0 446C163 439 317 451 480 444S797 441 960 446'/%3E%3Cpath class='b' stroke-dashoffset='159' d='M0 460C163 454 317 464 480 456S797 456 960 460'/%3E%3Cpath class='c' stroke-dashoffset='140' d='M0 471C163 464 317 475 480 468S797 466 960 471'/%3E%3Cpath class='d' stroke-dashoffset='169' d='M0 488C163 484 317 490 480 484S797 485 960 488'/%3E%3Cpath class='b' stroke-dashoffset='252' d='M0 498C163 490 317 503 480 498S797 493 960 498'/%3E%3Cpath class='e' stroke-dashoffset='54' d='M0 519C163 516 317 521 480 516S797 517 960 519'/%3E%3Cpath class='c' stroke-dashoffset='192' d='M0 534C163 527 317 538 480 532S797 529 960 534'/%3E%3Cpath class='c' stroke-dashoffset='208' d='M0 544C163 541 317 546 480 541S797 542 960 544'/%3E%3Cpath class='c' stroke-dashoffset='300' d='M0 560C163 553 317 564 480 565S797 555 960 560'/%3E%3C/svg%3E") 0 0/960px 560px,
+      linear-gradient(180deg,#1f1711,#140f0b);
+    background-color:#17120d;
+  }
+  /* full-screen column: top bar, then the desk centred in what's left */
+  #signinView.active,#signupView.active{flex-direction:column;align-items:stretch;justify-content:flex-start;min-height:100vh;min-height:100dvh;animation:paViewIn .24s ease-out backwards !important}
+  @keyframes paViewIn{from{opacity:0}}
+  /* The router cross-fades views (the old one out over 0.1s, then the new one
+     in), and what shows through is the body: the app's navy. Between the three
+     walnut screens (homepage, sign-in, sign-up) the body is walnut instead, so
+     the move from the homepage never blinks navy. The splash covers the body
+     completely at rest (checked at 390/1024/1440 while scrolling), so this only
+     shows during those fades. Direct children only: the :has() stays cheap. */
+  body:has(>#splashView.active,>#signinView.active,>#signupView.active){background-color:#17120d}
+  #signinView.active .pa-stack,#signupView.active .pa-stack{animation:paCardIn .42s cubic-bezier(.2,.8,.2,1) backwards}
+  @keyframes paCardIn{from{opacity:0;transform:translateY(12px)}}
+  @media (prefers-reduced-motion:reduce){
+    #signinView.active,#signupView.active{animation:none !important}
+    #signinView.active .pa-stack,#signupView.active .pa-stack{animation:none}
+  }
+  :where(#signinView,#signupView) :where(h2,p,form){margin:0}
+  :where(#signinView,#signupView) :where(button){-webkit-appearance:none;appearance:none;margin:0;font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:center}
+  :where(#signinView,#signupView) :focus-visible{outline:2px dashed var(--pa-marker);outline-offset:4px;border-radius:2px}
+  :where(#signinView,#signupView) .pa-card :focus-visible{outline-color:var(--pa-ink);outline-offset:3px}
+  /* these two sit tight against a field: keep their ring inside their own box */
+  :where(#signinView,#signupView) :is(.pa-link,.pa-eye):focus-visible{outline-offset:-3px}
+  .pa-vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+
+  /* ── top bar ── */
+  .pa-top{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;max-width:1160px;margin:0 auto;padding:16px var(--pa-gut) 0}
+  .pa-brand{display:inline-flex;align-items:center;gap:10px;min-height:44px;color:var(--pa-cream)}
+  .pa-brand svg{width:29px;height:29px;flex:none}
+  .pa-brand b{font-weight:500;font-style:italic;font-size:23px;letter-spacing:-.01em;line-height:1}
+  .pa-back{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 4px;font-family:var(--pa-mono);font-size:13px;letter-spacing:.04em;color:#cfc4ad;transition:color .2s}
+  .pa-back svg{width:14px;height:14px;flex:none}
+  .pa-back:hover{color:var(--pa-cream)}
+
+  /* ── the desk: copy | card ── */
+  /* Top-anchored, so a message appearing never moves the card: the padding
+     centres the default state (--pa-dh: the card + the line under it), and the
+     copy is centred against the card by margin. */
+  #signinView{--pa-dh:516px}
+  #signupView{--pa-dh:751px}
+  .pa-wrap{flex:1 0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,460px);align-items:start;align-content:start;gap:clamp(40px,6vw,104px);width:100%;max-width:1160px;margin:0 auto;padding:max(clamp(12px,3vh,40px),calc((100vh - 60px - var(--pa-dh)) / 2 - 8px)) var(--pa-gut) clamp(28px,5vh,64px)}
+  .pa-intro{margin-top:calc((var(--pa-dh) - 242px) / 2)}
+  .pa-label{display:flex;align-items:center;gap:12px;margin-bottom:18px;font-family:var(--pa-mono);font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--pa-coral)}
+  .pa-label::before{content:"";width:28px;height:1px;background:currentColor}
+  .pa-h{font-family:var(--pa-serif);font-weight:330;font-size:clamp(40px,4.6vw,70px);line-height:1.02;letter-spacing:-.022em;font-variation-settings:'opsz' 144;color:#fff4de;text-wrap:balance;overflow-wrap:anywhere}
+  .pa-h em{font-style:italic;font-weight:300}
+  .pa-lede{margin-top:20px;max-width:25em;font-size:clamp(15.5px,1.2vw,18px);line-height:1.6;color:var(--pa-cream2);font-variation-settings:'opsz' 14;text-wrap:pretty}
+  .pa-desk{min-width:0}
+  .pa-stack{position:relative}
+  /* a second sheet under the card, slightly askew */
+  .pa-stack::before{content:"";position:absolute;inset:14px -7px -9px 10px;border-radius:12px;background:linear-gradient(170deg,#e4d5b3,#d3c19a);transform:rotate(2.2deg);box-shadow:0 24px 40px -22px rgba(0,0,0,.85)}
+  .pa-card{position:relative;border-radius:12px;overflow:hidden;color:var(--pa-ink);background:linear-gradient(165deg,#fcf6e8,#f1e6cd);box-shadow:0 .06em .1em rgba(0,0,0,.35),0 28px 48px -20px rgba(0,0,0,.85),inset 0 0 40px rgba(160,130,80,.08)}
+  .pa-band{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 26px 13px;background:#bf3a29 linear-gradient(180deg,rgba(255,255,255,.12),rgba(0,0,0,.08));font-family:var(--pa-mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#fff6ee;white-space:nowrap}
+  .pa-band b{font-weight:400;font-family:var(--pa-serif);font-style:italic;font-size:22px;letter-spacing:-.01em;text-transform:none}
+  .pa-body{padding:22px 26px 24px}
+
+  /* Google: the quick, primary path (the homepage's highlighter button) */
+  .pa-google{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:54px;padding:0 18px;border-radius:3px;background:var(--pa-marker);color:var(--pa-ink);font-family:var(--pa-serif);font-size:17px;font-weight:600;line-height:1.2;box-shadow:0 2px 0 #b8921c,0 12px 18px -12px rgba(27,36,64,.6);transition:transform .18s ease,box-shadow .18s ease}
+  .pa-google:hover{transform:translateY(-1px);box-shadow:0 3px 0 #b8921c,0 16px 22px -12px rgba(27,36,64,.6)}
+  .pa-google:active{transform:translateY(1px);box-shadow:0 1px 0 #b8921c,0 8px 14px -10px rgba(27,36,64,.5)}
+  .pa-g{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px rgba(27,36,64,.14)}
+  .pa-g svg{width:18px;height:18px;display:block}
+  .pa-or{display:flex;align-items:center;gap:14px;margin:18px 0 14px;font-family:var(--pa-mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--pa-ink3)}
+  .pa-or::before,.pa-or::after{content:"";flex:1;border-top:1px dotted rgba(27,36,64,.42)}
+
+  /* the typed form */
+  .pa-form{display:grid;gap:14px}
+  .pa-field{display:grid;gap:6px;min-width:0}
+  .pa-lab{font-family:var(--pa-mono);font-size:12px;line-height:20px;letter-spacing:.14em;text-transform:uppercase;color:var(--pa-ink2)}
+  .pa-field-pw{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"lab link" "pw pw";column-gap:12px;margin-top:-6px}
+  .pa-field-pw>.pa-lab{grid-area:lab;align-self:center}
+  .pa-field-pw>.pa-pw{grid-area:pw}
+  .pa-field-pw>.pa-forgot{grid-area:link;justify-self:end;align-self:center}
+  .pa-link{min-height:44px;margin:-6px -6px;padding:0 6px;font-family:var(--pa-mono);font-size:12.5px;letter-spacing:.02em;color:#a63a24;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:rgba(166,58,36,.5)}
+  .pa-link:hover{text-decoration-color:currentColor}
+  .pa-in{display:block;width:100%;min-width:0;height:52px;margin:0;padding:0 14px;font-family:var(--pa-mono);font-size:16px;font-weight:400;line-height:1.2;letter-spacing:0;color:var(--pa-ink);caret-color:var(--pa-red);background:var(--pa-field);border:1px solid rgba(27,36,64,.3);border-bottom:2px solid rgba(27,36,64,.62);border-radius:3px;box-shadow:inset 0 1px 2px rgba(27,36,64,.07);-webkit-appearance:none;appearance:none}
+  .pa-in::placeholder{color:#6b7086;opacity:1}
+  .pa-in:hover{border-color:rgba(27,36,64,.5)}
+  /* focus: ink edge + a highlighter halo; the transparent outline shows up in forced-colors mode */
+  .pa-in:focus,.pa-in:focus-visible{outline:2px solid transparent;outline-offset:2px;border-color:var(--pa-ink);box-shadow:0 0 0 1px var(--pa-ink),0 0 0 5px rgba(255,220,69,.9)}
+  /* autofill: keep the paper (a pale highlighter wash), not Chrome's blue/yellow slab */
+  .pa-in:-webkit-autofill,.pa-in:-webkit-autofill:hover{-webkit-text-fill-color:var(--pa-ink);caret-color:var(--pa-red);-webkit-box-shadow:inset 0 0 0 100px #fff4cf;box-shadow:inset 0 0 0 100px #fff4cf;transition:background-color 600000s 0s,color 600000s 0s}
+  .pa-in:-webkit-autofill:focus{-webkit-box-shadow:inset 0 0 0 100px #fff4cf,0 0 0 1px var(--pa-ink),0 0 0 5px rgba(255,220,69,.9);box-shadow:inset 0 0 0 100px #fff4cf,0 0 0 1px var(--pa-ink),0 0 0 5px rgba(255,220,69,.9)}
+  .pa-in:autofill{-webkit-text-fill-color:var(--pa-ink);box-shadow:inset 0 0 0 100px #fff4cf}
+  .pa-in:autofill:focus{box-shadow:inset 0 0 0 100px #fff4cf,0 0 0 1px var(--pa-ink),0 0 0 5px rgba(255,220,69,.9)}
+  .pa-pw{position:relative}
+  .pa-pw .pa-in{padding-right:54px}
+  .pa-eye{position:absolute;top:4px;right:4px;display:grid;place-items:center;width:44px;height:44px;border-radius:3px;color:var(--pa-ink2)}
+  .pa-eye:hover{color:var(--pa-ink);background:rgba(27,36,64,.06)}
+  .pa-eye .ms{display:block;line-height:1}
+  /* the toggle's name follows the field: main.ts flips the input's type */
+  .pa-eye-h,.pa-pw input[type="text"]~.pa-eye .pa-eye-s{display:none}
+  .pa-pw input[type="text"]~.pa-eye .pa-eye-h{display:block}
+  .pa-hint{margin-top:2px;font-size:14px;line-height:1.45;color:var(--pa-ink2);font-variation-settings:'opsz' 12}
+  /* strength: four ruled segments; main.ts sets the bar's width + ink colour */
+  .pa-meter{position:relative;height:5px;margin-top:4px;border-radius:3px;overflow:hidden;background:rgba(27,36,64,.13)}
+  .pa-meter::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent calc(25% - 1.5px),#f8f0de calc(25% - 1.5px) calc(25% + 1.5px),transparent calc(25% + 1.5px) calc(50% - 1.5px),#f8f0de calc(50% - 1.5px) calc(50% + 1.5px),transparent calc(50% + 1.5px) calc(75% - 1.5px),#f8f0de calc(75% - 1.5px) calc(75% + 1.5px),transparent calc(75% + 1.5px))}
+  #signupStrengthBar{height:100%;width:0}
+
+  /* message slip: a red-ink correction by default, a green-ink note when .is-success */
+  .pa-msg{position:relative;padding:11px 14px 11px 40px;font-size:15px;line-height:1.45;color:#8a2315;background:#fbe4da;border:1px solid rgba(191,58,41,.32);border-left:3px solid var(--pa-red);border-radius:2px;font-variation-settings:'opsz' 14;overflow-wrap:anywhere}
+  .pa-msg::before{content:"";position:absolute;left:12px;top:12px;width:18px;height:18px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Ccircle cx='9' cy='9' r='9' fill='%23bf3a29'/%3E%3Cpath d='M9 4.6v5.2' stroke='%23fff' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='9' cy='13.1' r='1.15' fill='%23fff'/%3E%3C/svg%3E") 0 0/18px 18px no-repeat}
+  .pa-msg.is-success{color:#1f4d33;background:#e3eedb;border-color:rgba(47,107,70,.35);border-left-color:#2f6b46}
+  .pa-msg.is-success::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Ccircle cx='9' cy='9' r='9' fill='%232f6b46'/%3E%3Cpath d='m5.3 9.3 2.4 2.4 5-5.2' fill='none' stroke='%23fff' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+
+  /* email submit: an ink-outlined button, quieter than Google but plainly the action */
+  .pa-submit{position:relative;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:52px;margin-top:2px;padding:0 18px;border-radius:3px;font-family:var(--pa-serif);font-size:17px;font-weight:500;line-height:1.2;color:var(--pa-ink);box-shadow:inset 0 0 0 1.5px rgba(27,36,64,.62);transition:transform .18s ease}
+  .pa-submit:hover{box-shadow:inset 0 0 0 1.5px var(--pa-ink);background:rgba(27,36,64,.045)}
+  .pa-submit:active{transform:translateY(1px)}
+  .pa-submit:disabled{cursor:progress;transform:none}
+  .pa-submit:disabled::after{content:"";width:14px;height:14px;flex:none;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:paSpin .8s linear infinite}
+  @keyframes paSpin{to{transform:rotate(1turn)}}
+  .pa-terms{margin-top:14px;font-size:14px;line-height:1.55;color:var(--pa-ink2);text-align:center;font-variation-settings:'opsz' 12}
+  .pa-terms a{padding:13px 3px;margin:0 -3px;color:#a63a24;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:rgba(166,58,36,.5)}
+  .pa-terms a:hover{text-decoration-color:currentColor}
+
+  /* sign-up: the application's tear-off stub, stamped */
+  .pa-stub{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 26px 14px;border-top:1.5px dashed rgba(27,36,64,.28);background:rgba(160,130,80,.07)}
+  .pa-stub small{display:block;font-family:var(--pa-mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--pa-ink3)}
+  .pa-fee{display:block;font-family:var(--pa-hand);font-weight:500;font-size:25px;line-height:1.1;color:#24346e}
+  .pa-stamp{flex:none;padding:5px 10px 4px;border:2.5px solid rgba(198,58,43,.78);border-radius:4px;font-family:var(--pa-mono);font-size:12px;line-height:1.35;letter-spacing:.2em;text-align:center;text-transform:uppercase;color:rgba(178,50,36,.92);transform:rotate(-8deg)}
+  .pa-stamp b{display:block;font-weight:400}
+  .pa-stamp span{display:block;font-size:10px;letter-spacing:.12em}
+  /* while the account is being created, the stamp comes down again */
+  #signupView:has(#signupSubmitBtn:disabled) .pa-stamp{animation:paThump .3s cubic-bezier(.3,1.5,.5,1) both}
+  @keyframes paThump{from{opacity:0;transform:rotate(-8deg) scale(1.5)}to{opacity:1;transform:rotate(-8deg) scale(1)}}
+
+  /* under the card, on the desk */
+  .pa-alt{margin-top:18px;padding-left:4px;font-family:var(--pa-mono);font-size:13.5px;letter-spacing:.03em;color:var(--pa-cream2)}
+  .pa-alt button{min-height:44px;padding:0 4px;color:var(--pa-cream)}
+  .pa-alt button span{border-bottom:1px dashed rgba(243,233,211,.6);padding-bottom:2px}
+  .pa-alt button:hover span{border-bottom-style:solid}
+
+  @media (max-width:959px){
+    #signinView,#signupView{--pa-lx:50%;--pa-ly:64%;--pa-lw:80%;--pa-lh:48%}
+    .pa-top{max-width:540px}
+    .pa-wrap{grid-template-columns:minmax(0,1fr);max-width:540px;gap:28px;padding-top:clamp(20px,5vh,56px)}
+    .pa-intro{margin-top:0}
+    .pa-h{font-size:clamp(34px,7vw,52px)}
+    .pa-lede{margin-top:12px}
+  }
+  @media (max-width:599px){
+    /* phones: the card covers most of the desk, so skip the grain tile (it
+       doubled the raster work of the first frame at 6x CPU) */
+    #signinView,#signupView{background:radial-gradient(var(--pa-lw) var(--pa-lh) at var(--pa-lx) var(--pa-ly),rgba(255,196,128,.15),rgba(255,196,128,.05) 46%,rgba(255,196,128,0) 82%),radial-gradient(140% 120% at 50% 40%,rgba(0,0,0,0) 46%,rgba(0,0,0,.5)),linear-gradient(180deg,#1f1711,#140f0b) #17120d}
+    .pa-top{padding-top:8px}
+    .pa-wrap{gap:22px;padding-top:12px;padding-bottom:36px}
+    .pa-label{margin-bottom:10px;font-size:11.5px}
+    .pa-h{font-size:clamp(31px,9vw,40px)}
+    .pa-lede{font-size:15px;line-height:1.5}
+    .pa-band{padding:12px 18px 11px;font-size:10.5px;letter-spacing:.18em}
+    .pa-band b{font-size:19px}
+    .pa-body{padding:18px 18px 20px}
+    .pa-stub{padding:11px 18px 13px}
+    .pa-stack::before{inset:12px -4px -7px 6px;transform:rotate(1.5deg)}
+  }
+  @media (max-width:359px){
+    .pa-band{padding-left:14px;padding-right:14px;letter-spacing:.12em;font-size:9.5px}
+    .pa-band b{font-size:17px}
+    .pa-body{padding-left:14px;padding-right:14px}
+    .pa-stub{padding-left:14px;padding-right:14px}
+    .pa-google{gap:10px;padding:0 12px;font-size:16px}
+    .pa-back{font-size:12px}
+  }
+  @media (forced-colors:active){
+    .pa-google,.pa-submit{border:2px solid ButtonText}
+    .pa-msg::before{forced-color-adjust:none}
+  }
+</style>
+
 <div id="signinView" class="view">
-  <!-- Background glow -->
-  <div style="position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;">
-    <div style="position:absolute;top:-20%;left:50%;transform:translateX(-50%);width:700px;height:700px;background:rgba(124,58,237,0.08);border-radius:50%;filter:blur(100px);"></div>
-    <div style="position:absolute;bottom:-20%;right:-10%;width:500px;height:500px;background:rgba(76,215,246,0.06);border-radius:50%;filter:blur(80px);"></div>
+  <div class="pa-top">
+    <button type="button" class="pa-brand" onclick="goTo('splash')" aria-label="Brainfy home"><svg viewBox="0 0 30 30" aria-hidden="true"><rect x="3" y="6" width="24" height="17" rx="1.5" fill="#f4ecda" transform="rotate(-8 15 15)"/><path d="M5.6 10.4 26.6 7.5" stroke="#d45648" stroke-width="1.1"/><path d="M8 15.6h12" stroke="#ffdc45" stroke-width="4.2" stroke-linecap="round" transform="rotate(-8 15 15)" opacity=".95"/><path d="M8 20h8" stroke="#1b2440" stroke-width="1.3" stroke-linecap="round" transform="rotate(-8 15 15)"/></svg><b>Brainfy</b></button>
+    <button type="button" class="pa-back" onclick="goTo('splash')"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8h-11M6.5 4 2.5 8l4 4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Back to home</button>
   </div>
 
-  <div style="position:relative;z-index:1;width:100%;max-width:420px;padding:24px;">
-    <!-- Logo -->
-    <div style="text-align:center;margin-bottom:36px;">
-      <div style="width:52px;height:52px;border-radius:14px;background:var(--primary);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:0 0 32px rgba(124,58,237,0.4);">
-        <span class="ms" style="font-size:28px;color:white;">psychology</span>
-      </div>
-      <h2 style="font-size:22px;font-weight:900;color:white;margin-bottom:6px;">Welcome back</h2>
-      <p style="font-size:14px;color:var(--muted);">Sign in to your Brainfy account</p>
+  <div class="pa-wrap">
+    <div class="pa-intro">
+      <p class="pa-label">Front desk</p>
+      <h2 class="pa-h" id="signinTitle">Sign in to <em>Brainfy.</em></h2>
+      <p class="pa-lede" id="signinLede">First time here? Continue with Google and your free account is set up in one step.</p>
     </div>
 
-    <!-- Card with light beam border -->
-    <div class="auth-beam-wrap">
-    <div class="auth-beam-inner">
+    <div class="pa-desk">
+      <div class="pa-stack">
+        <div class="pa-card">
+          <p class="pa-band" aria-hidden="true"><b>Brainfy library</b><span>Member’s card</span></p>
+          <div class="pa-body">
+            <button type="button" id="googleSignInBtn" class="pa-google"><span class="pa-g" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg></span>Continue with Google</button>
 
-      <!-- Google SSO -->
-      <button id="googleSignInBtn" style="width:100%;padding:12px 16px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'Manrope',sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:background 0.15s;margin-bottom:4px;"
-        onmouseover="this.style.background='rgba(255,255,255,0.1)'"
-        onmouseout="this.style.background='rgba(255,255,255,0.06)'">
-        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-        Continue with Google
-      </button>
+            <p class="pa-or">or with email</p>
 
-      <div class="auth-divider">or</div>
-
-      <!-- Form -->
-      <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:24px;">
-        <div>
-          <label style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0.06em;display:block;margin-bottom:7px;">EMAIL</label>
-          <input id="signinEmail" type="email" placeholder="you@example.com" class="auth-input" autocomplete="email"/>
-        </div>
-        <div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
-            <label style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0.06em;">PASSWORD</label>
-            <button onclick="showForgot()" style="background:transparent;border:none;font-size:12px;color:var(--plight);cursor:pointer;font-family:'Manrope',sans-serif;">Forgot password?</button>
-          </div>
-          <div style="position:relative;">
-            <input id="signinPassword" type="password" placeholder="••••••••" class="auth-input" autocomplete="current-password" style="padding-right:44px;"/>
-            <button id="signinTogglePw" aria-label="Show password" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;">
-              <span class="ms" id="signinPwIcon" style="font-size:20px;">visibility_off</span>
-            </button>
+            <form class="pa-form" id="signinForm" novalidate onsubmit="return false" aria-label="Sign in with email">
+              <div class="pa-field">
+                <label class="pa-lab" for="signinEmail">Email</label>
+                <input class="pa-in" id="signinEmail" name="email" type="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="you@example.com" aria-describedby="signinError">
+              </div>
+              <!-- "Forgot password?" sits after the password input in the DOM (Tab goes
+                   email → password) and is placed beside the label by the grid. -->
+              <div class="pa-field pa-field-pw">
+                <label class="pa-lab" for="signinPassword">Password</label>
+                <div class="pa-pw">
+                  <input class="pa-in" id="signinPassword" name="password" type="password" autocomplete="current-password" aria-describedby="signinError" onkeydown="if(event.key==='Enter')event.preventDefault()">
+                  <button type="button" class="pa-eye" id="signinTogglePw" aria-controls="signinPassword"><span class="ms" id="signinPwIcon" aria-hidden="true" style="font-size:20px;">visibility_off</span><span class="pa-vh pa-eye-s">Show password</span><span class="pa-vh pa-eye-h">Hide password</span></button>
+                </div>
+                <button type="button" class="pa-link pa-forgot" onclick="showForgot()">Forgot password?</button>
+              </div>
+              <div id="signinError" class="pa-msg" role="alert" style="display:none;"></div>
+              <button type="submit" id="signinSubmitBtn" class="pa-submit">Sign in</button>
+            </form>
           </div>
         </div>
       </div>
-
-      <div id="signinError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;color:#f87171;font-size:13px;margin-bottom:16px;"></div>
-
-      <button id="signinSubmitBtn" class="btn-primary" style="width:100%;padding:13px;font-size:15px;">
-        Sign In
-      </button>
-    </div><!-- /auth-beam-inner -->
-    </div><!-- /auth-beam-wrap -->
-
-    <!-- Footer link -->
-    <p style="text-align:center;margin-top:20px;font-size:14px;color:var(--muted);">
-      Don't have an account?
-      <button onclick="goTo('signup')" style="background:transparent;border:none;color:var(--plight);font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;font-size:14px;">Sign up free</button>
-    </p>
-    <p style="text-align:center;margin-top:12px;">
-      <button onclick="goTo('splash')" style="background:transparent;border:none;color:var(--muted);font-size:13px;cursor:pointer;font-family:'Manrope',sans-serif;display:inline-flex;align-items:center;gap:6px;">
-        <span class="ms" style="font-size:16px;">arrow_back</span> Back to home
-      </button>
-    </p>
+      <p class="pa-alt">New to Brainfy? <button type="button" onclick="goTo('signup')"><span>Sign up free</span></button></p>
+    </div>
   </div>
 </div><!-- /signinView -->
 
 
 <!-- ══════════════════════════════════════════
-     SIGN UP VIEW
+     SIGN UP VIEW — the library-card application
 ══════════════════════════════════════════ -->
 <div id="signupView" class="view">
-  <div style="position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;">
-    <div style="position:absolute;top:-20%;left:50%;transform:translateX(-50%);width:700px;height:700px;background:rgba(124,58,237,0.08);border-radius:50%;filter:blur(100px);"></div>
-    <div style="position:absolute;bottom:-20%;right:-10%;width:500px;height:500px;background:rgba(78,222,163,0.05);border-radius:50%;filter:blur(80px);"></div>
+  <div class="pa-top">
+    <button type="button" class="pa-brand" onclick="goTo('splash')" aria-label="Brainfy home"><svg viewBox="0 0 30 30" aria-hidden="true"><rect x="3" y="6" width="24" height="17" rx="1.5" fill="#f4ecda" transform="rotate(-8 15 15)"/><path d="M5.6 10.4 26.6 7.5" stroke="#d45648" stroke-width="1.1"/><path d="M8 15.6h12" stroke="#ffdc45" stroke-width="4.2" stroke-linecap="round" transform="rotate(-8 15 15)" opacity=".95"/><path d="M8 20h8" stroke="#1b2440" stroke-width="1.3" stroke-linecap="round" transform="rotate(-8 15 15)"/></svg><b>Brainfy</b></button>
+    <button type="button" class="pa-back" onclick="goTo('splash')"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8h-11M6.5 4 2.5 8l4 4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Back to home</button>
   </div>
 
-  <div style="position:relative;z-index:1;width:100%;max-width:420px;padding:24px;">
-    <!-- Logo -->
-    <div style="text-align:center;margin-bottom:36px;">
-      <div style="width:52px;height:52px;border-radius:14px;background:var(--primary);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:0 0 32px rgba(124,58,237,0.4);">
-        <span class="ms" style="font-size:28px;color:white;">psychology</span>
-      </div>
-      <h2 style="font-size:22px;font-weight:900;color:white;margin-bottom:6px;">Create your account</h2>
-      <p style="font-size:14px;color:var(--muted);">Start focusing deeply. Free forever.</p>
+  <div class="pa-wrap">
+    <div class="pa-intro">
+      <p class="pa-label">Membership</p>
+      <h2 class="pa-h" id="signupTitle">Get your <em>library card.</em></h2>
+      <p class="pa-lede">It’s free. Your decks, notes and progress stay in step on every device you use.</p>
     </div>
 
-    <div class="auth-beam-wrap">
-    <div class="auth-beam-inner">
-      <button style="width:100%;padding:12px 16px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'Manrope',sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:background 0.15s;"
-        onmouseover="this.style.background='rgba(255,255,255,0.1)'"
-        onmouseout="this.style.background='rgba(255,255,255,0.06)'"
-        onclick="handleGoogleSignIn()">
-        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-        Continue with Google
-      </button>
+    <div class="pa-desk">
+      <div class="pa-stack">
+        <div class="pa-card">
+          <p class="pa-band" aria-hidden="true"><b>Brainfy library</b><span>Application</span></p>
+          <div class="pa-body">
+            <button type="button" id="signupGoogleBtn" class="pa-google" onclick="handleGoogleSignIn()"><span class="pa-g" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg></span>Continue with Google</button>
 
-      <div class="auth-divider">or</div>
+            <p class="pa-or">or with email</p>
 
-      <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:24px;">
-        <div>
-          <label style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0.06em;display:block;margin-bottom:7px;">YOUR NAME</label>
-          <input id="signupName" type="text" placeholder="Your name" class="auth-input" autocomplete="name"/>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0.06em;display:block;margin-bottom:7px;">EMAIL</label>
-          <input id="signupEmail" type="email" placeholder="you@example.com" class="auth-input" autocomplete="email"/>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0.06em;display:block;margin-bottom:7px;">PASSWORD</label>
-          <div style="position:relative;">
-            <input id="signupPassword" type="password" placeholder="Min. 8 characters" class="auth-input" autocomplete="new-password" style="padding-right:44px;"/>
-            <button id="signupTogglePw" aria-label="Show password" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;">
-              <span class="ms" id="signupPwIcon" style="font-size:20px;">visibility_off</span>
-            </button>
+            <form class="pa-form" id="signupForm" novalidate onsubmit="return false" aria-label="Create an account with email">
+              <div class="pa-field">
+                <label class="pa-lab" for="signupName">Name</label>
+                <input class="pa-in" id="signupName" name="name" type="text" autocomplete="name" autocapitalize="words" spellcheck="false" aria-describedby="signupError">
+              </div>
+              <div class="pa-field">
+                <label class="pa-lab" for="signupEmail">Email</label>
+                <input class="pa-in" id="signupEmail" name="email" type="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="you@example.com" aria-describedby="signupError">
+              </div>
+              <div class="pa-field">
+                <label class="pa-lab" for="signupPassword">Password</label>
+                <div class="pa-pw">
+                  <input class="pa-in" id="signupPassword" name="password" type="password" autocomplete="new-password" aria-describedby="signupPwHint signupError" onkeydown="if(event.key==='Enter')event.preventDefault()">
+                  <button type="button" class="pa-eye" id="signupTogglePw" aria-controls="signupPassword"><span class="ms" id="signupPwIcon" aria-hidden="true" style="font-size:20px;">visibility_off</span><span class="pa-vh pa-eye-s">Show password</span><span class="pa-vh pa-eye-h">Hide password</span></button>
+                </div>
+                <div id="signupStrength" class="pa-meter" aria-hidden="true"><div id="signupStrengthBar"></div></div>
+                <p class="pa-hint" id="signupPwHint">At least 8 characters. A number or symbol makes it stronger.</p>
+              </div>
+              <div id="signupError" class="pa-msg" role="alert" style="display:none;"></div>
+              <button type="submit" id="signupSubmitBtn" class="pa-submit">Create account</button>
+            </form>
+            <p class="pa-terms">By continuing, you agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms<span class="pa-vh"> (opens in a new tab)</span></a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy<span class="pa-vh"> (opens in a new tab)</span></a>.</p>
           </div>
-          <div id="signupStrength" style="margin-top:8px;height:3px;background:var(--border);border-radius:999px;overflow:hidden;">
-            <div id="signupStrengthBar" style="height:100%;width:0%;border-radius:999px;transition:width 0.3s,background 0.3s;"></div>
+          <div class="pa-stub" aria-hidden="true">
+            <p><small>For office use</small><span class="pa-fee">Fees: none</span></p>
+            <span class="pa-stamp"><b>Issued</b><span>in seconds</span></span>
           </div>
         </div>
       </div>
-
-      <div id="signupError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;color:#f87171;font-size:13px;margin-bottom:16px;"></div>
-
-      <button id="signupSubmitBtn" class="btn-primary" style="width:100%;padding:13px;font-size:15px;">
-        Create Account
-      </button>
-
-      <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:14px;line-height:1.5;">
-        By signing up you agree to our <span style="color:var(--plight);cursor:pointer;">Terms</span> and <span style="color:var(--plight);cursor:pointer;">Privacy Policy</span>.
-      </p>
-    </div><!-- /auth-beam-inner -->
-    </div><!-- /auth-beam-wrap -->
-
-    <p style="text-align:center;margin-top:20px;font-size:14px;color:var(--muted);">
-      Already have an account?
-      <button onclick="goTo('signin')" style="background:transparent;border:none;color:var(--plight);font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;font-size:14px;">Sign in</button>
-    </p>
-    <p style="text-align:center;margin-top:12px;">
-      <button onclick="goTo('splash')" style="background:transparent;border:none;color:var(--muted);font-size:13px;cursor:pointer;font-family:'Manrope',sans-serif;display:inline-flex;align-items:center;gap:6px;">
-        <span class="ms" style="font-size:16px;">arrow_back</span> Back to home
-      </button>
-    </p>
+      <p class="pa-alt">Already a member? <button type="button" onclick="goTo('signin')"><span>Sign in</span></button></p>
+    </div>
   </div>
 </div><!-- /signupView -->
+<script>
+/* Sign-in heading. Anyone without a hint (first visit, new device, after a
+   sign-out) gets the neutral "Sign in to Brainfy." plus a line saying Google
+   also creates the free account; someone who has signed in on this device
+   before ("Welcome back, Ada.") gets their name, from brainfy_user_hint, which
+   src/main.ts writes on sign-in and clears on sign-out. Re-read each time the
+   view opens, so a sign-out in this tab is respected. textContent only: the
+   name is user data. */
+(function () {
+  var v = document.getElementById('signinView'), h = document.getElementById('signinTitle'), lede = document.getElementById('signinLede');
+  if (!v || !h || !lede) return;
+  var NEW_LEDE = lede.textContent, BACK_LEDE = 'Sign in to pick up your decks, notes and progress where you left off.';
+  var shown = '';   // the markup is the no-hint version
+  function apply() {
+    var n = '';
+    try {
+      var hint = JSON.parse(localStorage.getItem('brainfy_user_hint') || 'null');
+      if (hint && hint.name) {
+        n = String(hint.name).replace(/\s+/g, ' ').trim();
+        // a long full name: the first name reads warmer than a cut-off one
+        if (Array.from(n).length > 24) n = n.split(' ')[0];
+        if (Array.from(n).length > 24) n = Array.from(n).slice(0, 23).join('') + '\u2026';
+      }
+    } catch (e) { /* no storage or a malformed hint: the neutral heading */ }
+    if (n === shown) return;
+    shown = n;
+    var em = document.createElement('em');
+    h.textContent = '';
+    if (n) { em.textContent = n; h.append('Welcome back, ', em, '.'); lede.textContent = BACK_LEDE; }
+    else { em.textContent = 'Brainfy.'; h.append('Sign in to ', em); lede.textContent = NEW_LEDE; }
+  }
+  apply();
+  if (window.MutationObserver) new MutationObserver(function () { if (v.classList.contains('active')) apply(); }).observe(v, { attributes: true, attributeFilter: ['class'] });
+})();
+</script>
 
 
 <!-- ══════════════════════════════════════════
@@ -5458,7 +5651,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = '88e59457086d';
+  var APP_VERSION = '940652edecce';
   window.APP_VERSION = APP_VERSION;  // exposed so script.js can include it in telemetry
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {
@@ -5601,7 +5794,10 @@
     }
     // Enter button routes based on the hint — returning users go straight
     // to home; first-timers continue to the sign-in form.
-    wire('enterBrainBtn',  function () { window.goTo(hintName ? 'home' : 'signin'); });
+    // Always sign-in first: a returning user whose session is still valid is moved
+    // home by the auth observer as soon as Firebase restores it; one whose session
+    // expired signs in instead of landing in a signed-out app.
+    wire('enterBrainBtn',  function () { window.goTo('signin'); });
     wire('getStartedBtn',  function () { window.goTo('signup'); });
 
     // Prefetch the heavy bundle the moment the user shows intent

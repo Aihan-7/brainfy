@@ -1592,7 +1592,9 @@ function applySigninHint(): void {
 
   if (hint?.name) {
     fresh.textContent = `Continue as ${hint.name} →`;
-    fresh.addEventListener('click', () => goTo('home'));
+    // Home only with a live session; otherwise sign in (the auth observer moves a
+    // restored session on to home as soon as it resolves).
+    fresh.addEventListener('click', () => goTo(firebaseUser ? 'home' : 'signin'));
   } else {
     fresh.textContent = 'Enter Brainfy →';
     fresh.addEventListener('click', () => goTo('signin'));
@@ -1630,10 +1632,22 @@ function goTo(view: ViewName): void {
 }
 
 function _goToFinish(view: ViewName): void {
+  const prev = currentView;
   currentView = view;
 
   const isApp = !(['splash', 'signin', 'signup'] as ViewName[]).includes(view);
   document.body.classList.toggle('app-active', isApp);
+
+  // Auth forms: once the app is entered (sign-in done, however it happened)
+  // wipe them, so after a sign-out in this tab nobody finds the last user's
+  // email/password or a button stuck on "Signing in…". Opening one auth
+  // screen from another clears both message slots, so no stale error carries over.
+  const wasApp = !(['splash', 'signin', 'signup'] as ViewName[]).includes(prev);
+  if (isApp && !wasApp) resetAuthForms();
+  else if ((view === 'signin' || view === 'signup') && prev !== view) {
+    showAuthError('signinError', '');
+    showAuthError('signupError', '');
+  }
 
   document.querySelectorAll<HTMLElement>('[data-go]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset['go'] === view);
@@ -5671,19 +5685,61 @@ function passwordStrength(pw: string): number {
   return s;
 }
 
-function showAuthError(id: string, msg: string): void {
+// One message slot per auth form (#signinError / #signupError). Errors by
+// default; `ok` paints the same slot as a success note (.is-success). The class
+// is reset on every call, so an error after a success message reads as an error.
+function showAuthError(id: string, msg: string, ok = false): void {
   const e = el(id);
   if (!e) return;
   e.setAttribute('role', 'alert');   // announce errors to assistive tech
+  e.classList.toggle('is-success', ok && !!msg);
   e.textContent = msg;
   e.style.display = msg ? 'block' : 'none';
+  // The slot sits under the fields; on a short phone a Google error (button at
+  // the top) would land below the fold. Bring it into view only if it isn't.
+  if (msg && e.offsetParent) {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    e.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reduce ? 'instant' : 'smooth' });
+  }
+}
+
+// The Firebase SDK can be missing (gstatic blocked by a network, an extension
+// or an outage; index.html then boots the app without it). Say so on the form
+// instead of throwing and leaving a button spinning.
+function authAvailable(slot: string): boolean {
+  if (typeof firebase !== 'undefined' && typeof firebase.auth === 'function') return true;
+  showAuthError(slot, 'Sign-in can’t reach Google right now. Check your connection or any ad or script blocker, then reload the page.');
+  return false;
+}
+
+// Back to a blank form: no values, passwords hidden again, buttons live, no
+// messages, empty strength rule. Called by the router on entering the app.
+function resetAuthForms(): void {
+  ['signinEmail', 'signinPassword', 'signupName', 'signupEmail', 'signupPassword'].forEach(id => {
+    const i = elInput(id);
+    if (i) i.value = '';
+  });
+  ([['signinPassword', 'signinPwIcon'], ['signupPassword', 'signupPwIcon']] as const).forEach(([inp, icon]) => {
+    const i = elInput(inp);
+    if (!i || i.type === 'password') return;
+    i.type = 'password';
+    const ic = el(icon);
+    if (ic) ic.textContent = 'visibility_off';   // icons.js re-hydrates it
+  });
+  setAuthLoading('signinSubmitBtn', false);
+  setAuthLoading('signupSubmitBtn', false);
+  showAuthError('signinError', '');
+  showAuthError('signupError', '');
+  const bar = el('signupStrengthBar');
+  if (bar) { bar.style.width = ''; bar.style.background = ''; }
 }
 
 function setAuthLoading(btnId: string, loading: boolean): void {
   const btn = elBtn(btnId);
   if (!btn) return;
   btn.disabled    = loading;
-  btn.textContent = loading ? 'Please wait…' : (btnId === 'signinSubmitBtn' ? 'Sign In' : 'Create Account');
+  const signin = btnId === 'signinSubmitBtn';
+  btn.textContent = loading ? (signin ? 'Signing in…' : 'Creating account…') : (signin ? 'Sign in' : 'Create account');
   btn.style.opacity = loading ? '0.7' : '1';
 }
 
@@ -5719,6 +5775,7 @@ function handleSignIn(): void {
 
   if (!email || !email.includes('@')) { showAuthError('signinError', 'Please enter a valid email address.'); return; }
   if (!pw || pw.length < 6)           { showAuthError('signinError', 'Password must be at least 6 characters.'); return; }
+  if (!authAvailable('signinError')) return;
 
   setAuthLoading('signinSubmitBtn', true);
   firebase.auth().signInWithEmailAndPassword(email, pw)
@@ -5738,6 +5795,7 @@ function handleSignup(): void {
   if (!name)                          { showAuthError('signupError', 'Please enter your name.'); return; }
   if (!email || !email.includes('@')) { showAuthError('signupError', 'Please enter a valid email address.'); return; }
   if (!pw || pw.length < 8)           { showAuthError('signupError', 'Password must be at least 8 characters.'); return; }
+  if (!authAvailable('signupError')) return;
 
   setAuthLoading('signupSubmitBtn', true);
   // Capture the name synchronously: the auth observer can fire and resolve
@@ -5760,12 +5818,18 @@ function handleSignup(): void {
 }
 
 function handleGoogleSignIn(): void {
+  // Sign-in and sign-up each have a Google button (both call this; the click
+  // listener passes an event, so no parameter): answer on the screen in use.
+  const slot = currentView === 'signup' ? 'signupError' : 'signinError';
+  showAuthError(slot, '');
+  if (!authAvailable(slot)) return;
   const provider = new firebase.auth.GoogleAuthProvider();
   firebase.auth().signInWithPopup(provider)
     .then((result: any) => onFirebaseSignIn(result.user, result.user.displayName || undefined))
     .catch((err: any) => {
-      if (err.code !== 'auth/popup-closed-by-user') {
-        showAuthError('signinError', friendlyAuthError(err.code));
+      // closed by the user, or superseded by a second click: nothing to report
+      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+        showAuthError(slot, friendlyAuthError(err.code));
       }
     });
 }
@@ -5791,17 +5855,9 @@ function showForgot(): void {
     showAuthError('signinError', 'Enter your email address above first, then click Forgot password.');
     return;
   }
+  if (!authAvailable('signinError')) return;
   firebase.auth().sendPasswordResetEmail(email)
-    .then(() => {
-      showAuthError('signinError', `Reset link sent to ${email} — check your inbox.`);
-      const errEl = el('signinError');
-      if (errEl) {
-        errEl.style.background  = 'rgba(76,215,246,0.08)';
-        errEl.style.borderColor = 'rgba(76,215,246,0.2)';
-        errEl.style.color       = 'var(--cyan)';
-        errEl.style.display     = 'block';
-      }
-    })
+    .then(() => showAuthError('signinError', `Reset link sent to ${email} — check your inbox.`, true))
     .catch((err: any) => showAuthError('signinError', friendlyAuthError(err.code)));
 }
 
@@ -5843,7 +5899,7 @@ function initEvents() {
     const str = passwordStrength(v);
     const bar = el('signupStrengthBar');
     if (!bar) return;
-    const colors = ['', '#ef4444', '#f97316', '#eab308', '#4edea3'];
+    const colors = ['', '#bf3a29', '#c0661c', '#8f7a12', '#2f6b46'];   // paper inks: red → green
     const widths  = ['0%', '25%', '50%', '75%', '100%'];
     bar.style.width      = widths[str];
     bar.style.background = colors[str];
