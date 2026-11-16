@@ -1707,12 +1707,14 @@ function todayFocusSec(): number {
     .reduce((n, s) => n + s.duration, 0);
 }
 
+// Today's score, 0-100: how much of today's focus goal is done (up to 75), plus
+// 5 per finished session (up to 25). Deliberately no streak term: a missed day
+// never lowers it ("No streak guilt" on the homepage).
 function calcScore(): number {
-  const hrs   = todayFocusSec() / 3600;
-  const strk  = Math.min(40, (S.streak || 0) * 3);
-  const focus = Math.min(40, hrs * 10);
-  const sess  = Math.min(20, S.sessions.filter(s => new Date(s.date).toDateString() === todayStr()).length * 5);
-  return Math.round(strk + focus + sess);
+  const goalMin = S.dailyGoal || 120;
+  const focus   = Math.min(75, (todayFocusSec() / 60) / goalMin * 75);
+  const sess    = Math.min(25, S.sessions.filter(s => new Date(s.date).toDateString() === todayStr()).length * 5);
+  return Math.round(focus + sess);
 }
 
 function timeAgo(ts: number): string {
