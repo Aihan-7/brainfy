@@ -185,6 +185,48 @@ const QUOTES = [
 
 const SUBJECT_COLORS = ['#7c3aed','#0891b2','#065f46','#9a3412','#1e40af','#b45309','#be185d'];
 
+// ── Colour safety ────────────────────────────────────────────────────────────
+// A subject's colour lands in style="" attributes (and SVG fill/stroke), and a
+// subject can be a copy of ANOTHER user's public deck — so it is untrusted
+// input, and HTML-escaping does not make it safe in a CSS context. Only a strict
+// #rrggbb is ever accepted: when a public deck is fetched, opened, imported or
+// published; whenever state is loaded, merged or resolved from the cloud (which
+// also cleans state poisoned before this check existed); and again at every
+// render through subjColor(). See AUDIT-2026-10-17.md, P0-2.
+const DEFAULT_SUBJECT_COLOR = '#7c3aed';
+function safeDeckColor(c: unknown): string {
+  return typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c) ? c : DEFAULT_SUBJECT_COLOR;
+}
+// The one way a subject's colour reaches markup.
+function subjColor(s: { color?: unknown } | null | undefined): string {
+  return safeDeckColor(s?.color);
+}
+// Replace any unsafe subject / timetable colour. Returns the SAME object when
+// nothing needed fixing (so callers can tell whether to persist), otherwise a
+// shallow copy — inputs are never mutated, and no key is added that was absent
+// (Firestore rejects undefined values).
+function sanitizeStateColors(st: AppState): AppState {
+  let changed = false;
+  const fix = <T extends { color?: unknown }>(xs: T[] | undefined): T[] | undefined => {
+    if (!Array.isArray(xs)) return xs;
+    let dirty = false;
+    const out = xs.map(x => {
+      if (!x || typeof x !== 'object' || safeDeckColor(x.color) === x.color) return x;
+      dirty = true;
+      return { ...x, color: safeDeckColor(x.color) };
+    });
+    if (dirty) changed = true;
+    return dirty ? out : xs;
+  };
+  const subjects  = fix(st.subjects);
+  const timetable = fix(st.timetable);
+  if (!changed) return st;
+  const out: AppState = { ...st };
+  if (subjects  !== st.subjects)  out.subjects  = subjects!;
+  if (timetable !== st.timetable) out.timetable = timetable!;
+  return out;
+}
+
 // ── Flashcard data sets ──────────────────────────────────────────────────────
 // Cards are stored per-subject in S.subjects[].cards (added by AI or user).
 // This default set is shown when a subject has no cards yet.
@@ -1288,6 +1330,84 @@ window.addEventListener('error', (e: ErrorEvent) => {
 // browser authenticates as the signed-in user, and Firestore rules enforce
 // that users can only read/write their own users/{uid} document.
 
+// ── Cloud document size ─────────────────────────────────────────────────────
+// The whole of S is ONE users/{uid} document, and Firestore refuses any write
+// over 1 MiB — after which every later save fails. These estimate a document's
+// size with Firestore's own storage-size rules (string = UTF-8 bytes + 1,
+// number = 8, boolean / null = 1, map = Σ key + value, array = Σ values) so a
+// change can be refused BEFORE it breaks sync. JSON length is not a safe proxy:
+// it undercounts numbers (SRS fields, session stamps), which Firestore bills at 8.
+const FIRESTORE_DOC_LIMIT = 1_048_576;
+// A size check compares a PROJECTED size (projectedUserDocBytes: today's size
+// plus the SRS fields every card will gain once studied) against this budget.
+// The remaining 10% is headroom for what keeps accruing after a change is
+// accepted and cannot be projected: study sessions, tasks, notes, documents.
+const USER_DOC_BUDGET = Math.floor(FIRESTORE_DOC_LIMIT * 0.9);
+
+function utf8Bytes(s: string): number {
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x80) n += 1;
+    else if (c < 0x800) n += 2;
+    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
+      const d = s.charCodeAt(i + 1);
+      if (d >= 0xdc00 && d <= 0xdfff) { n += 4; i++; } else n += 3;
+    }
+    else n += 3;
+  }
+  return n;
+}
+
+function firestoreValueSize(v: unknown): number {
+  if (v === null) return 1;
+  switch (typeof v) {
+    case 'string':  return utf8Bytes(v) + 1;
+    case 'number':  return 8;
+    case 'boolean': return 1;
+    case 'object':  break;
+    default:        return 0;   // undefined / functions never reach a stored document
+  }
+  if (Array.isArray(v)) return v.reduce((n: number, x) => n + firestoreValueSize(x), 0);
+  if (v instanceof Date) return 8;
+  let n = 0;
+  for (const k of Object.keys(v as object)) {
+    const x = (v as Record<string, unknown>)[k];
+    if (x === undefined) continue;
+    n += utf8Bytes(k) + 1 + firestoreValueSize(x);
+  }
+  return n;
+}
+
+// users/{uid} as save() writes it — { state, updatedAt } — plus a generous
+// allowance for the document name, the timestamp field and per-document overhead.
+function userDocBytes(st: AppState): number {
+  return 128 + firestoreValueSize(st);
+}
+
+// The fields srsSchedule() adds to a card the first time it is reviewed — each
+// a number (8 bytes) under its key. A never-studied card is small today but
+// grows by ~95 bytes on its first review, and a subject's review mode makes
+// every new card due at once, so 2,000 imported cards can grow the document by
+// ~190 KB in one sitting. Size checks therefore count that growth up front.
+// (tests/deck-import.test.mjs checks this list against srsSchedule's output.)
+const SRS_CARD_KEYS = ['dueAt', 'interval', 'ease', 'reps', 'lapses', 'lastReviewedAt'] as const;
+function srsGrowthBytes(card: FlashCard): number {
+  let n = 0;
+  for (const k of SRS_CARD_KEYS) if (card[k] == null) n += utf8Bytes(k) + 1 + 8;
+  return n;
+}
+
+// What users/{uid} will weigh once every card in `st` has been studied at least
+// once — the figure an import must keep under USER_DOC_BUDGET.
+function projectedUserDocBytes(st: AppState): number {
+  let n = userDocBytes(st);
+  for (const s of st.subjects || []) {
+    for (const c of (s && Array.isArray(s.cards)) ? s.cards : []) if (c && typeof c === 'object') n += srsGrowthBytes(c);
+  }
+  return n;
+}
+
 // Tiny helper — returns the user's Firestore doc reference or null if the
 // SDK isn't ready / not signed in.
 function userDoc(): any | null {
@@ -1382,9 +1502,9 @@ function retrySync(): void {
         if (hasUserData(cloudState)) {
           // Local edits made while disconnected are merged in rather than
           // dropped; with nothing local pending, the cloud copy simply wins.
-          S = (localHasUnsyncedEdits(firebaseUser.uid) && hasUserData(S))
+          S = sanitizeStateColors((localHasUnsyncedEdits(firebaseUser.uid) && hasUserData(S))
             ? mergeStates(cloudState as AppState, S)
-            : { ...DEFAULT_STATE, ...(cloudState as AppState) };
+            : { ...DEFAULT_STATE, ...(cloudState as AppState) });
           try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch (_) {}
           _goToFinish(currentView);      // repaint + push the reconciled state
         } else {
@@ -1414,6 +1534,13 @@ function load() {
     else      S = structuredClone(DEFAULT_STATE);
   } catch(_) {
     S = structuredClone(DEFAULT_STATE);
+  }
+  // Clean an unsafe colour already stored on this device (e.g. a deck imported
+  // before imports were validated) and keep the cleaned copy.
+  const clean = sanitizeStateColors(S);
+  if (clean !== S) {
+    S = clean;
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch (_) {}
   }
 }
 
@@ -1488,7 +1615,7 @@ function mergeStates(base: AppState, incoming: AppState): AppState {
   merged.streak     = Math.max(base.streak     || 0, incoming.streak     || 0);
   merged.bestStreak = Math.max(base.bestStreak || 0, incoming.bestStreak || 0);
   merged.nextId     = nextId;
-  return merged;
+  return sanitizeStateColors(merged);
 }
 
 // Single entry point for "auth just resolved — decide what S should be." Both
@@ -1548,6 +1675,9 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
       // Cloud empty → keep local (a brand-new account starts clean).
       S = localHasData ? localState : { ...DEFAULT_STATE, ...(cloudState || {}) };
     }
+    // The cloud copy may predate colour validation; the save() below pushes the
+    // cleaned state back, so the bad value stops following the user around.
+    S = sanitizeStateColors(S);
 
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch (_) {}
 
@@ -1846,11 +1976,12 @@ function icon(name: string, opts: IconOpts = {}): string {
   const body = ICONS[name];
   if (!body) {
     // Fallback: small dot so the spot isn't empty and the missing-name is obvious
-    return `<svg width="${opts.size||16}" height="${opts.size||16}" viewBox="0 0 24 24" aria-label="${_e(name)}"><circle cx="12" cy="12" r="3" fill="${opts.color||'currentColor'}"/></svg>`;
+    return `<svg width="${opts.size||16}" height="${opts.size||16}" viewBox="0 0 24 24" aria-label="${_e(name)}"><circle cx="12" cy="12" r="3" fill="${_e(opts.color||'currentColor')}"/></svg>`;
   }
   const sz = opts.size ?? 18;
   const sw = opts.strokeWidth ?? 2;
-  return `<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="${opts.color||'currentColor'}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"${opts.cls?` class="${opts.cls}"`:''}${opts.style?` style="${opts.style}"`:''} aria-hidden="true">${body}</svg>`;
+  // opts.color is escaped as a backstop: callers pass constants or subjColor().
+  return `<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="${_e(opts.color||'currentColor')}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"${opts.cls?` class="${opts.cls}"`:''}${opts.style?` style="${opts.style}"`:''} aria-hidden="true">${body}</svg>`;
 }
 
 // Hydrate one <span class="ms">icon_name</span> in-place. Reads the size from
@@ -2531,20 +2662,21 @@ function renderHomeSubjects() {
         ? `${subjSessions.length} session${subjSessions.length !== 1 ? 's' : ''}`
         : 'Not started yet';
     const progressPct  = Math.min(100, (subjSessions.length / 10) * 100);
+    const c            = subjColor(s);
+    // (The colour hover handlers that used to sit here never showed: the
+    // !important .subj-card rules in index.html override inline border/shadow.)
     return `
-    <div class="subj-card" data-id="${s.id}" onclick="startSubject(${s.id})"
-      onmouseenter="this.style.borderColor='${s.color}55';this.style.boxShadow='0 8px 32px ${s.color}22'"
-      onmouseleave="this.style.borderColor='';this.style.boxShadow=''">
+    <div class="subj-card" data-id="${s.id}" onclick="startSubject(${s.id})">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
-        <div style="width:34px;height:34px;border-radius:9px;background:${s.color}20;border:1px solid ${s.color}35;display:flex;align-items:center;justify-content:center;">
-          <span class="ms" style="font-size:17px;color:${s.color};">menu_book</span>
+        <div style="width:34px;height:34px;border-radius:9px;background:${c}20;border:1px solid ${c}35;display:flex;align-items:center;justify-content:center;">
+          <span class="ms" style="font-size:17px;color:${c};">menu_book</span>
         </div>
         <span style="font-size:10px;letter-spacing:0.06em;color:var(--muted);font-family:'Space Grotesk';padding:3px 8px;background:rgba(255,255,255,0.04);border-radius:6px;border:1px solid rgba(255,255,255,0.07);">${metaLabel}</span>
       </div>
       <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:var(--text);">${_e(s.name)}</div>
       <div style="font-size:12px;color:var(--muted);line-height:1.4;margin-bottom:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${_e(s.desc)}</div>
       <div style="height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;">
-        <div style="width:${progressPct}%;height:100%;background:${s.color};border-radius:2px;transition:width 0.6s ease;opacity:0.85;"></div>
+        <div style="width:${progressPct}%;height:100%;background:${c};border-radius:2px;transition:width 0.6s ease;opacity:0.85;"></div>
       </div>
     </div>
   `}).join('');
@@ -2610,7 +2742,7 @@ function renderLearningMap() {
 
   const circles = nodes.map(n => `
     <g>
-      <circle cx="${n.x}" cy="${n.y}" r="9" fill="${n.color}" opacity="0.85"/>
+      <circle cx="${n.x}" cy="${n.y}" r="9" fill="${subjColor(n)}" opacity="0.85"/>
       <text x="${n.x}" y="${n.y + 22}" text-anchor="middle" fill="#64748b" font-size="10" font-family="Manrope,sans-serif">${_e(n.name.split(' ')[0])}</text>
     </g>
   `).join('');
@@ -3187,7 +3319,7 @@ function renderFlashcards(): void {
       id:    s.id,
       name:  s.name,
       desc:  s.desc || '',
-      color: s.color,
+      color: subjColor(s),
       count: (s.cards && s.cards.length) ? s.cards.length : 0,
     }))
     .filter(d => d.count > 0);
@@ -3212,11 +3344,11 @@ function renderFlashcards(): void {
       <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:'Space Grotesk';letter-spacing:0.08em;font-weight:600;">STARTER DECK</div>
     </div>`;
 
-  // Deck cards
+  // Deck cards. d.color is a validated #rrggbb (subjColor); the hover tints are
+  // passed as CSS variables to the .deck-tint / .tint-btn :hover rules in
+  // index.html rather than spliced into inline JS handlers.
   const deckCards = decks.map(d => `
-    <div class="fc-deck" style="border-radius:16px;padding:18px 18px 14px;background:rgba(7,15,31,0.55);border:1px solid ${d.color}33;backdrop-filter:blur(20px);cursor:pointer;transition:transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;"
-      onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 28px ${d.color}33';this.style.borderColor='${d.color}66';"
-      onmouseout="this.style.transform='';this.style.boxShadow='';this.style.borderColor='${d.color}33';"
+    <div class="fc-deck deck-tint" style="--tint-glow:${d.color}33;--tint-edge:${d.color}66;border-radius:16px;padding:18px 18px 14px;background:rgba(7,15,31,0.55);border:1px solid ${d.color}33;backdrop-filter:blur(20px);cursor:pointer;transition:transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;"
       onclick="openDeckStudy(${d.id})">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
         <div style="width:38px;height:38px;border-radius:11px;background:${d.color}1f;border:1px solid ${d.color}40;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
@@ -3226,9 +3358,8 @@ function renderFlashcards(): void {
       </div>
       <div style="font-size:15px;font-weight:700;color:var(--text);letter-spacing:-0.01em;line-height:1.25;margin-bottom:4px;">${_e(d.name)}</div>
       <div style="font-size:12px;color:var(--muted);line-height:1.45;min-height:34px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${_e(d.desc || 'Study deck')}</div>
-      <button type="button" onclick="event.stopPropagation();openDeckStudy(${d.id})"
-        style="margin-top:14px;width:100%;padding:9px;background:${d.color}22;border:1px solid ${d.color}45;border-radius:10px;color:${d.color};font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:-0.005em;transition:background 0.15s;"
-        onmouseover="this.style.background='${d.color}36';" onmouseout="this.style.background='${d.color}22';">
+      <button type="button" class="tint-btn" onclick="event.stopPropagation();openDeckStudy(${d.id})"
+        style="--tint-hover:${d.color}36;margin-top:14px;width:100%;padding:9px;background:${d.color}22;border:1px solid ${d.color}45;border-radius:10px;color:${d.color};font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:-0.005em;transition:background 0.15s;">
         Study →
       </button>
     </div>
@@ -3298,12 +3429,13 @@ function renderLibrary() {
     ${filtered.map(s => {
       const docs = s.documents || [];
       const previewDocs = docs.slice(0, 3);
+      const c = subjColor(s);
       return `
       <div class="subj-card" style="min-height:200px;position:relative;display:flex;flex-direction:column;" onclick="startSubject(${s.id})">
         <!-- Header -->
         <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
-          <div style="width:44px;height:44px;background:${s.color}20;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid ${s.color}30;">
-            <span class="ms" style="font-size:24px;color:${s.color};">menu_book</span>
+          <div style="width:44px;height:44px;background:${c}20;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid ${c}30;">
+            <span class="ms" style="font-size:24px;color:${c};">menu_book</span>
           </div>
           <button onclick="event.stopPropagation();deleteSubject(${s.id})"
             style="background:transparent;border:none;color:rgba(255,255,255,0.18);cursor:pointer;padding:4px;line-height:1;display:flex;align-items:center;"
@@ -3333,7 +3465,7 @@ function renderLibrary() {
                 <div onclick="event.stopPropagation();openDoc(${s.id},${d.id})"
                   style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);cursor:pointer;transition:background 0.15s;group"
                   onmouseover="this.style.background='rgba(255,255,255,0.07)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
-                  <span class="ms" style="font-size:15px;color:${s.color};flex-shrink:0;">${docIcon(d.type)}</span>
+                  <span class="ms" style="font-size:15px;color:${c};flex-shrink:0;">${docIcon(d.type)}</span>
                   <span style="font-size:12px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_e(d.name)}</span>
                   ${canSummarize(d) ? `
                   <button onclick="event.stopPropagation();generateSummaryForDoc(${s.id},${d.id})" title="Generate AI summary" aria-label="Generate AI summary"
@@ -3354,9 +3486,8 @@ function renderLibrary() {
         </div>
 
         <!-- Flashcards button -->
-        <button onclick="event.stopPropagation();openFlashcards(${s.id})"
-          style="width:100%;padding:8px;border-radius:8px;background:${s.color}18;border:1px solid ${s.color}35;color:${s.color};font-size:12px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.15s;"
-          onmouseover="this.style.background='${s.color}28'" onmouseout="this.style.background='${s.color}18'">
+        <button class="tint-btn" onclick="event.stopPropagation();openFlashcards(${s.id})"
+          style="--tint-hover:${c}28;width:100%;padding:8px;border-radius:8px;background:${c}18;border:1px solid ${c}35;color:${c};font-size:12px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.15s;">
           <span class="ms" style="font-size:15px;">style</span> Review Flashcards
         </button>
       </div>
@@ -3984,7 +4115,7 @@ async function publishDeck(subjectId: number): Promise<void> {
     ownerName: String(S.userName || firebaseUser.displayName || 'A student').slice(0, 60),
     name:      String(s.name || 'Untitled deck').slice(0, 120),
     desc:      String(s.desc || '').slice(0, 300),
-    color:     s.color || '#7c3aed',
+    color:     subjColor(s),   // never republish a raw value (the worm path in P0-2)
     cards:     s.cards.map(c => ({ q: String(c.q).slice(0, 2000), a: String(c.a).slice(0, 2000) })),
     cardCount: s.cards.length,
     updatedAt: new Date().toISOString(),
@@ -4115,55 +4246,110 @@ function inviteFriends(): void {
 //     could never resolve to a real SSR page never reaches the UI either.
 //   • safeDeckColor keeps a deck's colour out of CSS-injection territory: it
 //     lands inside a style="" attribute, where HTML-escaping is not enough.
+//     It is applied here, on the way IN, so no other code ever holds a raw one.
 // Same validation as parseDeckDoc() in functions/decks/_render.js.
 const DECK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
-function safeDeckColor(c: unknown): string {
-  return /^#[0-9a-fA-F]{6}$/.test(String(c)) ? String(c) : '#7c3aed';
+
+// The single place a publicDecks document becomes a PublicDeck — used by both
+// the Community tab and /?deck= links. Returns null for anything the SSR pages
+// would also refuse: a malformed id, a deck pulled by moderation, or a deck
+// with no usable card.
+//
+// Text is also clamped to the bounds publishDeck applies on the way OUT. The
+// rules cap a deck's card COUNT but cannot cap each card's length, so another
+// user's deck could otherwise carry ~1 MiB of text into the importer's state.
+//
+// Parsing is TOTAL: it never throws, whatever the document holds. The rules
+// cannot check the shape of each card (or fields written before a rule
+// existed), and any Firestore value can sit there — e.g. a map with its own
+// "toString" field, on which String() throws. One such deck used to reject
+// the whole Community fetch, so nothing is ever coerced: only strings (and
+// plain numbers) count as text, and anything else is dropped.
+const DECK_LIMITS = { name: 120, desc: 300, ownerName: 60, ownerUid: 128, cards: 1000, side: 2000 } as const;
+function deckText(v: unknown): string {
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  return '';
+}
+function clampDeckCards(raw: unknown): FlashCard[] {
+  if (!Array.isArray(raw)) return [];
+  const out: FlashCard[] = [];
+  for (const c of raw) {
+    if (out.length >= DECK_LIMITS.cards) break;
+    if (!c || typeof c !== 'object') continue;
+    const q = deckText((c as { q?: unknown }).q).slice(0, DECK_LIMITS.side);
+    const a = deckText((c as { a?: unknown }).a).slice(0, DECK_LIMITS.side);
+    if (!q || !a) continue;            // the /decks pages drop these too
+    out.push({ q, a });
+  }
+  return out;
+}
+function parsePublicDeck(id: unknown, x: unknown, fallbackName: string): PublicDeck | null {
+  if (typeof id !== 'string' || !DECK_ID_RE.test(id) || !x || typeof x !== 'object') return null;
+  const d = x as Record<string, unknown>;
+  if (d['approved'] === false) return null;
+  const cards = clampDeckCards(d['cards']);
+  // Nothing usable to show or copy — the deck's /decks page 404s as well.
+  if (!cards.length) return null;
+  return {
+    id,
+    ownerUid:  deckText(d['ownerUid']).slice(0, DECK_LIMITS.ownerUid),
+    ownerName: (deckText(d['ownerName']).trim() || 'A student').slice(0, DECK_LIMITS.ownerName),
+    name:      (deckText(d['name']).trim() || fallbackName).slice(0, DECK_LIMITS.name),
+    desc:      deckText(d['desc']).trim().slice(0, DECK_LIMITS.desc),
+    color:     safeDeckColor(d['color']),
+    cards,
+    // What will actually be copied, not the publisher's own claim.
+    cardCount: cards.length,
+  };
 }
 
 async function fetchPublicDecks(): Promise<PublicDeck[]> {
   if (typeof firebase === 'undefined' || typeof firebase.firestore !== 'function') return [];
   const snap = await firebase.firestore().collection('publicDecks').orderBy('updatedAt', 'desc').limit(60).get();
-  return snap.docs
-    // Same two guards the SSR pages apply: a malformed id never reaches the DOM,
-    // and a deck switched off in the console (approved:false) disappears here too.
-    .filter((d: { id: string; data: () => Record<string, unknown> }) =>
-      DECK_ID_RE.test(d.id) && (d.data() || {})['approved'] !== false)
-    .map((d: { id: string; data: () => Record<string, unknown> }) => {
-    const x = d.data() || {};
-    const cards = Array.isArray(x['cards']) ? (x['cards'] as FlashCard[]) : [];
-    return {
-      id: d.id,
-      ownerUid:  String(x['ownerUid'] || ''),
-      ownerName: String(x['ownerName'] || 'A student'),
-      name:      String(x['name'] || 'Untitled deck'),
-      desc:      String(x['desc'] || ''),
-      color:     String(x['color'] || '#7c3aed'),
-      cards,
-      cardCount: typeof x['cardCount'] === 'number' ? (x['cardCount'] as number) : cards.length,
-    };
-  });
+  const out: PublicDeck[] = [];
+  for (const d of snap.docs as { id: string; data: () => unknown }[]) {
+    // parsePublicDeck is total; this is the backstop that keeps one bad
+    // document from ever taking the whole tab down again.
+    try {
+      const deck = parsePublicDeck(d.id, d.data(), 'Untitled deck');
+      if (deck) out.push(deck);
+    } catch (err) { console.warn('[share] skipped an unreadable deck', err); }
+  }
+  return out;
 }
 
-// Clone a shared deck's cards into a brand-new local subject.
-function importPublicDeckById(id: string): void {
+// Clone a shared deck's cards into a brand-new local subject. Returns whether
+// the deck was added.
+function importPublicDeckById(id: string): boolean {
   const deck = communityDecks.find(d => d.id === id);
-  if (!deck) { showToast('That deck is no longer available', 'warning'); return; }
-  const cards = (deck.cards || [])
-    .filter(c => c && c.q != null && c.a != null)
-    .map(c => ({ q: String(c.q), a: String(c.a) }));
-  if (!cards.length) { showToast('That deck has no cards', 'warning'); return; }
-  S.subjects.push({
-    id: S.nextId++,
-    name: `${deck.name} (imported)`.slice(0, 140),
-    desc: deck.desc || `Shared by ${deck.ownerName}`,
+  if (!deck) { showToast('That deck is no longer available', 'warning'); return false; }
+  // Fresh, bounded copies (parsePublicDeck has clamped them already; this keeps
+  // the import safe whatever put the deck in communityDecks).
+  const cards = clampDeckCards(deck.cards);
+  if (!cards.length) { showToast('That deck has no cards', 'warning'); return false; }
+  const subject: Subject = {
+    id: S.nextId,
+    name: `${(deckText(deck.name) || 'Shared deck').slice(0, DECK_LIMITS.name)} (imported)`,
+    desc: (deckText(deck.desc) || `Shared by ${deckText(deck.ownerName) || 'A student'}`).slice(0, DECK_LIMITS.desc),
     docs: 0,
-    color: deck.color || SUBJECT_COLORS[S.subjects.length % SUBJECT_COLORS.length]!,
+    color: safeDeckColor(deck.color),
     accessed: Date.now(),
     cards,
-  });
+  };
+  // A deck that would push the account's single cloud document past the limit
+  // would make every later sync fail, so refuse it up front instead. The check
+  // counts what the cards will weigh once studied, not just what they weigh now.
+  if (projectedUserDocBytes({ ...S, subjects: [...S.subjects, subject] }) > USER_DOC_BUDGET) {
+    track('share.deck.import.too_big', { cards: cards.length });
+    showToast('That deck is too big to add — your library would go over the cloud sync limit', 'warning');
+    return false;
+  }
+  S.nextId++;
+  S.subjects.push(subject);
   save();
   showToast(`Added “${deck.name}” (${cards.length} cards) to your library`, 'success');
+  return true;
 }
 
 // Open a deck shared via /?deck=<id>: fetch it, offer to copy it in.
@@ -4184,16 +4370,14 @@ async function maybeOpenSharedDeck(): Promise<void> {
   }
   try { sessionStorage.removeItem(PENDING_DECK_KEY); } catch (_) {}
   if (typeof firebase === 'undefined' || typeof firebase.firestore !== 'function') return;
+  const notFound = () => showToast('That shared deck wasn’t found', 'warning');
+  if (!DECK_ID_RE.test(id)) { notFound(); return; }
   try {
     const doc = await firebase.firestore().collection('publicDecks').doc(id).get();
-    if (!doc.exists) { showToast('That shared deck wasn’t found', 'warning'); return; }
-    const x = doc.data() || {};
-    const cards = Array.isArray(x['cards']) ? (x['cards'] as FlashCard[]) : [];
-    const deck: PublicDeck = {
-      id: doc.id, ownerUid: String(x['ownerUid'] || ''), ownerName: String(x['ownerName'] || 'A student'),
-      name: String(x['name'] || 'Shared deck'), desc: String(x['desc'] || ''), color: String(x['color'] || '#7c3aed'),
-      cards, cardCount: typeof x['cardCount'] === 'number' ? (x['cardCount'] as number) : cards.length,
-    };
+    // A deck pulled by moderation (approved:false) is gone from /decks and the
+    // Community tab, so an old link must not resurrect it either.
+    const deck = doc.exists ? parsePublicDeck(doc.id, doc.data(), 'Shared deck') : null;
+    if (!deck) { notFound(); return; }
     communityDecks = [deck, ...communityDecks.filter(d => d.id !== deck.id)];
     const ok = await showConfirm({
       title:        `Add “${deck.name}”?`,
@@ -4201,8 +4385,11 @@ async function maybeOpenSharedDeck(): Promise<void> {
       confirmLabel: 'Add to library',
       cancelLabel:  'Not now',
     });
-    if (ok) { importPublicDeckById(deck.id); goTo('library'); }
-  } catch (err) { console.error('[share] open link failed', err); }
+    if (ok && importPublicDeckById(deck.id)) goTo('library');
+  } catch (err) {
+    console.error('[share] open link failed', err);
+    showToast('Couldn’t open that shared deck — try again in a moment', 'warning');
+  }
 }
 
 // Render the "Shared Community Resources" tab into the library grid.
@@ -4760,9 +4947,11 @@ function renderResult(): string {
     }
   } else {
     tabContent = `<div style="max-height:320px;overflow-y:auto;padding-right:4px;display:flex;flex-direction:column;gap:3px;">
-      ${r.outline.map(line => {
+      ${r.outline.map(raw => {
+        // Model output, returned verbatim by /api/process-content: text, never markup.
+        const line  = String(raw ?? '');
         const isSub = line.startsWith('  ') || line.startsWith('\t') || line.startsWith('•') || line.startsWith('-');
-        return `<div class="outline-item ${isSub ? 'outline-sub' : 'outline-topic'}">${line.replace(/^[\s•\-]+/, isSub ? '· ' : '')}</div>`;
+        return `<div class="outline-item ${isSub ? 'outline-sub' : 'outline-topic'}">${_e(line.replace(/^[\s•\-]+/, isSub ? '· ' : ''))}</div>`;
       }).join('')}
     </div>`;
   }
@@ -5302,8 +5491,8 @@ function renderSessionLog() {
     const d     = new Date(sess.date);
     const subj  = sess.subjectId != null ? subjectMap[sess.subjectId] : undefined;
     const mins  = Math.round(sess.duration / 60);
-    const color = subj?.color || 'var(--primary)';
-    const name  = subj?.name  || 'Free Study';
+    const color = subj ? subjColor(subj) : 'var(--primary)';
+    const name  = subj?.name  || 'Free Study';   // may come from an imported deck → escaped below
     const dateStr = d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
     const timeStr = d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
 
@@ -5316,7 +5505,7 @@ function renderSessionLog() {
           <span class="ms" style="font-size:15px;color:${color};">menu_book</span>
         </div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_e(name)}</div>
           <div style="height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">
             <div style="height:100%;width:${pct}%;background:${color};border-radius:2px;opacity:0.7;"></div>
           </div>
@@ -5403,14 +5592,14 @@ function renderDonut() {
   svg.innerHTML =
     `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="16"/>` +
     arcs.map(a =>
-      `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${a.color}" stroke-width="16"
+      `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${subjColor(a)}" stroke-width="16"
         stroke-dasharray="${a.arc} ${C - a.arc}" stroke-dashoffset="${a.off}"/>`
     ).join('');
 
   if (legend) {
     legend.innerHTML = subjects.map(s => `
       <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
-        <div style="width:8px;height:8px;border-radius:50%;background:${s.color};flex-shrink:0;"></div>
+        <div style="width:8px;height:8px;border-radius:50%;background:${subjColor(s)};flex-shrink:0;"></div>
         <span style="color:var(--muted);flex:1;">${_e(s.name)}</span>
         <span style="font-weight:600;">${Math.round(s.docs/tot*100)}%</span>
       </div>
@@ -6931,27 +7120,28 @@ function renderTTGrid(): void {
     const topPx    = (clampedStart / 60) * TT_ROW_H + 2;
     const heightPx = Math.max(((clampedEnd - clampedStart) / 60) * TT_ROW_H - 4, 22);
     const isShort  = heightPx < 38;
+    // Validated #rrggbb; the hover tint goes to the .tt-tint:hover rule in
+    // index.html as CSS variables rather than into inline JS handlers.
+    const c        = safeDeckColor(b.color);
 
     return (
-      `<div onclick="openTTModal(${b.id})" ` +
-      `style="position:absolute;` +
+      `<div class="tt-tint" onclick="openTTModal(${b.id})" ` +
+      `style="--tint-hover:${c}38;--tint-glow:${c}44;position:absolute;` +
         `top:${topPx}px;` +
         `left:calc(52px + (100% - 52px) / 7 * ${b.day} + 3px);` +
         `width:calc((100% - 52px) / 7 - 6px);` +
         `height:${heightPx}px;` +
         `padding:${isShort?'4px 9px':'7px 10px'};` +
         `border-radius:9px;` +
-        `background:${b.color}22;` +
-        `border:1px solid ${b.color}3a;` +
+        `background:${c}22;` +
+        `border:1px solid ${c}3a;` +
         `cursor:pointer;` +
         `transition:transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;` +
         `z-index:5;overflow:hidden;box-sizing:border-box;` +
-        `display:flex;flex-direction:column;justify-content:${isShort?'center':'flex-start'};gap:${isShort?'0':'2px'};" ` +
-      `onmouseover="this.style.background='${b.color}38';this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 18px ${b.color}44'" ` +
-      `onmouseout="this.style.background='${b.color}22';this.style.transform='';this.style.boxShadow=''">` +
-        `<div style="font-size:${isShort?'10.5px':'11.5px'};font-weight:700;color:${b.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.01em;line-height:1.2;">${_e(b.title)}</div>` +
+        `display:flex;flex-direction:column;justify-content:${isShort?'center':'flex-start'};gap:${isShort?'0':'2px'};">` +
+        `<div style="font-size:${isShort?'10.5px':'11.5px'};font-weight:700;color:${c};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.01em;line-height:1.2;">${_e(b.title)}</div>` +
         (isShort ? '' :
-          `<div style="font-size:10px;color:${b.color};opacity:0.7;font-family:'Space Grotesk';letter-spacing:0.01em;">${b.start}–${b.end}</div>`
+          `<div style="font-size:10px;color:${c};opacity:0.7;font-family:'Space Grotesk';letter-spacing:0.01em;">${_e(b.start)}–${_e(b.end)}</div>`
         ) +
       `</div>`
     );
@@ -6974,19 +7164,18 @@ function renderTTToday(): void {
     list.innerHTML = `<p style="font-size:13px;color:var(--muted);font-weight:400;opacity:0.6;">Nothing scheduled for today.</p>`;
     return;
   }
-  list.innerHTML = blocks.map((b, i) => `
+  list.innerHTML = blocks.map((b, i) => { const c = safeDeckColor(b.color); return `
     <div style="display:flex;align-items:center;gap:12px;padding:10px 0;${i < blocks.length-1 ? 'border-bottom:1px solid rgba(255,255,255,0.04);' : ''}">
-      <div style="width:9px;height:9px;border-radius:50%;background:${b.color};flex-shrink:0;box-shadow:0 0 8px ${b.color}60;"></div>
+      <div style="width:9px;height:9px;border-radius:50%;background:${c};flex-shrink:0;box-shadow:0 0 8px ${c}60;"></div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:600;color:var(--text);letter-spacing:-0.015em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3;">${_e(b.title)}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;font-family:'Space Grotesk';letter-spacing:0.02em;opacity:0.7;">${b.start} – ${b.end}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;font-family:'Space Grotesk';letter-spacing:0.02em;opacity:0.7;">${_e(b.start)} – ${_e(b.end)}</div>
       </div>
-      <div style="width:28px;height:28px;border-radius:8px;background:${b.color}14;border:1px solid ${b.color}22;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:all 0.15s;"
-        onclick="openTTModal(${b.id})"
-        onmouseover="this.style.background='${b.color}28'" onmouseout="this.style.background='${b.color}14'">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="${b.color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      <div class="tint-btn" style="--tint-hover:${c}28;width:28px;height:28px;border-radius:8px;background:${c}14;border:1px solid ${c}22;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:all 0.15s;"
+        onclick="openTTModal(${b.id})">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </div>
-    </div>`).join('');
+    </div>`; }).join('');
 }
 
 function renderTTWeekSummary(): void {
@@ -7045,7 +7234,7 @@ function openTTModal(id?: number): void {
     dayInp.value    = String(block.day);
     startInp.value  = block.start;
     endInp.value    = block.end;
-    ttSelectedColor = block.color;
+    ttSelectedColor = safeDeckColor(block.color);
     titleEl.textContent     = 'Edit Block';
     deleteBtn.style.display = 'block';
   } else {
@@ -7100,9 +7289,9 @@ function saveTTBlock(): void {
 
   if (ttEditId != null) {
     const idx = S.timetable.findIndex(b => b.id === ttEditId);
-    if (idx !== -1) S.timetable[idx] = { id: ttEditId, title, day, start, end, color: ttSelectedColor };
+    if (idx !== -1) S.timetable[idx] = { id: ttEditId, title, day, start, end, color: safeDeckColor(ttSelectedColor) };
   } else {
-    S.timetable.push({ id: S.nextId++, title, day, start, end, color: ttSelectedColor });
+    S.timetable.push({ id: S.nextId++, title, day, start, end, color: safeDeckColor(ttSelectedColor) });
   }
   save();
   closeTTModal();
@@ -7367,7 +7556,7 @@ function buildSearchIndex(): SearchResult[] {
 
   S.subjects.forEach(s => {
     out.push({
-      group: 'Subjects', iconName: 'book', iconColor: s.color || 'var(--plight)',
+      group: 'Subjects', iconName: 'book', iconColor: subjColor(s),
       title: s.name, subtitle: s.desc || 'Subject',
       action: () => { goTo('library'); window.setTimeout(() => openDocModal(s.id), 220); },
     });
@@ -7400,7 +7589,7 @@ function buildSearchIndex(): SearchResult[] {
 
   (S.timetable || []).forEach(b => {
     out.push({
-      group: 'Timetable', iconName: 'calendar_today', iconColor: b.color || 'var(--cyan)',
+      group: 'Timetable', iconName: 'calendar_today', iconColor: safeDeckColor(b.color),
       title: b.title, subtitle: `${TT_DAYS[b.day]} · ${b.start}–${b.end}`,
       action: () => { goTo('timetable'); window.setTimeout(() => openTTModal(b.id), 220); },
     });

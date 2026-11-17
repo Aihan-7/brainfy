@@ -51,6 +51,18 @@ service cloud.firestore {
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 120
+        // The colour lands in other users' style="" attributes, where escaping
+        // does not help: strict #rrggbb only (AUDIT-2026-10-17.md, P0-2).
+        && request.resource.data.color is string
+        && request.resource.data.color.matches('^#[0-9a-fA-F]{6}$')
+        // Bound the other free-text fields that land on other users' screens and
+        // in the /decks pages. The app trims them to 60 / 300 characters; these
+        // limits are looser so a legitimate publish is never refused, however
+        // size() counts non-Latin text.
+        && request.resource.data.get('ownerName', '') is string
+        && request.resource.data.get('ownerName', '').size() <= 200
+        && request.resource.data.get('desc', '') is string
+        && request.resource.data.get('desc', '').size() <= 1000
         && request.resource.data.cards is list
         && request.resource.data.cards.size() > 0
         && request.resource.data.cards.size() <= 1000;
@@ -65,6 +77,12 @@ service cloud.firestore {
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 120
+        && request.resource.data.color is string
+        && request.resource.data.color.matches('^#[0-9a-fA-F]{6}$')
+        && request.resource.data.get('ownerName', '') is string
+        && request.resource.data.get('ownerName', '').size() <= 200
+        && request.resource.data.get('desc', '') is string
+        && request.resource.data.get('desc', '').size() <= 1000
         && request.resource.data.cards is list
         && request.resource.data.cards.size() > 0
         && request.resource.data.cards.size() <= 1000;

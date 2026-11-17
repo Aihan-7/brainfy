@@ -317,6 +317,13 @@
       transition: border-color 0.2s, transform 0.15s;
     }
     .subj-card:hover { border-color: rgba(124,58,237,0.4); transform: translateY(-2px); }
+    /* Colour-tinted hovers. The colour arrives as CSS variables built from a
+       validated #rrggbb (subjColor() / safeDeckColor() in main.ts), never inside
+       inline JS. Subjects and flashcard decks use .deck-tint / .tint-btn,
+       timetable blocks .tt-tint. */
+    .deck-tint:hover { transform: translateY(-2px); box-shadow: 0 8px 28px var(--tint-glow); border-color: var(--tint-edge) !important; }
+    .tint-btn:hover  { background: var(--tint-hover) !important; }
+    .tt-tint:hover   { background: var(--tint-hover) !important; transform: translateY(-1px); box-shadow: 0 6px 18px var(--tint-glow); }
 
     /* ── Timer ring ── */
     .timer-ring-track    { fill: transparent; stroke: rgba(255,255,255,0.06); stroke-width: 10; }
@@ -5651,7 +5658,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = '7c4857a2b2eb';
+  var APP_VERSION = 'c668c9a8dc8a';
   window.APP_VERSION = APP_VERSION;  // exposed so script.js can include it in telemetry
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {
