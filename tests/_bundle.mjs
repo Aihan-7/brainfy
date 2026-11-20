@@ -54,6 +54,7 @@ export function loadBundle() {
     body: makeStubEl(), head: makeStubEl(), documentElement: makeStubEl(),
     title: '',
   };
+  const windowListeners = {};
   const ctx = {
     console, document, JSON, Math, Date, Set, Map, Intl, URL, URLSearchParams,
     structuredClone, Promise, Error, Array, Object, String, Number, Boolean, RegExp,
@@ -61,7 +62,10 @@ export function loadBundle() {
     sessionStorage: { ...storage, _m: new Map() },
     setTimeout, clearTimeout, setInterval: () => 0, clearInterval: noop,
     requestAnimationFrame: noop, cancelAnimationFrame: noop,
-    addEventListener: noop, removeEventListener: noop,
+    // window listeners are recorded (ctx.listeners('pagehide')), so a test can fire them
+    addEventListener(type, fn) { (windowListeners[type] ||= []).push(fn); },
+    removeEventListener(type, fn) { windowListeners[type] = (windowListeners[type] || []).filter(f => f !== fn); },
+    listeners: type => (windowListeners[type] || []).slice(),
     matchMedia: () => ({ matches: false, addEventListener: noop, removeEventListener: noop }),
     fetch: () => Promise.reject(new Error('no network in tests')),
     navigator: { onLine: true, userAgent: 'node-test', serviceWorker: { register: () => Promise.reject(new Error('none')) } },

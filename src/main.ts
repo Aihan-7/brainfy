@@ -242,7 +242,12 @@ const FLASHCARD_SETS: Record<string, FlashCard[]> = {
 };
 
 // ── Default state ───────────────────────────────────────────────────────────
-const DEFAULT_STATE = {
+// Read it only through freshState(). `{ ...DEFAULT_STATE }` copies the top level
+// and SHARES the arrays, so the first task or subject pushed into such a state
+// edited the defaults themselves, and every later "fresh" state on the tab (the
+// next account after a sign-out) started out with it. Frozen, so a slip like
+// that now throws instead of leaking. See AUDIT-2026-10-17.md, P0-4.
+const DEFAULT_STATE = deepFreeze({
   userName: '',
   subjects:   [],
   tasks:      [],
@@ -261,10 +266,22 @@ const DEFAULT_STATE = {
   freezes: 0,
   reminderOn: false,
   reminderHour: 19,
-};
+});
+
+// A new default state that shares nothing with DEFAULT_STATE or any other state.
+function freshState(): AppState {
+  return structuredClone(DEFAULT_STATE) as AppState;
+}
+function deepFreeze<T>(o: T): T {
+  if (o && typeof o === 'object' && !Object.isFrozen(o)) {
+    Object.freeze(o);
+    for (const v of Object.values(o as object)) deepFreeze(v);
+  }
+  return o;
+}
 
 // ── Runtime state ───────────────────────────────────────────────────────────
-let S: AppState = { ...DEFAULT_STATE };
+let S: AppState = freshState();
 let currentView: ViewName = 'splash';
 let fcModalHTML = ''; // saved on first open; restored when modal closes
 
@@ -1187,6 +1204,50 @@ type SyncState = 'idle' | 'syncing' | 'synced' | 'error' | 'offline';
 let syncState: SyncState = 'idle';
 let lastSyncedAt: number | null = null;
 let _pendingSaveTimer: number | undefined;
+let _settingsDirtyTimer: number | undefined;   // Settings' own debounce in front of save()
+// Bumped by resetSession(). Async work notes it when it starts and drops its
+// result if it changed: a read, a write, an AI reply or an upload that finishes
+// after its account signed out must not touch the state of whoever comes next
+// (ids restart at 1 for every account, so "subject 1" is someone else's now).
+let _sessionEpoch = 0;
+// Aborted by resetSession(): the session's in-flight AI requests stop there.
+// Made on first use (nothing at load time depends on it).
+let _sessionAbort: AbortController | null = null;
+function sessionScope(): { alive: () => boolean; signal: AbortSignal | undefined } {
+  const epoch = _sessionEpoch;
+  if (!_sessionAbort && typeof AbortController !== 'undefined') _sessionAbort = new AbortController();
+  return { alive: () => epoch === _sessionEpoch, signal: _sessionAbort?.signal };
+}
+// This tab is ending the session itself (Settings → Sign out, account
+// deletion): save() still stores edits on the device but sends nothing to the
+// cloud (a write could re-create a document just deleted).
+let _sessionClosing = false;
+// This tab has itself asked Firebase to end the session (signOut() sent, or
+// the account deletion reached user.delete()). The code that asked resets the
+// tab, so the auth observer leaves that signed-out event alone. Any other
+// signed-out event (another tab, a revoked session) still resets this tab,
+// even while an account deletion is under way.
+let _signOutSent = false;
+// deleteAccount() is running (its network steps, behind a "please wait").
+let _deleting = false;
+// S as this tab last stored it (JSON), this session. save() compares: a call
+// that changes nothing (a view change, a repaint) stores, marks and sends
+// nothing, so it can't make a device that changed nothing look unsynced.
+let _lastSaved: string | null = null;
+// Accounts whose unsynced changes the user chose to lose when signing out in
+// another tab of this device (uid → when): see announceDiscard().
+const _discarded = new Map<string, number>();
+const DISCARD_TTL = 2 * 60 * 1000;
+// Whose data S holds: set when an account's sign-in starts resolving, null
+// otherwise. save() stores nothing unless S is the signed-in account's, so no
+// copy is ever saved, tagged or uploaded as somebody else's.
+let sOwner: string | null = null;
+// This tab's own record of edits the cloud hasn't confirmed. The sync marker
+// in localStorage says it for the device, but every tab shares that marker: a
+// sign-out in another tab wipes it while this tab still holds the edits.
+let _tabDirty = false;
+let _localRev = 0;          // bumped by each save(); a write confirms only the revision it sent
+let _localWriteOk = true;   // did the last save() reach localStorage?
 
 // ── Write safety ────────────────────────────────────────────────────────────
 // `save()` overwrites the whole cloud document, so it is only safe once we have
@@ -1201,7 +1262,10 @@ let cloudReadOk = false;
 // a later session can tell "cloud is authoritative" from "local is ahead".
 // Kept OUT of S: it is per-device bookkeeping, not user state to be synced.
 const SYNC_META_KEY = 'brainfy_sync_meta';
-interface SyncMeta { uid: string; dirty: boolean; syncedAt?: string }
+// `held`: the working copy is unsynced edits of `uid`, left there when its
+// session ended because the device had no room to move them to its kept copy
+// (see keepUnsynced). Nobody else's sign-in or save() overwrites them.
+interface SyncMeta { uid: string; dirty: boolean; syncedAt?: string; held?: boolean }
 
 function readSyncMeta(): SyncMeta | null {
   try {
@@ -1218,6 +1282,135 @@ function writeSyncMeta(meta: SyncMeta): void {
 function localHasUnsyncedEdits(uid: string): boolean {
   const m = readSyncMeta();
   return !!m && m.uid === uid && m.dirty === true;
+}
+// The same marker says WHOSE data the local copy is: save() stamps it with the
+// signed-in uid. A copy stamped with another uid, or not stamped at all, is not
+// this account's, so it is never shown to, merged into or uploaded for it.
+function localBelongsTo(uid: string): boolean {
+  const m = readSyncMeta();
+  return !!m && m.uid === uid;
+}
+
+// The working copy (STORAGE_KEY + its marker) belongs to one account at a time.
+// Two things are set aside under keys of their own, where no other account's
+// save() can overwrite them:
+//   • brainfy_unsynced:<uid> — edits that account made which never reached its
+//     cloud, kept when its session ended before they could be sent ("Keep", or
+//     another account signed in over it). Merged back the next time that same
+//     account signs in here; nobody else ever loads them.
+//   • brainfy_unclaimed — study data saved with no account named on it (guest
+//     mode, or an account's copy from before the sync marker existed). The
+//     next account to sign in settles it: if everything in it is already that
+//     account's, it was that account's copy and simply goes; otherwise that
+//     account is asked whether it is theirs. Never merged without asking.
+const KEPT_PREFIX   = 'brainfy_unsynced:';
+const UNCLAIMED_KEY = 'brainfy_unclaimed';
+interface Unclaimed { state: AppState; declined: string[] }
+
+function lsJSON<T>(key: string): T | null {
+  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) as T : null; } catch (_) { return null; }
+}
+function lsPut(key: string, v: unknown): boolean {
+  try { localStorage.setItem(key, JSON.stringify(v)); return true; } catch (_) { return false; }
+}
+function lsDel(key: string): void {
+  try { localStorage.removeItem(key); } catch (_) { /* storage blocked */ }
+}
+function lsRaw(key: string): string | null {
+  try { return localStorage.getItem(key); } catch (_) { return null; }
+}
+function asState(v: unknown): AppState | null {
+  return v && typeof v === 'object' && !Array.isArray(v) ? { ...freshState(), ...(v as AppState) } : null;
+}
+function readKept(uid: string): AppState | null { return asState(lsJSON(KEPT_PREFIX + uid)); }
+function dropKept(uid: string): void { lsDel(KEPT_PREFIX + uid); }
+// Write `v` under `key`, making room if needed by removing the working copy
+// (the caller is emptying it, and `v` carries what it held). If there still
+// isn't room, the working copy is left as it was (a failed setItem changes
+// nothing) or put back.
+function putInPlaceOfWorkingCopy(key: string, v: unknown): boolean {
+  if (lsPut(key, v)) return true;
+  const raw = lsRaw(STORAGE_KEY);
+  if (raw === null) return false;
+  lsDel(STORAGE_KEY);
+  if (lsPut(key, v)) return true;
+  try { localStorage.setItem(STORAGE_KEY, raw); } catch (_) { /* it fitted a moment ago */ }
+  return false;
+}
+// Set aside `uid`'s unsynced copy `st`, on top of any kept earlier (nothing is
+// lost). The device needn't hold it twice: uid's working copy, which is on its
+// way out, makes room for it. 'kept' once it is in uid's kept slot; 'lost' if
+// the device has no room for it even so. Then, if the working copy is uid's
+// and holds edits the cloud never got (an earlier version that did fit), it is
+// held there instead: tagged {held}, it isn't emptied with the rest
+// (vacateWorkingCopy) or overwritten by another account (save()), and uid's
+// next sign-in here still merges it.
+type KeepResult = 'kept' | 'lost';
+function keepUnsynced(uid: string, st: AppState): KeepResult {
+  const prev = readKept(uid);
+  const v = prev ? mergeStates(st, prev) : st;
+  const m = readSyncMeta();
+  const mine = !!m && m.uid === uid;
+  if (mine ? putInPlaceOfWorkingCopy(KEPT_PREFIX + uid, v) : lsPut(KEPT_PREFIX + uid, v)) return 'kept';
+  if (mine && m!.dirty && lsRaw(STORAGE_KEY) !== null) writeSyncMeta({ ...m!, held: true });
+  return 'lost';
+}
+function readUnclaimed(): Unclaimed | null {
+  const u = lsJSON<Unclaimed>(UNCLAIMED_KEY);
+  const state = asState(u?.state);
+  return state ? { state, declined: Array.isArray(u?.declined) ? u!.declined : [] } : null;
+}
+// The working copy, if the marker says it is `uid`'s.
+function workingCopyOf(uid: string): AppState | null {
+  return localBelongsTo(uid) ? asState(lsJSON(STORAGE_KEY)) : null;
+}
+// Empty the working copy. What in it nobody has agreed to lose is moved aside
+// first: another account's unsynced edits (or `ownUid`'s, held there by an
+// earlier session end) to that account's kept copy, data saved with no account
+// to the unclaimed slot. (A SYNCED copy just goes: its cloud has it.)
+// `ownUid`'s own copy goes too — its caller has synced it, kept it, or was
+// told to discard it. Returns false if something couldn't be moved aside for
+// lack of room: it then stays the working copy, still tagged, and is tried
+// again the next time (no edit is ever dropped to make room for another).
+function vacateWorkingCopy(ownUid: string | null): boolean {
+  const m = readSyncMeta();
+  const st = asState(lsJSON(STORAGE_KEY));
+  if (st && m && m.uid && m.dirty === true && (m.uid !== ownUid || m.held)) {
+    if (keepUnsynced(m.uid, st) !== 'kept') return false;
+  } else if (st && !m && hasUserData(st)) {
+    const u = readUnclaimed();
+    if (!putInPlaceOfWorkingCopy(UNCLAIMED_KEY, { state: u ? mergeStates(u.state, st) : st, declined: u ? u.declined : [] })) return false;
+  }
+  lsDel(STORAGE_KEY);
+  lsDel(SYNC_META_KEY);
+  return true;
+}
+// Would merging `incoming` into `base` add anything to it: a subject, card,
+// document, study session, task or timetable block? (Counted the way
+// mergeStates dedupes, so duplicates within `base` don't skew it.)
+function addsAnything(base: AppState, incoming: AppState): boolean {
+  const count = (st: AppState): number => {
+    let n = (st.subjects?.length || 0) + (st.sessions?.length || 0) + (st.tasks?.length || 0) + (st.timetable?.length || 0);
+    for (const s of st.subjects || []) n += (s.cards?.length || 0) + (s.documents?.length || 0);
+    return n;
+  };
+  return count(mergeStates(base, incoming)) > count(mergeStates(base, freshState()));
+}
+
+// Edits this tab made that the cloud hasn't confirmed (queued, or sent and unanswered).
+function tabHasUnsynced(): boolean {
+  return _pendingSaveTimer !== undefined || _settingsDirtyTimer !== undefined || _tabDirty;
+}
+// Does `uid` have edits on this device that never reached its cloud — made in
+// this tab, or left in the working copy by any tab?
+function hasUnsynced(uid: string): boolean {
+  return (sOwner === uid && tabHasUnsynced()) || localHasUnsyncedEdits(uid);
+}
+// What to keep for `uid` when its session ends with edits unsent: this tab's S
+// if it made them, else the working copy another tab left behind.
+function unsyncedCopy(uid: string): AppState | null {
+  if (sOwner === uid && tabHasUnsynced()) return S;
+  return localHasUnsyncedEdits(uid) ? workingCopyOf(uid) : null;
 }
 
 function setSyncState(next: SyncState): void {
@@ -1259,8 +1452,18 @@ window.setInterval(() => {
   if (syncState === 'synced') renderSyncChip();
 }, 15000);
 
-// Online / offline events
-window.addEventListener('online',  () => { if (syncState === 'offline') setSyncState(idToken ? 'idle' : 'idle'); });
+// Online / offline events. Edits made offline were only stored on the device
+// (save() doesn't queue a write while offline): coming back sends them, or
+// retries the cloud read that failed, instead of just relabelling the chip.
+window.addEventListener('online', () => {
+  if (!firebaseUser || sOwner !== firebaseUser.uid || !authResolved || _sessionClosing) {
+    if (syncState === 'offline') setSyncState('idle');
+    return;
+  }
+  if (!cloudReadOk) { setSyncState('error'); retrySync(); return; }
+  if (hasUnsynced(firebaseUser.uid)) save(true);
+  else if (syncState === 'offline') setSyncState('synced');
+});
 window.addEventListener('offline', () => setSyncState('offline'));
 
 // ── Telemetry ───────────────────────────────────────────────────────────────
@@ -1431,22 +1634,46 @@ function renderSidebarBadges(): void {
   badge.textContent = String(count);
 }
 
-function save() {
-  // Always save locally for instant access
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch(_) {}
-
+// `force`: store and send S even if it hasn't changed since the last save()
+// (sending what is already stored, e.g. once the connection is back).
+function save(force = false) {
   // Sidebar badge — recompute on every state change. Cheap (one walk of
   // S.subjects + one DOM write) and the right semantic: any save() means
   // SRS state could have moved, so refresh the count.
   renderSidebarBadges();
 
-  // Not signed in → no cloud sync to attempt
+  // Not signed in → nothing to store. S is a blank state (there is no guest
+  // mode), and writing it would overwrite what this device holds for others.
   if (!firebaseUser) { if (syncState !== 'offline') setSyncState('idle'); return; }
+  // S isn't this account's (another account's sign-in is taking over): never
+  // store it, or tag it, as theirs.
+  if (sOwner !== firebaseUser.uid) return;
+  const uid: string = firebaseUser.uid;
 
-  // Mark the local copy as ahead of the cloud BEFORE anything can bail out, so
-  // that edits made offline — or lost to a crash mid-write — still leave a
-  // truthful marker for the next session to find and merge.
-  writeSyncMeta({ uid: firebaseUser.uid, dirty: true, syncedAt: readSyncMeta()?.syncedAt });
+  // Nothing changed since the last save (a view change, a repaint): nothing to
+  // store or send, and nothing new is unsynced.
+  const json = JSON.stringify(S);
+  if (json === _lastSaved && !force) return;
+  _lastSaved = json;
+
+  // Save locally first, for instant access. Mark the local copy as ahead of the
+  // cloud BEFORE anything can bail out, so that edits made offline — or lost to
+  // a crash mid-write — still leave a truthful marker for the next session to
+  // find and merge. The marker also names the copy's owner (localBelongsTo).
+  // A working copy that is still someone else's (unsynced edits there was no
+  // room to move aside) is moved aside first; until that works it is never
+  // overwritten, and this account works from the cloud alone.
+  if (localBelongsTo(uid) || vacateWorkingCopy(null)) {
+    try { localStorage.setItem(STORAGE_KEY, json); _localWriteOk = true; } catch (_) { _localWriteOk = false; }
+    const prev = readSyncMeta();
+    writeSyncMeta({ uid, dirty: true, syncedAt: prev?.uid === uid ? prev.syncedAt : undefined });
+  } else _localWriteOk = false;
+  _localRev++;
+  _tabDirty = true;
+
+  // Signing out or deleting the account: the edit stays on the device (the
+  // sign-out looks for it afterwards), but nothing more goes to the cloud.
+  if (_sessionClosing) return;
 
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     setSyncState('offline');
@@ -1461,33 +1688,93 @@ function save() {
   // it just stays on the device until a read succeeds (chip offers a retry).
   if (!cloudReadOk) { setSyncState('error'); return; }
 
-  // Debounce so rapid edits collapse into one cloud write
+  // Debounce so rapid edits collapse into one cloud write. The queued write
+  // belongs to THIS account: resetSession() cancels it, so an edit made just
+  // before sign-out can't land afterwards (flushPendingSave() sends it first).
   setSyncState('syncing');
   window.clearTimeout(_pendingSaveTimer);
+  const epoch = _sessionEpoch;
   _pendingSaveTimer = window.setTimeout(() => {
+    _pendingSaveTimer = undefined;
+    void writeCloud(ref, uid, epoch);
+  }, 400);
+}
+
+// One cloud write of `state` (normally S) for `uid`; resolves true once the
+// cloud has it. A result that arrives after its session ended is ignored (see
+// _sessionEpoch). It confirms only the revision it sent: an edit made while it
+// was in flight stays unsynced, and that edit's own queued write sends it.
+function writeCloud(ref: any, uid: string, epoch: number, state: AppState = S): Promise<boolean> {
+  return new Promise<boolean>(resolve => {
+    // (Nor while another tab deletes this account: it would re-create the document.)
+    if (epoch !== _sessionEpoch || _deletingElsewhere === uid) { resolve(false); return; }
+    const rev = _localRev;
     // ref.set() validates its argument BEFORE returning a promise, so an
     // unserialisable value (an `undefined` field, most likely) throws
     // synchronously and would sail straight past .catch() — leaving the chip
     // stuck on "syncing" forever while nothing reached the cloud. Catch both.
     try {
       const stamp = new Date().toISOString();
-      ref.set({ state: S, updatedAt: stamp })
-        .then(() => { writeSyncMeta({ uid: firebaseUser.uid, dirty: false, syncedAt: stamp }); setSyncState('synced'); })
-        .catch((err: any) => { console.error('[sync] save failed', err?.code, err?.message, err); track('sync.save.error', { code: err?.code, message: err?.message }); setSyncState('error'); });
+      ref.set({ state, updatedAt: stamp })
+        .then(() => {
+          if (epoch === _sessionEpoch && rev === _localRev) {
+            _tabDirty = false;
+            if (localBelongsTo(uid)) writeSyncMeta({ uid, dirty: false, syncedAt: stamp });
+            setSyncState('synced');
+          }
+          resolve(true);
+        })
+        .catch((err: any) => {
+          console.error('[sync] save failed', err?.code, err?.message, err);
+          track('sync.save.error', { code: err?.code, message: err?.message });
+          if (epoch === _sessionEpoch) setSyncState('error');
+          resolve(false);
+        });
     } catch (err: any) {
       console.error('[sync] save threw', err?.code, err?.message, err);
       track('sync.save.throw', { code: err?.code, message: err?.message });
-      setSyncState('error');
+      if (epoch === _sessionEpoch) setSyncState('error');
+      resolve(false);
     }
-  }, 400);
+  });
+}
+
+// Why edits on this device can't be confirmed in the cloud right now.
+type FlushProblem = 'offline' | 'unread' | 'too-large' | 'failed' | 'timeout';
+
+// Before a sign-out: send whatever this device holds for the signed-in account
+// that the cloud hasn't confirmed, and wait for it. Resolves null once the
+// cloud has it all, else the reason it can't (a Firestore write made while
+// offline never settles by itself, hence the 8 s limit).
+async function flushPendingSave(): Promise<FlushProblem | null> {
+  if (!firebaseUser || sOwner !== firebaseUser.uid) return null;
+  const uid: string = firebaseUser.uid;
+  // A settings change still inside its own debounce hasn't reached save() yet.
+  if (_settingsDirtyTimer !== undefined) { window.clearTimeout(_settingsDirtyTimer); _settingsDirtyTimer = undefined; save(); }
+  const own = tabHasUnsynced();
+  window.clearTimeout(_pendingSaveTimer);
+  _pendingSaveTimer = undefined;
+  if (!own && !localHasUnsyncedEdits(uid)) return null;
+  // This tab's edits are in S. If only the working copy is behind, another
+  // tab made those edits, and the working copy is their newest version.
+  const state = own ? S : (workingCopyOf(uid) || S);
+  const ref = userDoc();
+  if (!ref || !cloudReadOk) return 'unread';
+  if (navigator.onLine === false) return 'offline';
+  if (userDocBytes(state) > FIRESTORE_DOC_LIMIT) return 'too-large';
+  return Promise.race([
+    writeCloud(ref, uid, _sessionEpoch, state).then(ok => ok ? null : 'failed' as const),
+    new Promise<FlushProblem>(r => window.setTimeout(() => r('timeout'), 8000)),
+  ]);
 }
 
 // Manual retry (called when user clicks the chip in error state)
 function retrySync(): void {
-  if (!firebaseUser) return;
+  if (!firebaseUser || sOwner !== firebaseUser.uid) return;
   if (syncState !== 'error') return;
   const ref = userDoc();
   if (!ref) return;
+  const uid: string = firebaseUser.uid, epoch = _sessionEpoch;   // a late answer after sign-out is dropped
   setSyncState('syncing');
 
   // Two very different failures wear the same error chip:
@@ -1497,43 +1784,50 @@ function retrySync(): void {
   if (!cloudReadOk) {
     ref.get()
       .then((snap: any) => {
+        if (epoch !== _sessionEpoch) return;
         cloudReadOk = true;
         const cloudState: AppState | null = (snap && snap.exists) ? ((snap.data() || {}).state || null) : null;
         if (hasUserData(cloudState)) {
           // Local edits made while disconnected are merged in rather than
           // dropped; with nothing local pending, the cloud copy simply wins.
-          S = sanitizeStateColors((localHasUnsyncedEdits(firebaseUser.uid) && hasUserData(S))
+          S = sanitizeStateColors((hasUnsynced(uid) && hasUserData(S))
             ? mergeStates(cloudState as AppState, S)
-            : { ...DEFAULT_STATE, ...(cloudState as AppState) });
-          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch (_) {}
-          _goToFinish(currentView);      // repaint + push the reconciled state
+            : { ...freshState(), ...(cloudState as AppState) });
+          save(true);                    // store + push the reconciled state
+          _goToFinish(currentView);      // repaint
         } else {
-          save();
+          save(true);                    // the cloud is empty: push what this device has
         }
         showToast('Reconnected — your data is safe', 'success');
       })
       .catch((err: any) => {
         console.error('[sync] retry read failed', err?.code, err?.message, err);
         track('sync.retryread.error', { code: err?.code, message: err?.message });
+        if (epoch !== _sessionEpoch) return;
         setSyncState('error');
         showToast('Still can’t reach the cloud. Your work is saved on this device.', 'warning');
       });
     return;
   }
 
-  const stamp = new Date().toISOString();
-  ref.set({ state: S, updatedAt: stamp })
-    .then(() => { writeSyncMeta({ uid: firebaseUser.uid, dirty: false, syncedAt: stamp }); setSyncState('synced'); showToast('Synced to cloud', 'success'); })
-    .catch((err: any) => { console.error('[sync] retry failed', err?.code, err?.message, err); track('sync.retry.error', { code: err?.code, message: err?.message }); setSyncState('error');  showToast('Still offline. Will retry on next change.', 'warning'); });
+  void writeCloud(ref, uid, epoch).then(ok => {
+    if (epoch !== _sessionEpoch) return;
+    if (ok) showToast('Synced to cloud', 'success');
+    else    showToast('Still offline. Will retry on next change.', 'warning');
+  });
 }
 
+// Boot: S starts as the device's working copy (cleaned). It belongs to nobody
+// yet (sOwner stays null), so nothing saves it and no screen shows it; an
+// account's sign-in reads its own copy afresh from storage instead
+// (resolveStateAfterAuth), whatever S holds by then.
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) S = { ...DEFAULT_STATE, ...JSON.parse(raw) };
-    else      S = structuredClone(DEFAULT_STATE);
+    if (raw) S = { ...freshState(), ...JSON.parse(raw) };
+    else      S = freshState();
   } catch(_) {
-    S = structuredClone(DEFAULT_STATE);
+    S = freshState();
   }
   // Clean an unsafe colour already stored on this device (e.g. a deck imported
   // before imports were validated) and keep the cleaned copy.
@@ -1551,9 +1845,16 @@ function load() {
 //   • cloud empty    → keep local (save() pushes it up).
 //   • cloud has data → load cloud, merging in any edits this device made that
 //                      never reached it (see localHasUnsyncedEdits).
+// "Local" only ever means THIS account's copy on this device (localBelongsTo,
+// readKept), read from storage when its sign-in starts. Whatever a tab holds in
+// memory, and anything another account left, is never adopted. Data saved with
+// no account (guest mode) is only added after asking.
 
 let authResolution: Promise<void> | null = null;  // resolve once; concurrent callers share it
+let authResolutionUid: string | null = null;       // whose sign-in authResolution resolves
+let authResolved = false;                          // ...and it has finished
 let pendingAuthName: string | null = null;         // name captured at signup time
+let _tokenRefreshTimer: number | undefined;
 
 function hasUserData(st: AppState | null | undefined): boolean {
   if (!st) return false;
@@ -1568,7 +1869,7 @@ function hasUserData(st: AppState | null | undefined): boolean {
 // tourSeen) stay from the cloud; the local subjects/cards/documents/sessions/
 // tasks/timetable are merged in, with fresh ids allocated to avoid collisions.
 function mergeStates(base: AppState, incoming: AppState): AppState {
-  const merged: AppState = { ...DEFAULT_STATE, ...base } as AppState;
+  const merged: AppState = { ...freshState(), ...base } as AppState;
   let nextId = Math.max(base.nextId || 1, incoming.nextId || 1);
   const alloc = () => nextId++;
 
@@ -1623,31 +1924,65 @@ function mergeStates(base: AppState, incoming: AppState): AppState {
 // promise guarantees the reconcile (and any merge prompt) runs exactly once,
 // and late callers await the same result before navigating.
 function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
-  if (authResolution) {
+  if (authResolution && authResolutionUid === user.uid) {
     // Already resolving/resolved this session (observer re-fired, or the other
-    // caller started it). Just keep the token fresh, then share the result.
-    return authResolution.then(async () => { try { idToken = await user.getIdToken(); } catch (_) {} });
+    // caller started it). Share the result, then keep the user and token fresh.
+    const epoch = _sessionEpoch;
+    return authResolution.then(async () => {
+      if (epoch !== _sessionEpoch) return;
+      firebaseUser = user;
+      try { idToken = await user.getIdToken(); } catch (_) {}
+    });
   }
-  authResolution = (async () => {
-    firebaseUser = user;
-    try { idToken = await user.getIdToken(); } catch (_) {}
-    // Refresh the token before it expires (every 55 min).
-    setInterval(async () => { if (firebaseUser) idToken = await firebaseUser.getIdToken(true); }, 55 * 60 * 1000);
-    setSyncState('syncing');
+  // The name typed at sign-up: read it before a takeover's reset clears it.
+  const typedName = displayName || pendingAuthName || null;
+  // A different account took over from the one this tab was holding: nothing
+  // of the previous one may carry over (its memo, its data, its timers, the
+  // screen showing them: inside the app, back to the splash). Edits of its that
+  // the cloud never got are kept for it (`keep`), not wiped.
+  if (authResolution) resetSession({ keep: true, to: (['splash', 'signin', 'signup'] as ViewName[]).includes(currentView) ? null : 'splash' });
+  else dismissDialogs();   // e.g. a "You've been signed out" still open: its safe answer (keep) applies
+  pendingAuthName = null;
 
-    const localState   = S;
-    const localHasData = hasUserData(localState);
+  // Decide what is local NOW, synchronously, before any await lets a save() or
+  // another tab change it: this account's working copy (anything else in the
+  // slot is moved aside first) plus edits kept for it from an earlier session.
+  const uid: string = user.uid;
+  if (!localBelongsTo(uid)) vacateWorkingCopy(null);
+  const own  = workingCopyOf(uid);
+  const kept = readKept(uid);
+  const keptOrDirty = !!kept || localHasUnsyncedEdits(uid);
+  S = sanitizeStateColors(kept ? (own ? mergeStates(own, kept) : kept) : (own || freshState()));
+  sOwner = uid;
+  firebaseUser = user;
+  _tabDirty = false;
+  // What the device holds already: until it changes, save() has nothing to do
+  // (the save(true) at the end stores and sends the resolved state).
+  _lastSaved = JSON.stringify(S);
+  _discarded.delete(uid);   // an old "discard" from another tab doesn't apply to this session
+  const epoch = _sessionEpoch;
+  authResolutionUid = uid;
+  authResolved = false;
+  authResolution = (async () => {
+    try { idToken = await user.getIdToken(); } catch (_) {}
+    if (epoch !== _sessionEpoch) return;   // signed out meanwhile
+    // Refresh the token before it expires (every 55 min).
+    window.clearInterval(_tokenRefreshTimer);
+    _tokenRefreshTimer = window.setInterval(async () => { if (firebaseUser) idToken = await firebaseUser.getIdToken(true); }, 55 * 60 * 1000);
+    setSyncState('syncing');
 
     // Peek the cloud doc.
     let cloudState: AppState | null = null;
     try {
       const ref  = userDoc();
       const snap = ref && await ref.get();
+      if (epoch !== _sessionEpoch) return;   // signed out while reading
       if (snap && snap.exists) cloudState = (snap.data() || {}).state || null;
       // A missing document is still a SUCCESSFUL read — it genuinely means
       // "new account, nothing stored yet", which is safe to overwrite.
       if (ref) cloudReadOk = true;
     } catch (err: any) {
+      if (epoch !== _sessionEpoch) return;
       console.error('[sync] load failed', err?.code, err?.message);
       track('sync.load.error', { code: err?.code, message: err?.message });
       // We do NOT know what is in the cloud, so we must not touch it: keep the
@@ -1659,35 +1994,86 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
       showToast('Couldn’t reach your cloud data — working from this device for now.', 'warning');
     }
     const cloudHasData = hasUserData(cloudState);
+    // S is still this account's local copy, plus anything edited since.
+    const localState   = S;
+    const localHasData = hasUserData(localState);
+    const localDirty   = keptOrDirty || _tabDirty;
 
     if (!cloudReadOk) {
-      // Unknown cloud state → no reconciliation. S stays exactly as loaded.
+      // Unknown cloud state → no reconciliation: S stays this account's local copy.
     } else if (cloudHasData) {
       // The cloud copy is normally authoritative. But if this device still holds
       // edits that never reached it — the tab was closed inside save()'s 400 ms
-      // debounce, or the network dropped mid-write — then replacing S would throw
-      // that work away without a word. Merge instead. mergeStates() dedupes, so
-      // for a device that synced cleanly this is a no-op.
-      S = (localHasData && localHasUnsyncedEdits(user.uid))
+      // debounce, the network dropped mid-write, or a session ended before they
+      // could be sent — then replacing S would throw that work away without a
+      // word. Merge instead. mergeStates() dedupes.
+      S = (localHasData && localDirty)
         ? mergeStates(cloudState as AppState, localState)
-        : { ...DEFAULT_STATE, ...(cloudState as AppState) };
-    } else {
-      // Cloud empty → keep local (a brand-new account starts clean).
-      S = localHasData ? localState : { ...DEFAULT_STATE, ...(cloudState || {}) };
+        : { ...freshState(), ...(cloudState as AppState) };
+    } else if (!localHasData) {
+      // Cloud empty, nothing local: a brand-new account starts clean.
+      S = { ...freshState(), ...(cloudState || {}) };
     }
+    // else cloud empty → keep this account's local copy (save() pushes it up).
+
+    // Study data on this device with no account named on it (guest mode, or an
+    // account's copy from before the sync marker existed). If all of it is
+    // already this account's, it was this account's copy: it simply goes.
+    // Anything else is offered — asked, never added silently — and stays for
+    // its owner if this account says it isn't theirs.
+    let tookUnclaimed = false;
+    const un = readUnclaimed();
+    if (un && !un.declined.includes(uid)) {
+      if (!addsAnything(S, un.state)) lsDel(UNCLAIMED_KEY);
+      else {
+        const n = (k: 'subjects' | 'tasks' | 'sessions', one: string, many: string) => {
+          const c = (un.state[k] || []).length;
+          return c ? `${c} ${c === 1 ? one : many}` : '';
+        };
+        const what = [n('subjects', 'subject', 'subjects'), n('tasks', 'task', 'tasks'), n('sessions', 'study session', 'study sessions')].filter(Boolean).join(', ');
+        const add = await showConfirm({
+          title:        'Is this study data yours?',
+          message:      `This device has study data that isn’t linked to any account${what ? ` (${what})` : ''}. If it’s yours, add it to your account. If it isn’t, it stays on this device for its owner.`,
+          confirmLabel: 'Add to my account',
+          cancelLabel:  'Not mine',
+        });
+        if (epoch !== _sessionEpoch) return;
+        const now = readUnclaimed();
+        if (add && now) {
+          S = hasUserData(S) ? mergeStates(S, now.state) : { ...freshState(), ...now.state };
+          lsDel(UNCLAIMED_KEY);
+          tookUnclaimed = true;
+        } else if (now) lsPut(UNCLAIMED_KEY, { ...now, declined: [...now.declined, uid] });
+      }
+    }
+
     // The cloud copy may predate colour validation; the save() below pushes the
     // cleaned state back, so the bad value stops following the user around.
     S = sanitizeStateColors(S);
 
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch (_) {}
-
-    const realName = displayName || pendingAuthName || user.displayName || user.email?.split('@')[0] || 'Student';
-    pendingAuthName = null;
+    const realName = typedName || user.displayName || user.email?.split('@')[0] || 'Student';
     S.userName = realName;
-    setSigninHint(realName);
+    // Not if a sign-out was asked for meanwhile, here or in another tab.
+    if (_endingFor !== uid && readOwed()?.uid !== uid) setSigninHint(realName);
 
-    save();                 // push the resolved state (refuses to push if the read failed)
+    save(true);             // store + push the resolved state (refuses to push if the read failed)
+    // Kept edits now live in the working copy (and are on their way to the cloud).
+    if (kept && _localWriteOk) dropKept(uid);
     if (cloudReadOk) setSyncState('synced');
+    else if (!localDirty && !tookUnclaimed) {
+      // Nothing was edited: the local copy is what the cloud last confirmed, and
+      // isn't "unsynced" just because this session couldn't read the cloud.
+      if (localBelongsTo(uid)) writeSyncMeta({ uid, dirty: false, syncedAt: readSyncMeta()?.syncedAt });
+      _tabDirty = false;
+    }
+    // The timer was set up for a blank state: show this account's durations.
+    if (!timer.running && timer.mode === 'focus' && timer.timeLeft === timer.totalTime) timer.totalTime = timer.timeLeft = S.focusDuration;
+    authResolved = true;
+    // Already inside the app (a restored session, "Continue as"): repaint with
+    // the resolved data. On the splash: "Continue as <name>".
+    if (!(['splash', 'signin', 'signup'] as ViewName[]).includes(currentView)) _goToFinish(currentView);
+    else if (currentView === 'splash') applySigninHint();
+    window.setTimeout(nudgeIfDue, 2500);   // the daily study nudge, now that S is this account's
   })();
   return authResolution;
 }
@@ -1724,7 +2110,8 @@ function applySigninHint(): void {
     fresh.textContent = `Continue as ${hint.name} →`;
     // Home only with a live session; otherwise sign in (the auth observer moves a
     // restored session on to home as soon as it resolves).
-    fresh.addEventListener('click', () => goTo(firebaseUser ? 'home' : 'signin'));
+    // Not into a session another tab is signing out (or deleting).
+    fresh.addEventListener('click', () => goTo(firebaseUser && readOwed()?.uid !== firebaseUser.uid ? 'home' : 'signin'));
   } else {
     fresh.textContent = 'Enter Brainfy →';
     fresh.addEventListener('click', () => goTo('signin'));
@@ -1737,6 +2124,454 @@ function setSigninHint(name: string): void {
 function clearSigninHint(): void {
   try { localStorage.removeItem(USER_HINT_KEY); } catch (_) {}
 }
+
+// ── Ending a session ────────────────────────────────────────────────────────
+// Every way out of an account goes through here: Settings → Sign out, the
+// session ending elsewhere (another tab, a revoked token), account deletion
+// (success or failure), another account signing in over this one. It forgets
+// the session (memoized auth, cloud-read flag, user, token, queued writes,
+// timers, in-flight AI requests and uploads, open dialogs) and this device's
+// working copy: S becomes a fresh state, and the local copy, its sync marker
+// and the "Continue as" hint go. With `keep`, edits of this account that the
+// cloud never confirmed are set aside for it first (keepUnsynced): only that
+// same account gets them back, at its next sign-in here. Without it, callers
+// flush them first or have the user agree to lose them. Then the auth forms are
+// blanked and the app goes to `to` (default: splash; null stays put). Returns
+// where kept edits ended up (null: there were none to keep).
+// See AUDIT-2026-10-17.md, P0-4.
+function resetSession(opts: { to?: ViewName | null; keep?: boolean } = {}): KeepResult | null {
+  const uid: string | null = firebaseUser?.uid ?? authResolutionUid;
+  let kept: KeepResult | null = null;
+  if (opts.keep && uid) { const st = unsyncedCopy(uid); if (st) kept = keepUnsynced(uid, st); }
+  _sessionEpoch++;                       // in-flight reads, writes, replies of this session are now ignored
+  _sessionAbort?.abort();                // ...and its AI requests stop
+  _sessionAbort = null;
+  for (const t of _uploads) { try { t.cancel?.(); } catch (_) { /* already done */ } }
+  _uploads.clear();
+  _sessionClosing   = false;
+  _signOutSent      = false;
+  _deleting         = false;
+  _deletingElsewhere = null;
+  signOutSettled();                      // no sign-out owed any more, no leave warning
+  _lastSaved        = null;
+  authResolution    = null;
+  authResolutionUid = null;
+  authResolved      = false;
+  cloudReadOk       = false;
+  firebaseUser      = null;              // from here save() stores nothing
+  idToken           = null;
+  pendingAuthName   = null;
+  lastSyncedAt      = null;
+  _tabDirty         = false;
+  window.clearTimeout(_pendingSaveTimer);   _pendingSaveTimer   = undefined;
+  window.clearTimeout(_settingsDirtyTimer); _settingsDirtyTimer = undefined;
+  window.clearInterval(_tokenRefreshTimer); _tokenRefreshTimer  = undefined;
+  // An open dialog acts on whoever is signed in when it is answered ("Delete
+  // your account?" confirmed after a switch would delete the next account):
+  // close it now, with its safe answer.
+  dismissDialogs();
+  // A running focus timer would log its session into whoever comes next; the
+  // tutor chat, the tour, any open overlay and a lingering toast ("Created
+  // <subject>") show this account's words and cards.
+  pauseTimer();
+  timer.mode = 'focus'; timer.subjectId = null; timer.intent = '';
+  document.body.classList.remove('focus-active');
+  endTour(false);
+  wipeLocalData(uid);
+  aiHistory = [];
+  if (aiIsOpen) toggleAIPanel();
+  const feed = el('aiMessages');
+  if (feed) feed.innerHTML = '';
+  aiImportResult = null; aiImportSourcePayload = null; aiImportFileData = null; aiImportSubjId = null;
+  aiSummaryLoading = false; summarizingDocId = null;
+  closeFlashcards(); closeDocModal(); closeAIImport(); closeTTModal(); closeSearch(); closeShareSheet(); closeFooterModal();
+  document.querySelector('.brainfy-toast')?.remove();
+  document.getElementById('brainfy-upload-stack')?.remove();
+  syncAmbient();                         // S is fresh: every ambient sound stops
+  timer.totalTime = timer.timeLeft = S.focusDuration;
+  // The flashcard and study-mode decks still point at this account's cards.
+  Object.assign(fc, { cards: [], idx: 0, flipped: false, scores: { again: 0, hard: 0, good: 0, easy: 0 }, mode: 'browse', subjectId: null });
+  Object.assign(sm, { subjectId: -1, cards: [], idx: 0, correct: 0, answered: false, options: [], tiles: [], sel: null, matched: 0, start: 0, timer: null, test: [], cloze: [] });
+  // The hidden views still hold this account's last render (subject names,
+  // tasks), the closed dialogs their last contents (search results, a
+  // subject's documents, a note, an AI import's cards) and the fields their
+  // last entry: blank them all.
+  clearAppFields();
+  for (const id of ['searchResults', 'docModalTitle', 'docModalBody', 'footerModalTitle', 'footerModalBody', 'aiImportBody', 'aiImportSubjName']) { const e = el(id); if (e) e.textContent = ''; }
+  searchFlat = []; searchSelIdx = 0;
+  ttEditId = null;
+  // (renderFocusActive: the hidden session screen too: its title, milestones, notes.)
+  for (const paint of [renderHome, renderFocus, renderFocusActive, renderFlashcards, renderStats, renderTasks, renderTimetable, renderSettings]) {
+    try { paint(); } catch (_) { /* a view this page doesn't have */ }
+  }
+  if (libTab === 'mine') { try { renderLibrary(); } catch (_) { /* as above */ } }
+  setSyncState('idle');
+  resetAuthForms();
+  if (opts.to !== null) goTo(opts.to || 'splash');
+  return kept;
+}
+// S back to blank; the working copy and the "Continue as" hint gone (anything
+// in that copy belonging to someone other than `uid` is set aside first).
+function wipeLocalData(uid: string | null): void {
+  S = freshState();
+  sOwner = null;
+  vacateWorkingCopy(uid);
+  clearSigninHint();
+}
+// Every field outside the splash and the auth forms (resetAuthForms() does
+// those): the app's views, dialogs and panels, including fields rendered on
+// the fly and any added later, so none can carry one account's words over to
+// the next. Text goes; a number, time or choice goes back to the page's own
+// default. Views that fill a field from S (Settings' durations, the focus
+// subject list) fill it again from the fresh S when resetSession() repaints.
+const TEXT_FIELD_TYPES = new Set(['text', 'search', 'email', 'url', 'tel', 'password', 'file']);
+function clearAppFields(): void {
+  document.querySelectorAll<HTMLElement>('input, textarea, select, [contenteditable]').forEach(f => {
+    if (f.closest('#splashView, #signinView, #signupView')) return;
+    if (f instanceof HTMLInputElement) {
+      if (f.type === 'hidden') return;
+      if (f.type === 'checkbox' || f.type === 'radio') f.checked = f.defaultChecked;
+      else if (TEXT_FIELD_TYPES.has(f.type)) { f.value = ''; if (f.type !== 'file') f.defaultValue = ''; }
+      else f.value = f.defaultValue;
+    } else if (f instanceof HTMLTextAreaElement) {
+      f.value = ''; f.defaultValue = '';
+    } else if (f instanceof HTMLSelectElement) {
+      for (const o of Array.from(f.options)) o.selected = o.defaultSelected;
+    } else if (f.isContentEditable) {
+      f.textContent = '';
+    }
+  });
+}
+
+// The session ended without our Sign out (signed out in another tab, the
+// account deleted elsewhere, a revoked or expired session). The cloud can't be
+// reached as this user any more, so edits it never received can't be flushed:
+// they are kept for this account (resetSession's `keep`), and the user decides
+// whether to drop them or keep them until they sign in here again.
+async function sessionEndedElsewhere(): Promise<void> {
+  const uid: string | null = firebaseUser?.uid ?? authResolutionUid;
+  // In the middle of deleting the account: the user asked for all of it to go,
+  // so nothing is kept. The deletion stops (resetSession() ends its session).
+  if (_deleting) {
+    resetSession();
+    if (uid) discardKept(uid);
+    notice('Your account wasn’t fully deleted', 'You were signed out before the deletion finished. Sign in again and choose Delete account once more to finish it.');
+    return;
+  }
+  // The account was being deleted in another tab of this device: none of its
+  // data stays here either (that tab says how the deletion went).
+  if (uid && _deletingElsewhere === uid) {
+    resetSession();
+    discardKept(uid);
+    return;
+  }
+  // The user signed out in another tab choosing to lose this account's
+  // unsynced changes: that covers this tab's too.
+  const at = uid ? _discarded.get(uid) : undefined;
+  if (uid && at !== undefined && Date.now() - at < DISCARD_TTL) {
+    resetSession();
+    discardKept(uid);
+    return;
+  }
+  // A focus session in progress is logged first, into the copy kept below
+  // (nothing more can be sent as this user: save() only stores it).
+  if (uid && sOwner === uid) { _sessionClosing = true; logFocusSoFar(); }
+  const unsynced = !!uid && hasUnsynced(uid);
+  const kept = resetSession({ keep: true });
+  if (unsynced && uid) await askAboutKeptEdits(uid, kept);
+}
+let _askingKeptFor: string | null = null;   // whose kept edits the open question is about
+async function askAboutKeptEdits(uid: string, kept: KeepResult | null): Promise<void> {
+  if (kept !== 'kept') {
+    await showConfirm({
+      title:        'You’ve been signed out',
+      message:      'Some changes on this device never reached your account, and this device doesn’t have room to keep them until you sign back in, so they couldn’t be saved.',
+      confirmLabel: 'OK',
+      hideCancel:   true,
+    });
+    return;
+  }
+  _askingKeptFor = uid;
+  const discard = await showConfirm({
+    title:        'You’ve been signed out',
+    message:      'Some changes on this device never reached your account. Discard them, or keep them here until you sign back in? They’ll sync then.',
+    confirmLabel: 'Discard changes',
+    cancelLabel:  'Keep until I sign in',
+    dangerous:    true,
+  });
+  if (_askingKeptFor === uid) _askingKeptFor = null;
+  // Only that account's kept edits go; whoever is signed in by now is unaffected.
+  if (discard) discardKept(uid);
+}
+// Drop the edits kept on this device for `uid`: its kept copy, or edits held
+// for it in the working copy (keepUnsynced).
+function discardKept(uid: string): void {
+  dropKept(uid);
+  const m = readSyncMeta();
+  if (m && m.uid === uid && m.held) { lsDel(STORAGE_KEY); lsDel(SYNC_META_KEY); }
+}
+// End a focus session in progress, logging the time studied so far (as
+// skipping it would): a sign-out must not silently drop it. Under 30 s isn't
+// logged, as anywhere else.
+function logFocusSoFar(): void {
+  if (timer.mode !== 'focus' || timer.timeLeft >= timer.totalTime) return;
+  pauseTimer();
+  logSession();
+  timer.timeLeft = timer.totalTime;
+  updateTimerDisplay();
+}
+
+// ── Other tabs of this app on this device ───────────────────────────────────
+// Firebase shares one sign-in between all of them, so a sign-out or an account
+// deletion in one concerns them all. They tell each other (every message names
+// the account's uid):
+//   discarded           the user signed out choosing to lose unsynced changes,
+//                       or the account's data was deleted: a tab whose session
+//                       has already ended drops the edits it kept for it, so
+//                       they don't come back at the next sign-in against that
+//                       choice. (A tab still signed in hears its own signed-out
+//                       event, and _discarded tells it the same.)
+//   deleting / resume   the account is being deleted in that tab / that
+//                       deletion stopped with nothing deleted. See
+//                       pauseForDeletionElsewhere().
+//   signout-owed        the tab that owed the account a sign-out is closing
+//                       (pagehide). A sign-out sent by a closing page may never
+//                       land, so a tab still signed in as it signs out itself.
+//   signout-called-off  the user chose to stay signed in after all: a tab that
+//                       left the session alone meanwhile (_heldBack) restores it.
+let _tabsChannel: BroadcastChannel | null = null;
+try { _tabsChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('brainfy-session') : null; } catch (_) { _tabsChannel = null; }
+_tabsChannel?.addEventListener('message', (e: MessageEvent) => onTabsMessage(e.data));
+function tellTabs(type: string, uid: string): void {
+  try { _tabsChannel?.postMessage({ type, uid }); } catch (_) { /* no other tabs to tell */ }
+}
+function announceDiscard(uid: string): void { tellTabs('discarded', uid); }
+function onTabsMessage(d: any): void {
+  if (!d || typeof d.uid !== 'string') return;
+  const uid: string = d.uid;
+  // This tab holds that account's session, or is restoring it.
+  const mine = firebaseUser?.uid === uid || authResolutionUid === uid;
+  switch (d.type) {
+    case 'discarded':
+      _discarded.set(uid, Date.now());
+      if (sOwner !== uid && firebaseUser?.uid !== uid) {
+        // This tab's session already ended and kept its edits: they go now.
+        discardKept(uid);
+        if (_askingKeptFor === uid) dismissDialogs();
+      }
+      break;
+    case 'deleting':
+      if (mine && !_deleting) pauseForDeletionElsewhere(uid);
+      break;
+    case 'resume':
+      if (_deletingElsewhere === uid) resumeAfterDeletionElsewhere();
+      break;
+    case 'signout-owed':
+      finishOwedSignOut(uid);
+      break;
+    case 'signout-called-off':
+      if (_heldBack) {
+        _heldBack = false;
+        const u = authCurrentUser();
+        if (u && u.uid === uid) void _onAuthState?.(u);
+      }
+      break;
+  }
+}
+// Firebase's signed-in user in this tab (null if none, or no SDK).
+function authCurrentUser(): any {
+  try { return firebase.auth().currentUser || null; } catch (_) { return null; }
+}
+
+// The account is being deleted in another tab of this device. From here this
+// tab sends nothing to the cloud (a write would re-create the document just
+// deleted, orphaning a copy of the data), drops its queued write (the edit
+// stays unsynced: sent if the deletion stops with nothing deleted, gone with
+// the account otherwise), and waits behind a notice until either its session
+// ends (the login deleted: sessionEndedElsewhere keeps none of its data) or the
+// deletion stops ('resume'). A write already on its way can still land after
+// the delete; the deleting tab checks for that before it deletes the login.
+let _deletingElsewhere: string | null = null;   // (writeCloud() sends nothing for it meanwhile)
+function pauseForDeletionElsewhere(uid: string): void {
+  _deletingElsewhere = uid;
+  window.clearTimeout(_pendingSaveTimer); _pendingSaveTimer = undefined;
+  if (_endingFor) return;   // signing out itself, behind its own notice: that flow goes on (unable to write)
+  _sessionClosing = true;
+  // A settings change still inside its own debounce: stored (only) like any other edit.
+  if (_settingsDirtyTimer !== undefined) { window.clearTimeout(_settingsDirtyTimer); _settingsDirtyTimer = undefined; save(); }
+  showBusy('Deleting your account…', 'Your account is being deleted in another Brainfy tab.');
+}
+function resumeAfterDeletionElsewhere(): void {
+  _deletingElsewhere = null;
+  if (_endingFor) return;   // as above
+  _sessionClosing = false;
+  endBusy();
+  if (firebaseUser && sOwner === firebaseUser.uid && tabHasUnsynced()) save(true);
+}
+
+// ── Leaving while a sign-out is owed ────────────────────────────────────────
+// From the moment the user confirms Sign out (or an account deletion starts
+// deleting) this tab owes them a sign-out, and finishing it can take seconds:
+// unsynced edits uploading, the "lose unsynced changes?" question, the
+// deletion's network steps. Closing or reloading the tab meanwhile is warned
+// against. If the tab goes anyway, the sign-out still happens, and it doesn't
+// rest on the closing tab alone: pagehide sends it without waiting, and tells
+// the other open tabs ('signout-owed'), which sign out themselves. In case
+// neither happens (the tab crashed), a marker in localStorage records the debt:
+// { uid, at }. The tab that owes it refreshes `at` every second, and holds a
+// Web Lock where the browser has them (it loses the lock only by closing or
+// crashing). A marker with no heartbeat for a few seconds and nobody holding
+// the lock is abandoned, and any tab finishes it: one still signed in as that
+// account signs out (its own signed-out event then ends its session as usual),
+// and a fresh load of the app signs out instead of restoring the session. A
+// marker still being kept up is left to its tab: a fresh load meanwhile shows
+// the splash and leaves the session alone (_heldBack) until that tab is done or
+// calls it off. The "Continue as" hint goes at once, in every tab. Edits the
+// cloud never confirmed stay in the working copy, tagged as this account's and
+// unsynced, so only this account's next sign-in here takes them up (unless the
+// account was being deleted: then none stay).
+const SIGNOUT_PENDING_KEY = 'brainfy_signout_pending';
+const OWED_BEAT_MS  = 1000;
+const OWED_STALE_MS = 3000;
+const OWED_LOCK     = 'brainfy-signout-owed:';
+interface OwedSignOut { uid: string; at: number }
+let _endingFor: string | null = null;   // the account whose sign-out this tab owes
+let _signOutOnHide = false;             // pagehide sent it
+let _leaveWarned = false;
+let _owedBeat: number | undefined;      // this tab's heartbeat on the marker
+let _owedLockRelease: (() => void) | null = null;
+let _owedCheck: number | undefined;     // next look at another tab's marker
+let _heldBack = false;                  // a session left alone while another tab ends it
+let _onAuthState: ((user: any) => Promise<void>) | null = null;   // init's auth observer
+function warnBeforeLeaving(e: BeforeUnloadEvent): void { e.preventDefault(); e.returnValue = ''; }
+// The beforeunload warning is on only while it's needed (a listener left on
+// would also keep the page out of some browsers' back/forward cache).
+function updateLeaveWarning(): void {
+  const on = !!_endingFor || _deleting;
+  if (on === _leaveWarned) return;
+  _leaveWarned = on;
+  if (on) window.addEventListener('beforeunload', warnBeforeLeaving);
+  else    window.removeEventListener('beforeunload', warnBeforeLeaving);
+}
+function readOwed(): OwedSignOut | null {
+  const v = lsJSON<any>(SIGNOUT_PENDING_KEY);
+  if (typeof v === 'string') return { uid: v, at: 0 };
+  return v && typeof v.uid === 'string' ? { uid: v.uid, at: typeof v.at === 'number' ? v.at : 0 } : null;
+}
+// Has the marker gone without its heartbeat too long for its tab to be alive?
+// (A clock that jumped, either way, counts as no heartbeat.)
+function owedLooksAbandoned(p: OwedSignOut, now: number): boolean {
+  return !(Math.abs(now - p.at) <= OWED_STALE_MS);
+}
+// ...and does no tab hold its lock? A tab whose heartbeat the browser has
+// slowed down or stopped (a hidden or suspended tab) still holds it.
+async function owedAbandoned(p: OwedSignOut): Promise<boolean> {
+  if (!owedLooksAbandoned(p, Date.now())) return false;
+  try {
+    const locks = (navigator as any).locks;
+    if (locks && typeof locks.query === 'function') {
+      const q = await locks.query();
+      if ((q?.held || []).some((l: any) => l?.name === OWED_LOCK + p.uid)) return false;
+    }
+  } catch (_) { /* no lock to go by: the heartbeat decides */ }
+  return true;
+}
+function signOutOwed(uid: string): void {
+  _endingFor = uid;
+  const beat = () => { lsPut(SIGNOUT_PENDING_KEY, { uid, at: Date.now() }); };
+  beat();
+  window.clearInterval(_owedBeat);
+  _owedBeat = window.setInterval(beat, OWED_BEAT_MS);
+  holdOwedLock(uid);
+  clearSigninHint();
+  updateLeaveWarning();
+}
+function holdOwedLock(uid: string): void {
+  dropOwedLock();
+  try {
+    const locks = (navigator as any).locks;
+    if (!locks || typeof locks.request !== 'function') return;
+    let release!: () => void;
+    const held = new Promise<void>(r => { release = r; });
+    _owedLockRelease = release;
+    // (Released before it was granted: granted, it is let go at once.)
+    void Promise.resolve(locks.request(OWED_LOCK + uid, () => held)).catch(() => {});
+  } catch (_) { /* the heartbeat alone, then */ }
+}
+function dropOwedLock(): void {
+  _owedLockRelease?.();
+  _owedLockRelease = null;
+}
+function stopOwedBeat(): void {
+  window.clearInterval(_owedBeat);
+  _owedBeat = undefined;
+  dropOwedLock();
+}
+// The sign-out is done (resetSession), or called off: the user stays signed in.
+function signOutSettled(): void {
+  _endingFor = null;
+  _signOutOnHide = false;
+  stopOwedBeat();
+  lsDel(SIGNOUT_PENDING_KEY);
+  updateLeaveWarning();
+}
+function signOutCalledOff(): void {
+  const uid = _endingFor;
+  signOutSettled();
+  if (S.userName) setSigninHint(S.userName);
+  if (uid) tellTabs('signout-called-off', uid);
+}
+// Another tab owed `uid` a sign-out and can't finish it (it closed or crashed).
+// If `uid` is signed in here, this tab signs out: its sign-out lands (the tab
+// stays open), and every tab and every later load follows it.
+function finishOwedSignOut(uid: string): void {
+  if (_endingFor === uid) return;   // this tab owes it itself, and is on it
+  const here: string | null = authCurrentUser()?.uid ?? firebaseUser?.uid ?? null;
+  if (here !== uid) return;
+  try { void Promise.resolve(firebase.auth().signOut()).catch(() => {}); } catch (_) { /* the next check tries again */ }
+}
+// Look at the marker another tab left: finish an abandoned sign-out, and look
+// again in a while as long as one is being kept up (its tab may yet crash).
+// Runs when the marker changes (a storage event: every heartbeat), when the tab
+// is shown again, and while a session is held back.
+async function checkOwedSignOut(): Promise<void> {
+  window.clearTimeout(_owedCheck);
+  _owedCheck = undefined;
+  const p = readOwed();
+  if (!p || _endingFor === p.uid) return;
+  if (await owedAbandoned(p)) { finishOwedSignOut(p.uid); return; }
+  _owedCheck = window.setTimeout(() => { void checkOwedSignOut(); }, OWED_STALE_MS + 250);
+}
+window.addEventListener('pagehide', () => {
+  const uid = _endingFor;
+  if (!uid || _signOutOnHide) return;
+  _signOutOnHide = true;
+  _sessionClosing = true;   // nothing more goes to the cloud
+  _signOutSent = true;      // the signed-out event is this tab's own
+  // Deleting the account: none of its data stays. Otherwise what the cloud has
+  // confirmed needn't stay; edits it hasn't stay tagged as this account's.
+  if (_deleting) { discardKept(uid); vacateWorkingCopy(uid); }
+  else if (!hasUnsynced(uid)) vacateWorkingCopy(uid);
+  // This tab can't see the sign-out through: the marker says so at once (no
+  // waiting for it to go stale), and the other open tabs finish it.
+  stopOwedBeat();
+  lsPut(SIGNOUT_PENDING_KEY, { uid, at: 0 });
+  tellTabs('signout-owed', uid);
+  try { void Promise.resolve(firebase.auth().signOut()).catch(() => {}); } catch (_) { /* no SDK: no session to end */ }
+});
+// Back from the back/forward cache after pagehide signed out: that session is over.
+window.addEventListener('pageshow', (e: PageTransitionEvent) => {
+  if (e.persisted && _signOutOnHide) void sessionEndedElsewhere();
+});
+window.addEventListener('storage', (e: StorageEvent) => {
+  if (e.key === SIGNOUT_PENDING_KEY || e.key === null) void checkOwedSignOut();
+  // Another tab set or cleared "Continue as <name>": the splash follows, so no
+  // tab offers the way into an account whose sign-out is under way.
+  if ((e.key === USER_HINT_KEY || e.key === null) && currentView === 'splash') applySigninHint();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') void checkOwedSignOut();
+});
 
 // ── Router ──────────────────────────────────────────────────────────────────
 function goTo(view: ViewName): void {
@@ -2044,7 +2879,12 @@ if (typeof MutationObserver !== 'undefined') {
 // inline button onclicks in the HTML always have something to call.
 
 let _cfmResolver: ((v: boolean) => void) | null = null;
+let _cfmHideTimer: number | undefined;
 let _prmResolver: ((v: Record<string,string> | null) => void) | null = null;
+let _prmHideTimer: number | undefined;
+let _cfmBusy = false;   // the confirm modal is showing a buttonless "please wait" (showBusy)
+let _cfmRowDisplay = '';   // its button row's own display, hidden meanwhile
+let _cfmOpenedAt = 0;   // when the current confirm opened (see the Enter key below)
 let _prmFields: { id: string; required?: boolean }[] = [];
 
 interface ConfirmOpts {
@@ -2053,6 +2893,7 @@ interface ConfirmOpts {
   confirmLabel?: string;
   cancelLabel?:  string;
   dangerous?:    boolean;   // styles confirm button red
+  hideCancel?:   boolean;   // a notice: one button
 }
 // ── Dialog accessibility ──────────────────────────────────────────────────
 // Modals carry [role="dialog"][aria-modal="true"] (set in index.html). This
@@ -2115,6 +2956,7 @@ interface ConfirmOpts {
 })();
 
 function showConfirm(opts: ConfirmOpts = {}): Promise<boolean> {
+  endBusy();
   return new Promise<boolean>(resolve => {
     _cfmResolver = resolve;
     const modal      = el('cfmModal')      as HTMLElement | null;
@@ -2129,19 +2971,75 @@ function showConfirm(opts: ConfirmOpts = {}): Promise<boolean> {
     msgEl.style.display  = opts.message ? 'block' : 'none';
     confirmBtn.textContent = opts.confirmLabel || 'Confirm';
     cancelBtn.textContent  = opts.cancelLabel  || 'Cancel';
+    cancelBtn.style.display = opts.hideCancel ? 'none' : '';
     confirmBtn.classList.toggle('danger', !!opts.dangerous);
 
+    window.clearTimeout(_cfmHideTimer);   // a confirm opened right after another must stay open
+    _cfmOpenedAt = Date.now();
     modal.style.display = 'flex';
-    requestAnimationFrame(() => modal.classList.add('open'));
+    // Not if it was answered or dismissed within the frame (e.g. by a session reset).
+    requestAnimationFrame(() => { if (_cfmResolver === resolve) modal.classList.add('open'); });
     setTimeout(() => confirmBtn.focus(), 80);
   });
 }
 function cfmDismiss(result: boolean): void {
+  if (_cfmBusy) return;   // a busy notice can't be clicked or keyed away
   const modal = el('cfmModal') as HTMLElement | null;
   if (!modal) return;
   modal.classList.remove('open');
-  setTimeout(() => { modal.style.display = 'none'; }, 220);
+  _cfmHideTimer = window.setTimeout(() => { modal.style.display = 'none'; }, 220);
   if (_cfmResolver) { _cfmResolver(result); _cfmResolver = null; }
+}
+
+// A buttonless notice in the confirm modal, for a step the user has to wait
+// out (signing out while the last changes upload). Clicks, Escape and typing
+// don't get past it to the app behind, so nothing new is edited meanwhile.
+function showBusy(title: string, message: string): void {
+  const modal   = el('cfmModal')   as HTMLElement | null;
+  const titleEl = el('cfmTitle')   as HTMLElement | null;
+  const msgEl   = el('cfmMessage') as HTMLElement | null;
+  const row     = el('cfmConfirmBtn')?.parentElement as HTMLElement | null;
+  if (!modal || !titleEl || !msgEl || !row) return;
+  if (_cfmResolver) cfmDismiss(false);
+  if (!_cfmBusy) _cfmRowDisplay = row.style.display;   // (the row is a flex row: put back as it was)
+  _cfmBusy = true;
+  titleEl.textContent = title;
+  msgEl.textContent   = message;
+  msgEl.style.display = message ? 'block' : 'none';
+  row.style.display   = 'none';
+  modal.setAttribute('aria-busy', 'true');
+  (document.activeElement as HTMLElement | null)?.blur?.();
+  window.clearTimeout(_cfmHideTimer);
+  modal.style.display = 'flex';
+  requestAnimationFrame(() => { if (_cfmBusy) modal.classList.add('open'); });   // not if it already ended
+}
+function endBusy(): void {
+  if (!_cfmBusy) return;
+  _cfmBusy = false;
+  const modal = el('cfmModal') as HTMLElement | null;
+  const row   = el('cfmConfirmBtn')?.parentElement as HTMLElement | null;
+  if (row) row.style.display = _cfmRowDisplay;
+  if (!modal) return;
+  modal.removeAttribute('aria-busy');
+  modal.classList.remove('open');
+  _cfmHideTimer = window.setTimeout(() => { modal.style.display = 'none'; }, 220);
+}
+// Keys go nowhere while a busy notice is up (capture phase: before any field's
+// own handler, e.g. Enter in the new-task box).
+document.addEventListener('keydown', e => { if (_cfmBusy) { e.preventDefault(); e.stopPropagation(); } }, true);
+
+// Close any open confirm or prompt with its safe answer (cancel), and end a
+// busy notice. resetSession() calls it: a dialog opened for one account must
+// not act on the next.
+function dismissDialogs(): void {
+  endBusy();
+  if (_cfmResolver) cfmDismiss(false);
+  if (_prmResolver) prmDismiss(null);
+}
+// An outcome the user has to see, not just glimpse (how an account deletion
+// went): the confirm modal with a single OK, which stays until it is read.
+function notice(title: string, message: string): void {
+  void showConfirm({ title, message, confirmLabel: 'OK', hideCancel: true });
 }
 
 interface PromptField {
@@ -2197,8 +3095,9 @@ function showPrompt(opts: PromptOpts): Promise<Record<string,string> | null> {
       f2.value = '';
     }
 
+    window.clearTimeout(_prmHideTimer);   // a prompt opened right after another must stay open
     modal.style.display = 'flex';
-    requestAnimationFrame(() => modal.classList.add('open'));
+    requestAnimationFrame(() => { if (_prmResolver === resolve) modal.classList.add('open'); });
     setTimeout(() => f1.focus(), 80);
   });
 }
@@ -2227,7 +3126,7 @@ function prmDismiss(result: Record<string,string> | null): void {
   const modal = el('prmModal') as HTMLElement | null;
   if (!modal) return;
   modal.classList.remove('open');
-  setTimeout(() => { modal.style.display = 'none'; }, 220);
+  _prmHideTimer = window.setTimeout(() => { modal.style.display = 'none'; }, 220);
   if (_prmResolver) { _prmResolver(result); _prmResolver = null; }
 }
 
@@ -2242,7 +3141,9 @@ document.addEventListener('keydown', e => {
   const prm = el('prmModal');
   if (cfm && cfm.classList.contains('open')) {
     if (e.key === 'Escape') { e.preventDefault(); cfmDismiss(false); }
-    if (e.key === 'Enter')  { e.preventDefault(); cfmDismiss(true);  }
+    // Not a held key or a double press: the Enter that answered one confirm
+    // must not also answer the next ("Sign out?" then "…lose unsynced changes?").
+    if (e.key === 'Enter')  { e.preventDefault(); if (!e.repeat && Date.now() - _cfmOpenedAt > 300) cfmDismiss(true); }
     return;
   }
   if (prm && prm.classList.contains('open')) {
@@ -2595,7 +3496,7 @@ function renderHomeCoach(): void {
   const card = el('homeCoach');
   if (!card) return;
   const hasSignal = S.sessions.length > 0 || S.subjects.some(s => !!s.cards?.length);
-  if (!hasSignal) { card.style.display = 'none'; return; }
+  if (!hasSignal) { card.style.display = 'none'; card.innerHTML = ''; return; }   // emptied too: it may hold the last account's subjects
 
   const due       = srsSessionQueue().length;
   const weak      = weakestSubject();
@@ -3183,13 +4084,16 @@ const FREE_LIMITS     = { importsPerMonth: 20, tutorMsgsPerDay: 30 };
 function isPlus(): boolean { return S.plan === 'plus'; }
 function _monthKey(): string { const d = new Date(); return `${d.getFullYear()}-${d.getMonth()}`; }
 
-// Lazily init + roll over the usage counters (monthly for AI generations,
-// daily for tutor messages).
+// The usage counters as they stand now, rolled over as needed (monthly for AI
+// generations, daily for tutor messages). Reading them changes nothing in S —
+// only recordAI() stores them — so opening Settings is never an unsynced edit.
 function usage(): { day: string; month: string; imports: number; tutor: number } {
-  if (!S.usage) S.usage = { day: todayStr(), month: _monthKey(), imports: 0, tutor: 0 };
-  if (S.usage.month !== _monthKey()) { S.usage.month = _monthKey(); S.usage.imports = 0; }
-  if (S.usage.day   !== todayStr())  { S.usage.day   = todayStr();  S.usage.tutor   = 0; }
-  return S.usage;
+  const u = S.usage, day = todayStr(), month = _monthKey();
+  return {
+    day, month,
+    imports: u && u.month === month ? u.imports || 0 : 0,
+    tutor:   u && u.day   === day   ? u.tutor   || 0 : 0,
+  };
 }
 function aiRemaining(kind: 'import' | 'tutor'): number {
   const u = usage();
@@ -3210,6 +4114,7 @@ function gateAI(kind: 'import' | 'tutor'): boolean {
 function recordAI(kind: 'import' | 'tutor'): void {
   const u = usage();
   if (kind === 'import') u.imports++; else u.tutor++;
+  S.usage = u;
   save();
 }
 
@@ -3254,6 +4159,9 @@ function beginFocusSession(): void {
   const intentEl = el('focusIntentInput') as HTMLInputElement | null;
   const subjEl   = el('focusSubjectSelect') as HTMLSelectElement | null;
   timer.intent    = intentEl?.value?.trim() || 'Focus Session';
+  // The intent is this session's (it titles the session screen): the next
+  // session asks afresh instead of offering this one's words again.
+  if (intentEl) intentEl.value = '';
   timer.subjectId = subjEl?.value ? +subjEl.value : null;
   timer.mode      = 'focus';
   timer.totalTime = S.focusDuration;
@@ -3813,7 +4721,10 @@ function readAndAddDoc(file: File): void {
   uploadFileToStorage(file, docModalSubjId);
 }
 
+// In-flight Storage uploads; resetSession() cancels them.
+const _uploads = new Set<any>();
 function uploadFileToStorage(file: File, subjectId: number): void {
+  const scope     = sessionScope();   // a file that finishes after sign-out isn't added to whoever is here then
   const uid       = firebaseUser.uid;
   const safeName  = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
   const path      = `users/${uid}/docs/${subjectId}/${Date.now()}-${safeName}`;
@@ -3825,6 +4736,7 @@ function uploadFileToStorage(file: File, subjectId: number): void {
   });
 
   const prog = showUploadToast(file.name);
+  _uploads.add(task);
 
   task.on('state_changed',
     (snap: any) => {
@@ -3832,16 +4744,20 @@ function uploadFileToStorage(file: File, subjectId: number): void {
       prog.update(pct);
     },
     (err: any) => {
+      _uploads.delete(task);
       prog.dismiss();
+      if (!scope.alive()) return;
       const msg = err?.code === 'storage/unauthorized'
         ? 'Upload blocked: enable Storage rules for signed-in users'
         : (err?.message || 'Upload failed');
       showToast(msg, 'error');
     },
     async () => {
+      _uploads.delete(task);
       try {
         const downloadURL = await task.snapshot.ref.getDownloadURL();
         prog.dismiss();
+        if (!scope.alive()) return;
         addDocToSubject({
           id:          S.nextId++,
           name:        file.name,
@@ -3855,6 +4771,7 @@ function uploadFileToStorage(file: File, subjectId: number): void {
         }, subjectId);                      // bind to the subject id captured at upload start
       } catch (e: any) {
         prog.dismiss();
+        if (!scope.alive()) return;
         showToast(`Could not finalise upload: ${e?.message || e}`, 'error');
       }
     }
@@ -4099,6 +5016,7 @@ async function publishDeck(subjectId: number): Promise<void> {
   // built from the user's own notes and carry their display name, and a lot of
   // our users are school-age. One unlabelled tap was too few. (Re-publishing an
   // already-shared deck just updates it, so no second prompt.)
+  const scope = sessionScope();
   if (!s.publicDeckId) {
     const publishName = String(S.userName || firebaseUser.displayName || 'A student').slice(0, 60);
     const ok = await showConfirm({
@@ -4107,7 +5025,7 @@ async function publishDeck(subjectId: number): Promise<void> {
       confirmLabel: 'Publish publicly',
       cancelLabel:  'Cancel',
     });
-    if (!ok) return;
+    if (!ok || !scope.alive()) return;
   }
 
   const payload: Record<string, unknown> = {
@@ -4126,9 +5044,11 @@ async function publishDeck(subjectId: number): Promise<void> {
       await col.doc(s.publicDeckId).set(payload, { merge: true });
     } else {
       const ref = await col.add({ ...payload, createdAt: new Date().toISOString() });
+      if (!scope.alive()) return;
       s.publicDeckId = ref.id;
       save();
     }
+    if (!scope.alive()) return;   // signed out meanwhile: no link or share sheet for the next person
     const link = `${location.origin}/decks/${s.publicDeckId}`;   // indexable SSR page (has a Study CTA → /?deck=)
     track('share.deck.published');
     try { await navigator.clipboard?.writeText(link); } catch (_) {}
@@ -4137,6 +5057,7 @@ async function publishDeck(subjectId: number): Promise<void> {
     // Surface the share options right away — this is the moment a deck spreads.
     openShareSheet(link, s.name || 'My deck', `Study "${s.name || 'this deck'}" — ${s.cards.length} free flashcards on Brainfy`);
   } catch (err: unknown) {
+    if (!scope.alive()) return;
     const code = (err as { code?: string })?.code;
     console.error('[share] publish failed', code, err);
     track('share.publish.error', { code });
@@ -4149,9 +5070,11 @@ async function publishDeck(subjectId: number): Promise<void> {
 async function unpublishDeck(subjectId: number): Promise<void> {
   const s = S.subjects.find(x => x.id === subjectId);
   if (!s || !s.publicDeckId) return;
+  const scope = sessionScope();
   try {
     await firebase.firestore().collection('publicDecks').doc(s.publicDeckId).delete();
   } catch (err) { console.error('[share] unpublish failed', err); }
+  if (!scope.alive()) return;
   // `delete`, not `= undefined` — Firestore rejects undefined field values and
   // save() would throw on every subsequent write. See save().
   delete s.publicDeckId;
@@ -4372,8 +5295,10 @@ async function maybeOpenSharedDeck(): Promise<void> {
   if (typeof firebase === 'undefined' || typeof firebase.firestore !== 'function') return;
   const notFound = () => showToast('That shared deck wasn’t found', 'warning');
   if (!DECK_ID_RE.test(id)) { notFound(); return; }
+  const scope = sessionScope();
   try {
     const doc = await firebase.firestore().collection('publicDecks').doc(id).get();
+    if (!scope.alive()) return;
     // A deck pulled by moderation (approved:false) is gone from /decks and the
     // Community tab, so an old link must not resurrect it either.
     const deck = doc.exists ? parsePublicDeck(doc.id, doc.data(), 'Shared deck') : null;
@@ -4385,7 +5310,7 @@ async function maybeOpenSharedDeck(): Promise<void> {
       confirmLabel: 'Add to library',
       cancelLabel:  'Not now',
     });
-    if (ok && importPublicDeckById(deck.id)) goTo('library');
+    if (ok && scope.alive() && importPublicDeckById(deck.id)) goTo('library');
   } catch (err) {
     console.error('[share] open link failed', err);
     showToast('Couldn’t open that shared deck — try again in a moment', 'warning');
@@ -4509,11 +5434,13 @@ async function generateSummaryForDoc(subjId: number, docId: number): Promise<voi
   renderLibrary();
   if (docModalSubjId === subjId) renderDocModal();
   showToast('Generating summary…', 'info');
+  const scope = sessionScope();   // a summary that arrives after sign-out goes nowhere
   try {
     const res = await fetch('/api/process-content', {
-      method: 'POST', headers: await aiHeaders(), body: JSON.stringify(payload),
+      method: 'POST', headers: await aiHeaders(), body: JSON.stringify(payload), signal: scope.signal,
     });
     const result = await res.json();
+    if (!scope.alive()) return;
     if (!res.ok) throw new Error(result.error || 'Summary generation failed');
     const summary = (result.summary || '').trim();
     if (!summary) throw new Error('Empty summary returned');
@@ -4522,13 +5449,16 @@ async function generateSummaryForDoc(subjId: number, docId: number): Promise<voi
     const noteName = (`AI Summary — ${d.name}`).slice(0, 80);
     addDocToSubject({ id: S.nextId++, name: noteName, type: 'note', content: summary, date: Date.now() }, subjId);
   } catch (e) {
+    if (!scope.alive()) return;
     const msg = e instanceof Error ? e.message : String(e);
     track('ai.summary.error', { message: msg });
     showToast('Error: ' + msg, 'error');
   } finally {
-    summarizingDocId = null;
-    renderLibrary();
-    if (docModalSubjId === subjId) renderDocModal();
+    if (scope.alive()) {
+      summarizingDocId = null;
+      renderLibrary();
+      if (docModalSubjId === subjId) renderDocModal();
+    }
   }
 }
 
@@ -4621,13 +5551,14 @@ async function showAddSubject() {
 
 async function deleteSubject(id: number): Promise<void> {
   const subj = S.subjects.find(s => s.id === id);
+  const scope = sessionScope();   // "subject <id>" means someone else's after a sign-out
   const ok = await showConfirm({
     title:        'Remove subject?',
     message:      subj ? `"${subj.name}" and all its notes will be removed from this device.` : 'This subject will be removed.',
     confirmLabel: 'Remove',
     dangerous:    true,
   });
-  if (!ok) return;
+  if (!ok || !scope.alive()) return;
   S.subjects = S.subjects.filter(s => s.id !== id);
   save();
   renderLibrary();
@@ -4996,22 +5927,29 @@ async function generateSummary(): Promise<void> {
   aiSummaryLoading = true;
   aiImportResultTab = 'summary';
   renderAIImportStep('result');
+  const scope = sessionScope();
+  const target = aiImportResult;
   try {
     const res = await fetch('/api/process-content', {
       method: 'POST', headers: await aiHeaders(),
       body: JSON.stringify({ ...aiImportSourcePayload, mode: 'summary' }),
+      signal: scope.signal,
     });
     const result = await res.json();
+    if (!scope.alive()) return;
     if (!res.ok) throw new Error(result.error || 'Summary generation failed');
-    aiImportResult.summary = result.summary || '';
-    if (!aiImportResult.summary) throw new Error('Empty summary returned');
+    target.summary = result.summary || '';
+    if (!target.summary) throw new Error('Empty summary returned');
   } catch (e) {
+    if (!scope.alive()) return;
     const msg = e instanceof Error ? e.message : String(e);
     track('ai.summary.error', { message: msg });
     showToast('Error: ' + msg, 'error');
   } finally {
-    aiSummaryLoading = false;
-    renderAIImportStep('result');
+    if (scope.alive()) {
+      aiSummaryLoading = false;
+      renderAIImportStep('result');
+    }
   }
 }
 
@@ -5128,12 +6066,15 @@ async function readAIFile(file: File): Promise<void> {
 
   showFileChosenUI(file, kind === 'pdf' ? 'Reading PDF…' : undefined);
 
+  const scope = sessionScope();
   try {
     if (kind === 'text') {
       const content = await readFileAs(file, 'text') as string;
+      if (!scope.alive()) return;
       aiImportFileData = { kind, name: file.name, size: file.size, mime: file.type, text: content };
     } else if (kind === 'image') {
       const dataUrl = await readFileAs(file, 'dataurl') as string;
+      if (!scope.alive()) return;
       aiImportFileData = { kind, name: file.name, size: file.size, mime: file.type || guessImageMime(file.name), dataUrl };
     } else {
       // PDF — read twice: once as ArrayBuffer for PDF.js, once as data URL
@@ -5154,6 +6095,7 @@ async function readAIFile(file: File): Promise<void> {
         return;
       }
       const dataUrl = await readFileAs(file, 'dataurl') as string;
+      if (!scope.alive()) return;
       aiImportFileData = {
         kind, name: file.name, size: file.size, mime: 'application/pdf',
         text: result.text, dataUrl,
@@ -5166,6 +6108,7 @@ async function readAIFile(file: File): Promise<void> {
     }
     enableAIProcessBtn();
   } catch (e) {
+    if (!scope.alive()) return;
     const msg = e instanceof Error ? e.message : String(e);
     track('ai.file.read.error', { kind, message: msg });
     showToast(`Couldn't read file: ${msg}`, 'error');
@@ -5225,13 +6168,18 @@ async function processYouTube(): Promise<void> {
   renderAIImportStep('processing');
   advanceProcStep(0, 'Fetching video info…', 'Getting transcript from YouTube');
 
+  // Everything below lands in "subject aiImportSubjId" of whoever is signed in
+  // when it returns; after a sign-out that is someone else's subject.
+  const scope = sessionScope();
   try {
-    const infoRes  = await fetch('/api/youtube', { method:'POST', headers: await aiHeaders(), body: JSON.stringify({ url }) });
+    const infoRes  = await fetch('/api/youtube', { method:'POST', headers: await aiHeaders(), body: JSON.stringify({ url }), signal: scope.signal });
     const info     = await infoRes.json();
+    if (!scope.alive()) return;
     if (!infoRes.ok) throw new Error(info.error || 'YouTube fetch failed');
 
     advanceProcStep(1, 'Analysing content…', `"${info.title}" · ${info.transcript ? 'transcript loaded' : 'using title only'}`);
     await new Promise(r => setTimeout(r, 600));
+    if (!scope.alive()) return;
 
     advanceProcStep(2, 'Generating flashcards…', 'AI is extracting key concepts');
 
@@ -5241,12 +6189,15 @@ async function processYouTube(): Promise<void> {
     const procRes = await fetch('/api/process-content', {
       method: 'POST', headers: await aiHeaders(),
       body: JSON.stringify({ ...payload, mode: 'study' }),
+      signal: scope.signal,
     });
     const result = await procRes.json();
+    if (!scope.alive()) return;
     if (!procRes.ok) throw new Error(result.error || 'AI processing failed');
 
     advanceProcStep(3, 'Building outline…', 'Almost done!');
     await new Promise(r => setTimeout(r, 400));
+    if (!scope.alive()) return;
 
     aiImportResult = { flashcards: result.flashcards || [], outline: result.outline || [], summary: '' };
     aiImportResultTab = 'flashcards';
@@ -5263,6 +6214,7 @@ async function processYouTube(): Promise<void> {
 
     renderAIImportStep('result');
   } catch(e) {
+    if (!scope.alive()) return;
     const msg = e instanceof Error ? e.message : String(e);
     track('ai.youtube.error', { message: msg });
     showToast('Error: ' + msg, 'error');
@@ -5278,7 +6230,11 @@ async function processFile(): Promise<void> {
 
   renderAIImportStep('processing');
   advanceProcStep(0, 'Reading file…', name);
+  // The result lands in "subject aiImportSubjId" of whoever is signed in when
+  // it returns; after a sign-out that is someone else's subject.
+  const scope = sessionScope();
   await new Promise(r => setTimeout(r, 300));
+  if (!scope.alive()) return;
 
   const analyseSub = kind === 'image' ? 'Looking at your image' :
                      kind === 'pdf'   ? 'Reading your PDF'        :
@@ -5317,14 +6273,18 @@ async function processFile(): Promise<void> {
     const procRes = await fetch('/api/process-content', {
       method: 'POST', headers: await aiHeaders(),
       body: JSON.stringify({ ...body, mode: 'study' }),
+      signal: scope.signal,
     });
+    if (!scope.alive()) return;
 
     advanceProcStep(2, 'Generating flashcards…', 'AI is creating study cards');
     const result = await procRes.json();
+    if (!scope.alive()) return;
     if (!procRes.ok) throw new Error(result.error || 'Processing failed');
 
     advanceProcStep(3, 'Building outline…', 'Finishing up');
     await new Promise(r => setTimeout(r, 400));
+    if (!scope.alive()) return;
 
     aiImportResult = { flashcards: result.flashcards || [], outline: result.outline || [], summary: '' };
     aiImportResultTab = 'flashcards';
@@ -5345,6 +6305,7 @@ async function processFile(): Promise<void> {
 
     renderAIImportStep('result');
   } catch(e) {
+    if (!scope.alive()) return;
     const msg = e instanceof Error ? e.message : String(e);
     track('ai.file.error', { kind, message: msg });
     showToast('Error: ' + msg, 'error');
@@ -5722,7 +6683,11 @@ function showToast(msg: string, type: 'info' | 'success' | 'warning' | 'error' =
     'border-radius:12px','padding:12px 20px','font-size:14px','font-weight:500',
     `color:${colors[type] || colors.info}`,
     'z-index:9999','backdrop-filter:blur(16px)',
-    'box-shadow:0 8px 32px rgba(0,0,0,0.5)','white-space:nowrap',
+    'box-shadow:0 8px 32px rgba(0,0,0,0.5)',
+    // One line where it fits; on a narrow screen it wraps inside a 16 px margin
+    // instead of running off both edges (a message that says whether the account
+    // was deleted must be readable on a phone).
+    'width:max-content','max-width:calc(100vw - 32px)','box-sizing:border-box','white-space:normal',
     'display:flex','align-items:center','gap:10px',
     'animation:toastSpringIn 0.28s cubic-bezier(0.34,1.2,0.64,1) both',
     'font-family:Manrope,sans-serif',
@@ -5730,29 +6695,15 @@ function showToast(msg: string, type: 'info' | 'success' | 'warning' | 'error' =
   // icons[type] is a static set of known values, but msg comes from caller
   // (possibly with user-controlled fragments like subject names) → escape it.
   // Inline SVG via icon() so we don't depend on the Material Symbols font.
-  toast.innerHTML = `${icon(icons[type], { size: 18, color: colors[type] || colors.info })}<span style="line-height:1.2;">${_e(msg)}</span>`;
+  toast.innerHTML = `${icon(icons[type], { size: 18, color: colors[type] || colors.info, style: 'flex-shrink:0' })}<span style="line-height:1.35;min-width:0;">${_e(msg)}</span>`;
   document.body.appendChild(toast);
+  // Warnings and errors stay up longer: they say what went wrong and what to do.
   setTimeout(() => {
     toast.style.transition = 'opacity 0.3s, transform 0.3s';
     toast.style.opacity = '0';
     toast.style.transform = 'translateX(-50%) translateY(8px)';
     setTimeout(() => toast.remove(), 320);
-  }, 3000);
-}
-
-// ── LOGOUT ───────────────────────────────────────────────────────────────────
-// Kept as a fallback; the primary sign-out is now in the Settings view.
-async function handleLogout() {
-  const ok = await showConfirm({
-    title:        'Sign out of Brainfy?',
-    message:      'Your local data stays on this device.',
-    confirmLabel: 'Sign out',
-    dangerous:    true,
-  });
-  if (!ok) return;
-  pauseTimer();
-  document.body.classList.remove('focus-active');
-  handleSignOut();
+  }, type === 'error' || type === 'warning' ? 7000 : 3000);
 }
 
 // ── DELETE ACCOUNT ───────────────────────────────────────────────────────────
@@ -5760,20 +6711,63 @@ async function handleLogout() {
 // because the user needs to be authenticated to delete their own
 // Firestore doc and Storage files (rules enforce auth.uid == userId).
 //
-//   1. Storage    — recursively listAll + delete every file under users/{uid}/
-//   2. Firestore  — delete users/{uid} document
+//   1. Firestore  — delete the users/{uid} document (the study data)
+//   2. Storage    — recursively listAll + delete every file under users/{uid}/,
+//                   and unpublish the account's public decks (they carry its name)
 //   3. Auth       — firebase.auth().currentUser.delete()
 //
-// Idempotency: Storage and Firestore are best-effort. If Storage delete
-// fails partway, we still try Firestore and Auth — the user gets out from
-// under us, even if a few orphan files remain. (Firebase Storage doesn't
-// charge for orphan files we can't trace; the user is unbillable anyway
+// The Firestore step decides: if it fails, for any reason, the deletion stops
+// there with nothing deleted, and the account carries on as before, signed in
+// and syncing. Storage and the decks are best effort: if they fail partway we
+// still delete the login, even if a few orphan files remain. (Firebase Storage
+// doesn't charge for orphan files we can't trace; the user is unbillable anyway
 // after auth deletion.)
 //
 // "requires-recent-login": Firebase Auth refuses to delete a user whose
 // last sign-in was > ~5 min ago. We catch this, sign them out, and ask
-// them to sign back in and retry. The Storage + Firestore data is already
+// them to sign back in and retry. The Firestore + Storage data is already
 // gone at that point — only Auth remains, which is fine for the next try.
+//
+// From the moment it starts, no save() sends anything to the cloud (it would
+// re-create the document). The moment the Firestore delete succeeds, this
+// device's copies of the data go too (the working copy, its sync marker, any
+// kept copy, the "Continue as" hint) and nothing stores them again, so neither
+// a later step's failure nor the tab closing after that can bring the data back.
+// Closing the tab is warned against throughout; a tab closed anyway still
+// signs the account out and drops its data from the device (signOutOwed, and
+// the pagehide handler), whether or not the delete reached the server. The
+// flow acts only on the account it was opened for: if the session ends or
+// changes while a dialog is open or a step runs, it stops (resetSession() also
+// closes its dialogs). It never starts offline, and every network step has a
+// time limit (a Firestore write made offline never settles), so a deletion that
+// can't reach the server stops and says so — never stuck, with Sign out
+// ignored, until the network returns.
+const DELETE_STEP_MS = 10000;
+// `p`, or a rejection with code 'timeout' once `ms` have passed.
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = window.setTimeout(() => reject(Object.assign(new Error('timed out'), { code: 'timeout' })), ms);
+    Promise.resolve(p).then(v => { window.clearTimeout(t); resolve(v); }, e => { window.clearTimeout(t); reject(e); });
+  });
+}
+// Unpublish every deck `uid` shared: the ones its subjects point to, and any
+// other the community collection lists under it (published from a device whose
+// copy never synced). Best effort, like the Storage step.
+async function deletePublicDecksOf(uid: string): Promise<void> {
+  const col = firebase.firestore().collection('publicDecks');
+  const ids = new Set<string>();
+  for (const s of S.subjects) if (s.publicDeckId) ids.add(s.publicDeckId);
+  try {
+    const snap = await col.where('ownerUid', '==', uid).get();
+    snap.forEach((d: any) => { if ((d.data() || {}).ownerUid === uid) ids.add(d.id); });
+  } catch (err: any) {
+    console.error('[delete] public deck lookup failed', err?.code, err?.message);
+  }
+  await Promise.all([...ids].map(id => col.doc(id).delete().catch((err: any) => {
+    console.error('[delete] public deck failed', err?.code, err?.message);
+    track('account.delete.deck.error', { code: err?.code });
+  })));
+}
 async function deleteStorageFolderRecursive(ref: any): Promise<void> {
   // Firebase Storage has no "delete folder" — list then delete each file,
   // and recurse into each prefix (sub-"folder").
@@ -5789,6 +6783,15 @@ async function deleteAccount(): Promise<void> {
     showToast('Not signed in', 'warning');
     return;
   }
+  if (_sessionClosing) return;   // already signing out or deleting
+  const user = firebaseUser, uid: string = user.uid, epoch = _sessionEpoch;
+  const same = () => epoch === _sessionEpoch && firebaseUser?.uid === uid;
+  const offline = (): boolean => {
+    if (typeof navigator === 'undefined' || navigator.onLine !== false) return false;
+    showToast('You’re offline. Connect to the internet to delete your account.', 'warning');
+    return true;
+  };
+  if (offline()) return;
 
   // Two-stage confirm. First: explain what will happen. Second: typed phrase.
   // Both required — the explainer alone is too easy to misclick past.
@@ -5798,7 +6801,7 @@ async function deleteAccount(): Promise<void> {
     confirmLabel: 'Continue',
     dangerous:    true,
   });
-  if (!ok) return;
+  if (!ok || !same()) return;
 
   const typed = await showPrompt({
     title:   'Type DELETE to confirm',
@@ -5806,63 +6809,120 @@ async function deleteAccount(): Promise<void> {
     okLabel: 'Delete forever',
     fields:  [{ id: 'confirm', label: 'Type DELETE', required: true }],
   });
-  if (!typed) return;
+  if (!typed || !same()) return;
   if (typed.confirm !== 'DELETE') {
     showToast('You must type DELETE exactly to confirm.', 'warning');
     return;
   }
+  if (offline()) return;
 
-  const uid = firebaseUser.uid;
-  showToast('Deleting your account…', 'info');
+  // The app waits behind a notice until this ends (nothing new is edited
+  // meanwhile), and nothing goes to the cloud. If the session ends elsewhere
+  // first, sessionEndedElsewhere() resets the tab and says the deletion
+  // stopped. The user has asked for the account to go, so the tab now owes a
+  // sign-out, as after a confirmed Sign out: closing it is warned against, and
+  // if it is closed anyway it signs out on the way and leaves none of this
+  // account's data on the device (see the pagehide handler), whether or not
+  // the delete below reached the server.
+  _sessionClosing = true;
+  _deleting = true;
+  signOutOwed(uid);
+  window.clearTimeout(_pendingSaveTimer);
+  _pendingSaveTimer = undefined;
+  showBusy('Deleting your account…', 'This takes a few seconds.');
+  // This device's other tabs of the account stop sending to the cloud now,
+  // before the delete: a write of theirs landing after it would re-create the
+  // document, and the data would outlive the account.
+  tellTabs('deleting', uid);
+  let ref: any = null;
 
-  // ── 1) Storage ──
+  // ── 1) Firestore: the study data ──
+  // First, because it decides: if it can't be deleted, nothing has been.
   try {
-    if (typeof firebase.storage === 'function') {
-      await deleteStorageFolderRecursive(firebase.storage().ref(`users/${uid}`));
-    }
-  } catch (err: any) {
-    console.error('[delete] storage failed', err?.code, err?.message);
-    track('account.delete.storage.error', { code: err?.code, message: err?.message });
-    // Continue — Firestore + Auth deletion still matters more than orphan files.
-  }
-
-  // ── 2) Firestore ──
-  try {
-    const ref = userDoc();
-    if (ref) await ref.delete();
+    ref = userDoc();
+    if (ref) await withTimeout<void>(ref.delete(), DELETE_STEP_MS);
   } catch (err: any) {
     console.error('[delete] firestore failed', err?.code, err?.message);
     track('account.delete.firestore.error', { code: err?.code, message: err?.message });
-    // Continue — we still want to delete the Auth user.
+    if (!same()) return;
+    // Whatever the error (unreachable, refused, ...): stop here with the
+    // account whole, and the app carries on as before, in every tab. After a
+    // time-out the delete may yet go through, so the data is written back
+    // after it (Firestore keeps the order).
+    _sessionClosing = false;
+    _deleting = false;
+    signOutCalledOff();
+    tellTabs('resume', uid);
+    endBusy();
+    save(true);
+    notice('Your account wasn’t deleted', err?.code === 'timeout'
+      ? 'Brainfy couldn’t be reached, so nothing was deleted and your account is still active. Check your connection and try again.'
+      : 'Something went wrong, so nothing was deleted and your account is still active. Try again in a moment.');
+    return;
+  }
+  if (!same()) return;
+  // The study data is gone from the cloud. This device's copies of it go now,
+  // not at the end, and S is nobody's any more, so save() stores nothing: a
+  // tab closed before the last step can't bring the data back at the next
+  // load. This device's other tabs are told too, so none of them keeps its
+  // unsynced edits for this account when the login goes.
+  sOwner = null;
+  discardKept(uid);
+  vacateWorkingCopy(uid);
+  announceDiscard(uid);
+
+  // ── 2) Storage, and the public decks ──
+  // Best effort: orphan files are not worth stopping for. Both are bounded.
+  const [files, decks] = await Promise.allSettled([
+    typeof firebase.storage === 'function'
+      ? withTimeout(deleteStorageFolderRecursive(firebase.storage().ref(`users/${uid}`)), 30000)
+      : Promise.resolve(),
+    withTimeout(deletePublicDecksOf(uid), DELETE_STEP_MS),
+  ]);
+  for (const [step, r] of [['storage', files], ['decks', decks]] as const) {
+    if (r.status !== 'rejected') continue;
+    const err: any = r.reason;
+    console.error(`[delete] ${step} failed`, err?.code, err?.message);
+    track(`account.delete.${step}.error`, { code: err?.code, message: err?.message });
+  }
+  // A write another tab of this device had already sent when it heard of the
+  // deletion may have landed after the delete and re-created the document:
+  // delete it again. (Best effort, like the step above.)
+  if (!same()) return;
+  try {
+    const snap = ref ? await withTimeout<any>(ref.get(), DELETE_STEP_MS) : null;
+    if (snap?.exists) await withTimeout<void>(ref.delete(), DELETE_STEP_MS);
+  } catch (err: any) {
+    console.error('[delete] firestore recheck failed', err?.code, err?.message);
+    track('account.delete.recheck.error', { code: err?.code, message: err?.message });
   }
 
   // ── 3) Auth (the part that can fail with requires-recent-login) ──
+  if (!same()) return;
+  _signOutSent = true;   // the signed-out event this sends is handled here
   try {
-    await firebaseUser.delete();
+    await withTimeout<void>(user.delete(), DELETE_STEP_MS);
   } catch (err: any) {
     console.error('[delete] auth failed', err?.code, err?.message);
     track('account.delete.auth.error', { code: err?.code, message: err?.message });
-    if (err?.code === 'auth/requires-recent-login') {
-      showToast('Please sign in again, then try delete one more time.', 'warning');
-      try { await firebase.auth().signOut(); } catch (_) {}
-      firebaseUser = null;
-      idToken      = null;
-      goTo('signin');
-      return;
-    }
-    showToast('Account deletion failed: ' + (err?.message || 'unknown error'), 'error');
+    if (!same()) return;
+    // The study data is already deleted; only the login is left. Sign out and
+    // clear this device either way, so the retry starts from a clean session.
+    try { await withTimeout<void>(firebase.auth().signOut(), DELETE_STEP_MS); } catch (_) {}
+    discardKept(uid);
+    resetSession({ to: 'signin' });
+    notice('Your account wasn’t fully deleted', err?.code === 'auth/requires-recent-login'
+      ? 'Your study data has been deleted. To delete your login too, sign in again, then choose Delete account once more.'
+      : 'Your study data has been deleted, but your login couldn’t be (' + (err?.message || 'unknown error') + '). Sign in again, then choose Delete account once more.');
     return;
   }
 
   // ── 4) Local cleanup + navigate ──
-  try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
-  clearSigninHint();
-  S = structuredClone(DEFAULT_STATE);
-  firebaseUser = null;
-  idToken      = null;
+  if (!same()) { showToast('Account deleted.', 'success'); return; }   // (the tab moved on already)
+  discardKept(uid);
+  resetSession();
   track('account.delete.success');
-  showToast('Account deleted. Goodbye.', 'success');
-  goTo('splash');
+  notice('Account deleted', 'Your Brainfy account and all its study data have been deleted. Goodbye.');
 }
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
@@ -5956,7 +7016,7 @@ function friendlyAuthError(code: string): string {
 // resolveStateAfterAuth, so the auth observer firing in parallel is harmless.
 async function onFirebaseSignIn(user: any, displayName?: string): Promise<void> {
   await resolveStateAfterAuth(user, displayName);
-  goTo('home');
+  if (firebaseUser?.uid === user.uid) goTo('home');   // not if signed out (or switched) meanwhile
 }
 
 function handleSignIn(): void {
@@ -5969,6 +7029,7 @@ function handleSignIn(): void {
   if (!authAvailable('signinError')) return;
 
   setAuthLoading('signinSubmitBtn', true);
+  lsDel(SIGNOUT_PENDING_KEY);   // a sign-in asked for now overrides a sign-out owed from before
   firebase.auth().signInWithEmailAndPassword(email, pw)
     .then((cred: any) => onFirebaseSignIn(cred.user))
     .catch((err: any) => {
@@ -5993,6 +7054,7 @@ function handleSignup(): void {
   // state before this .then() runs, and a brand-new user object has no
   // displayName yet (updateProfile below is async), so the resolver reads this.
   pendingAuthName = name || null;
+  lsDel(SIGNOUT_PENDING_KEY);
   firebase.auth().createUserWithEmailAndPassword(email, pw)
     .then((cred: any) => {
       // Save display name in Firebase profile (non-blocking)
@@ -6003,6 +7065,7 @@ function handleSignup(): void {
       return onFirebaseSignIn(cred.user, name);
     })
     .catch((err: any) => {
+      pendingAuthName = null;   // no account was made: the name mustn't label the next sign-in
       setAuthLoading('signupSubmitBtn', false);
       showAuthError('signupError', friendlyAuthError(err.code));
     });
@@ -6015,6 +7078,7 @@ function handleGoogleSignIn(): void {
   showAuthError(slot, '');
   if (!authAvailable(slot)) return;
   const provider = new firebase.auth.GoogleAuthProvider();
+  lsDel(SIGNOUT_PENDING_KEY);
   firebase.auth().signInWithPopup(provider)
     .then((result: any) => onFirebaseSignIn(result.user, result.user.displayName || undefined))
     .catch((err: any) => {
@@ -6025,19 +7089,88 @@ function handleGoogleSignIn(): void {
     });
 }
 
-function handleSignOut(): void {
-  firebase.auth().signOut().then(() => {
-    firebaseUser = null;
-    idToken      = null;
-    authResolution = null;       // allow a fresh cloud-reconcile on the next sign-in
-    cloudReadOk    = false;      // next session must re-read before it may write
-    S = structuredClone(DEFAULT_STATE);
-    try { localStorage.removeItem(STORAGE_KEY); } catch(_) {}
-    // The local copy is gone, so there is nothing left "unsynced" to merge.
-    try { localStorage.removeItem(SYNC_META_KEY); } catch(_) {}
-    clearSigninHint();           // forget "Continue as X" — next tab opens generic splash
-    goTo('splash');
+// Settings → Sign out (the app's only sign-out). Edits the cloud hasn't got yet
+// are pushed first, behind a notice that blocks the app so nothing new is
+// typed meanwhile; if that can't be confirmed the user is told why and
+// chooses between losing them and staying signed in. Firebase is signed out
+// next (if that fails, nothing is wiped and the user is told), then
+// resetSession() clears this device, so whoever signs in here next starts clean.
+const UNSYNCED_REASON: Record<FlushProblem, string> = {
+  offline:     'You’re offline, so some changes on this device haven’t reached your account. Signing out now deletes them. Stay signed in and they’ll sync when you’re back online.',
+  timeout:     'Brainfy can’t reach your account right now, so some changes on this device haven’t been saved to it. Signing out now deletes them. Stay signed in and they’ll sync once the connection recovers.',
+  unread:      'Brainfy couldn’t load your account this session, so changes made on this device haven’t been saved to it. Signing out now deletes them. Stay signed in and tap the sync status to try again.',
+  'too-large': 'Your study data has grown past the cloud’s 1 MB limit, so recent changes are only on this device. Signing out now deletes them. Stay signed in, then remove large notes or documents, or export your data in Settings.',
+  failed:      'Saving to your account failed, so some changes are only on this device. Signing out now deletes them. Stay signed in and tap the sync status to try again.',
+};
+
+async function handleSignOut(): Promise<void> {
+  if (_deleting) { showToast('Your account is being deleted. One moment…', 'info'); return; }
+  if (!firebaseUser || _sessionClosing) return;
+  const ok = await showConfirm({
+    title:        'Sign out of Brainfy?',
+    message:      'Your work is saved to your account. Signing out removes it from this device until you sign in again.',
+    confirmLabel: 'Sign out',
+    dangerous:    true,
   });
+  if (!ok || !firebaseUser || _sessionClosing) return;
+  const uid: string = firebaseUser.uid, epoch = _sessionEpoch;
+  // The user has asked to sign out: from here it happens even if the tab is
+  // closed before it's done (and closing it is warned against meanwhile).
+  signOutOwed(uid);
+  // A focus session in progress ends here, its time so far logged (and so
+  // sent with the rest below).
+  logFocusSoFar();
+
+  if (hasUnsynced(uid)) showBusy('Signing out…', 'Saving your latest changes to your account.');
+  // An edit that lands while a write is in flight (a focus session ending, say)
+  // goes in the next round.
+  let problem: FlushProblem | null = null;
+  for (let round = 0; round < 5 && !problem && hasUnsynced(uid) && epoch === _sessionEpoch; round++) {
+    problem = await flushPendingSave();
+  }
+  if (epoch !== _sessionEpoch) return;   // the session ended elsewhere meanwhile (already reset)
+  if (problem) {
+    endBusy();
+    const lose = await showConfirm({
+      title:        'Sign out and lose unsynced changes?',
+      message:      UNSYNCED_REASON[problem],
+      confirmLabel: 'Sign out anyway',
+      cancelLabel:  'Stay signed in',
+      dangerous:    true,
+    });
+    if (epoch !== _sessionEpoch) return;
+    if (!lose) { signOutCalledOff(); return; }
+  }
+  endBusy();
+
+  // From here nothing more goes to the cloud. save() still stores edits
+  // locally, and any made before Firebase answers are caught below.
+  _sessionClosing = true;
+  _signOutSent = true;
+  try {
+    await firebase.auth().signOut();
+  } catch (err: any) {
+    console.error('[auth] sign-out failed', err?.code, err?.message);
+    track('auth.signout.error', { code: err?.code, message: err?.message });
+    if (epoch !== _sessionEpoch) return;
+    // Still signed in: wipe nothing (a clean splash over a live session would
+    // hand this account to the next person), and send anything stored meanwhile.
+    _sessionClosing = false;
+    _signOutSent = false;
+    signOutCalledOff();
+    if (tabHasUnsynced()) save(true);
+    showToast('Couldn’t sign out. Check your connection and try again.', 'error');
+    return;
+  }
+  if (epoch !== _sessionEpoch) return;
+  // An edit that slipped in after the last flush can't reach the cloud any
+  // more: keep it for this account and ask, as when a session ends elsewhere.
+  // (Not when the user already agreed to lose unsynced changes: then this
+  // device's other tabs are told, so they don't keep theirs either.)
+  const late = !problem && hasUnsynced(uid);
+  if (problem) { discardKept(uid); announceDiscard(uid); }
+  const kept = resetSession({ keep: late });
+  if (late) await askAboutKeptEdits(uid, kept);
 }
 
 function showForgot(): void {
@@ -6242,9 +7375,6 @@ function initEvents() {
       (e.target as HTMLInputElement).value = '';
     }
   });
-
-  // ── Sidebar: legacy Logout button (now in Settings; kept as a safety net) ──
-  el('sidebarLogoutBtn')?.addEventListener('click', handleLogout);
 
   // ── Sidebar: sync status chip — click to retry when in error state ────────
   el('syncStatus')?.addEventListener('click', () => {
@@ -6460,10 +7590,14 @@ async function callClaude(userText: string): Promise<void> {
 
   let stream: StreamingBubble | null = null;
   let accumulated = '';
+  // A reply still streaming at sign-out stops there: it must not reach the next
+  // person's chat, their aiHistory (sent with their questions) or their library.
+  const scope = sessionScope();
 
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
+      signal: scope.signal,
       headers: await aiHeaders(),
       body: JSON.stringify({
         model: 'claude-3-5-haiku-20241022',
@@ -6501,6 +7635,7 @@ async function callClaude(userText: string): Promise<void> {
 
     while (true) {
       const { done, value } = await reader.read();
+      if (!scope.alive()) { reader.cancel().catch(() => {}); return; }
       if (done) break;
       buf += decoder.decode(value, { stream: true });
 
@@ -6533,6 +7668,7 @@ async function callClaude(userText: string): Promise<void> {
       throw new Error('Hmm, no answer came through. Try rephrasing or send it again.');
     }
 
+    if (!scope.alive()) return;
     stream.finalize();
     aiHistory.push({ role: 'assistant', content: accumulated });
 
@@ -6542,6 +7678,7 @@ async function callClaude(userText: string): Promise<void> {
     }
 
   } catch(e) {
+    if (!scope.alive()) return;
     hideAITyping();
     stream?.cancel();
     const raw = e instanceof Error ? e.message : String(e);
@@ -6949,8 +8086,8 @@ function init() {
   initSearch();
   checkAIStatus();
 
-  // Fire the daily on-open study nudge once state has settled.
-  window.setTimeout(nudgeIfDue, 2500);
+  // The daily on-open study nudge fires once an account's data has resolved
+  // (resolveStateAfterAuth): until then S belongs to nobody.
 
   // Capture an invite ?ref= once (attribution for the referral loop), then
   // strip it from the URL so it doesn't linger or re-fire on reload.
@@ -6968,10 +8105,33 @@ function init() {
   // Fires once on load: if user was already signed in, skip splash and
   // load their cloud state. If not, show splash as normal.
   const authObserver = async (user: any) => {
+    _heldBack = false;
     if (user) {
+      // This device owes that account a sign-out (see signOutOwed), and this tab
+      // doesn't hold the session yet (if it does, it is the tab that owes it, or
+      // it ends with it). Never restore it. If the tab that owes it is gone,
+      // finish the sign-out here. If it is still at it (uploading the last
+      // changes, deleting the account), leave the session to it: this tab stays
+      // on the splash and watches the marker; if the user stays signed in after
+      // all, the session is restored then ('signout-called-off'). A sign-in
+      // started on this page clears the mark.
+      const owed = _endingFor ? null : readOwed();
+      if (owed && owed.uid === user.uid && !firebaseUser && !authResolution) {
+        clearSigninHint();
+        applySigninHint();
+        if (await owedAbandoned(owed)) {
+          try { await firebase.auth().signOut(); } catch (_) { /* the next load tries again */ }
+        } else {
+          _heldBack = true;
+          void checkOwedSignOut();
+        }
+        return;
+      }
+      if (owed && owed.uid !== user.uid) lsDel(SIGNOUT_PENDING_KEY);   // another account's session: nothing owed here
       // Reconcile cloud state (merging any unsynced local edits). Memoized, so if an
       // explicit sign-in handler is also resolving, we await the same result.
       await resolveStateAfterAuth(user);
+      if (firebaseUser?.uid !== user.uid) return;   // signed out (or switched) meanwhile
       // Auto-navigate ONLY from active auth flows (signin/signup) — NOT from
       // splash. Splash exists so returning users can click their personalised
       // "Continue as <name>" button intentionally; auto-redirecting them
@@ -6979,9 +8139,17 @@ function init() {
       const navAwayFrom: ViewName[] = ['signin', 'signup'];
       if (navAwayFrom.includes(currentView)) goTo('home');
       void maybeOpenSharedDeck();
+    } else if (_signOutSent) {
+      // This tab asked for this sign-out itself (Sign out, account deletion);
+      // the code that asked resets the session.
+    } else if (firebaseUser || authResolution) {
+      // This tab was signed in (or restoring a session) and the session ended
+      // without our Sign out.
+      await sessionEndedElsewhere();
+      void maybeOpenSharedDeck();
     } else {
-      firebaseUser = null;
-      idToken      = '';
+      idToken = null;
+      if (!_endingFor) lsDel(SIGNOUT_PENDING_KEY);   // nobody is signed in: no sign-out owed
       setSyncState('idle');
       // Only redirect to splash from app views — don't bounce users off sign-in/sign-up
       const authViews: ViewName[] = ['splash', 'signin', 'signup'];
@@ -6996,6 +8164,7 @@ function init() {
   // and sign-in screens still render; sign-in and sync wait for a successful
   // reload. Pairs with the boot fallback in index.html.
   if (typeof firebase !== 'undefined' && typeof firebase.auth === 'function') {
+    _onAuthState = authObserver;   // re-run for a session that was held back (see checkOwedSignOut)
     firebase.auth().onAuthStateChanged(authObserver);
   } else {
     console.error('[boot] Firebase SDK unavailable — running local-only');
@@ -7302,13 +8471,14 @@ function saveTTBlock(): void {
 async function deleteTTBlock(): Promise<void> {
   if (ttEditId == null) return;
   const block = (S.timetable || []).find(b => b.id === ttEditId);
+  const scope = sessionScope();
   const ok = await showConfirm({
     title:        'Remove this block?',
     message:      block ? `"${block.title}" will be removed from your timetable.` : '',
     confirmLabel: 'Remove',
     dangerous:    true,
   });
-  if (!ok) return;
+  if (!ok || !scope.alive()) return;
   S.timetable = (S.timetable || []).filter(b => b.id !== ttEditId);
   save();
   closeTTModal();
@@ -7423,11 +8593,11 @@ function renderSettings(): void {
   }
 }
 
-let _settingsDirtyTimer: number | undefined;
 function settingsCommitDirty(): void {
   // Debounce so we don't fire save() on every keystroke
   window.clearTimeout(_settingsDirtyTimer);
   _settingsDirtyTimer = window.setTimeout(() => {
+    _settingsDirtyTimer = undefined;
     save();
     showToast('Settings saved', 'success');
   }, 600);
@@ -7486,19 +8656,7 @@ function initSettings(): void {
   });
 
   // Sign out
-  el('setSignOutBtn')?.addEventListener('click', async () => {
-    const ok = await showConfirm({
-      title:        'Sign out of Brainfy?',
-      message:      'Your local data stays on this device. You can sign back in anytime.',
-      confirmLabel: 'Sign out',
-      dangerous:    true,
-    });
-    if (!ok) return;
-    try { await firebase.auth().signOut(); } catch (_) {}
-    firebaseUser = null;
-    idToken      = '';
-    goTo('splash');
-  });
+  el('setSignOutBtn')?.addEventListener('click', () => { void handleSignOut(); });
 
   // Export
   el('setExportBtn')?.addEventListener('click', () => {

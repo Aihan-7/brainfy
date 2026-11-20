@@ -5658,7 +5658,7 @@
      ────────────────────────────────────────────────────────────────────── -->
 <script>
 (function () {
-  var APP_VERSION = 'c668c9a8dc8a';
+  var APP_VERSION = '6a5400055769';
   window.APP_VERSION = APP_VERSION;  // exposed so script.js can include it in telemetry
   var FB_BASE     = 'https://www.gstatic.com/firebasejs/10.14.1/';
   var FB_CONFIG   = {
@@ -5792,6 +5792,21 @@
     if (enterBtn && hintName) {
       enterBtn.textContent = 'Continue as ' + hintName + ' →';
     }
+    // Another tab signs in or out while this one still shows the splash
+    // without the bundle: the label follows (a sign-out clears the hint), so
+    // no tab keeps offering "Continue as" an account that has signed out.
+    // Once the bundle is loaded, its own storage listener does this.
+    window.addEventListener('storage', function (e) {
+      if (e.key !== null && e.key !== 'brainfy_user_hint') return;
+      if (typeof window.applySigninHint === 'function') return;
+      var b = document.getElementById('enterBrainBtn'), n = null;
+      if (!b) return;
+      try {
+        var h = JSON.parse(localStorage.getItem('brainfy_user_hint') || 'null');
+        if (h && h.name) n = String(h.name);
+      } catch (_) { /* malformed hint → generic CTA */ }
+      b.textContent = n ? 'Continue as ' + n + ' →' : 'Enter Brainfy →';
+    });
 
     function wire(id, action) {
       var el = document.getElementById(id);
