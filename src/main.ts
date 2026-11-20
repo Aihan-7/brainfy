@@ -37,8 +37,8 @@ interface Doc {
   downloadURL?: string;          // Cached signed URL for fetching from Storage
   // Plain text the AI can read (extracted PDF/text, or a YouTube transcript).
   // Persisted on AI-imported source docs so a summary can be generated later,
-  // after the import modal has been closed. Absent for images (vision uses the
-  // data URL in `content`) and for plain uploads with no extractable text.
+  // after the import modal has been closed. Absent for images (vision reads
+  // the image itself) and for plain uploads with no extractable text.
   aiText?:      string;
 }
 
@@ -1319,6 +1319,9 @@ function lsDel(key: string): void {
 function lsRaw(key: string): string | null {
   try { return localStorage.getItem(key); } catch (_) { return null; }
 }
+function lsSetRaw(key: string, raw: string): boolean {
+  try { localStorage.setItem(key, raw); return true; } catch (_) { return false; }
+}
 function asState(v: unknown): AppState | null {
   return v && typeof v === 'object' && !Array.isArray(v) ? { ...freshState(), ...(v as AppState) } : null;
 }
@@ -1375,12 +1378,14 @@ function workingCopyOf(uid: string): AppState | null {
 function vacateWorkingCopy(ownUid: string | null): boolean {
   const m = readSyncMeta();
   const st = asState(lsJSON(STORAGE_KEY));
+  let moved = true;
   if (st && m && m.uid && m.dirty === true && (m.uid !== ownUid || m.held)) {
-    if (keepUnsynced(m.uid, st) !== 'kept') return false;
+    moved = keepUnsynced(m.uid, st) === 'kept';
   } else if (st && !m && hasUserData(st)) {
     const u = readUnclaimed();
-    if (!putInPlaceOfWorkingCopy(UNCLAIMED_KEY, { state: u ? mergeStates(u.state, st) : st, declined: u ? u.declined : [] })) return false;
+    moved = putInPlaceOfWorkingCopy(UNCLAIMED_KEY, { state: u ? mergeStates(u.state, st) : st, declined: u ? u.declined : [] });
   }
+  if (!moved) { track('local.setaside.quota', { code: 'quota' }); return false; }
   lsDel(STORAGE_KEY);
   lsDel(SYNC_META_KEY);
   return true;
@@ -1440,7 +1445,7 @@ function renderSyncChip(): void {
     case 'idle':    label = idToken ? 'Idle'      : 'Local only';            break;
     case 'syncing': label = 'Syncing…';                                       break;
     case 'synced':  label = lastSyncedAt ? `Synced ${timeSince(lastSyncedAt)}` : 'Synced'; break;
-    case 'error':   label = 'Sync failed — tap to retry';                     break;
+    case 'error':   label = syncPausedForSize() ? 'Sync paused — data too large' : 'Sync failed — tap to retry'; break;
     case 'offline': label = 'Offline · saved locally';                        break;
   }
   chip.setAttribute('data-state', syncState);
@@ -1611,6 +1616,123 @@ function projectedUserDocBytes(st: AppState): number {
   return n;
 }
 
+// A cloud write is sent only while the document stays at or under this. The
+// estimate above follows Firestore's own size rules, so the 5% margin only
+// absorbs slack; any lower and sync would pause for documents Firestore
+// accepts (deck imports deliberately leave the band above USER_DOC_BUDGET as
+// room for the data to grow).
+const SYNC_DOC_MAX = Math.floor(FIRESTORE_DOC_LIMIT * 0.95);
+function tooLargeToSync(st: AppState): boolean {
+  return userDocBytes(st) > SYNC_DOC_MAX;
+}
+
+// ── Size guard ──────────────────────────────────────────────────────────────
+// A write over the limit is refused, and so is every later one while the data
+// is still there: one large AI import used to break sync for good (audit P0-5).
+// So writeCloud() first asks cloudWriteFits(). Too large: no write is
+// attempted, the chip says why, and the user is told once per pause what to do.
+// The device keeps saving locally, and the first write after the data shrinks
+// goes through and ends the pause.
+let _sizePausedIn = -1;        // the session (_sessionEpoch) whose sync is paused for size
+let _originalsMovingIn = -1;   // the session moving inline originals to Storage (moveInlineOriginals)
+let _originalsMoved: Promise<void> = Promise.resolve();   // settles when that move has ended
+function syncPausedForSize(): boolean { return _sizePausedIn === _sessionEpoch; }
+function cloudWriteFits(state: AppState, epoch: number): boolean {
+  if (!tooLargeToSync(state)) {
+    if (_sizePausedIn === epoch) {
+      _sizePausedIn = -1;
+      showToast('Your data fits again, so syncing has resumed.', 'success');
+    }
+    return true;
+  }
+  if (epoch !== _sessionEpoch) return false;
+  // Large originals are on their way to Storage; that move saves again.
+  if (_originalsMovingIn === epoch) { setSyncState('syncing'); return false; }
+  const first = _sizePausedIn !== epoch;
+  _sizePausedIn = epoch;
+  setSyncState('error');
+  if (first) {
+    track('sync.save.too_large', { code: 'too-large', bytes: userDocBytes(state) });
+    showSizeNotice();
+  }
+  return false;
+}
+function showSizeNotice(): void {
+  showToast(sizeNotice(S, _localWriteOk), 'warning', 10000);
+}
+// What the size notice says: why sync is paused and what lets it resume.
+// `localOk`: the device still keeps the data (if not, it goes when Brainfy closes).
+function sizeNotice(st: AppState, localOk: boolean): string {
+  if (!localOk) return 'Your study data is too large to sync or to save on this device, so recent changes will be lost when you close Brainfy. Delete large documents or notes in your Library.';
+  const picks = inlineOriginalsToMove(st);
+  // A file Storage takes is still inside the document: moving it may yet work.
+  if (picks.some(o => o.storable)) return 'Sync paused: a large file couldn’t be moved to cloud storage yet, so your study data is over the 1 MB cloud limit and changes are only saved on this device. Tap the sync status to try again, or delete large documents in your Library.';
+  const paused = 'Sync paused: your study data is over the 1 MB cloud limit, so changes are only saved on this device.';
+  // Files of a type Storage refuses (library uploads kept inline before the
+  // rules were tightened): Brainfy never removes them, as they may be the only
+  // copy (mayDropOriginal), so they are named for the user to download and delete.
+  if (picks.length) {
+    const one = picks.length === 1, it = one ? 'it' : 'them';
+    const enough = userDocBytes(st) - picks.reduce((n, o) => n + o.bytes, 0) <= SYNC_DOC_MAX;
+    return `${paused} ${nameList(picks.map(o => o.name))} ${one ? 'is a file' : 'are files'} cloud storage can’t take, so ${one ? 'it is' : 'they are'} kept inside your study data. Download ${it} from your Library, then delete ${it} there${enough ? ' and syncing resumes by itself.' : ', along with other large documents or notes, to let syncing resume.'}`;
+  }
+  switch (heaviestPart(st)) {
+    case 'importText': return `${paused} Most of it is text kept from imported documents for summaries: delete imported documents you no longer need in your Library (their flashcards stay) and syncing resumes by itself.`;
+    case 'notes':      return `${paused} Most of it is notes: shorten or delete long notes in your Library and syncing resumes by itself.`;
+    case 'cards':      return `${paused} Most of it is flashcards: delete flashcards or subjects you no longer need and syncing resumes by itself.`;
+    default:           return `${paused} Delete large documents or notes in your Library and syncing resumes by itself.`;
+  }
+}
+// The kind of data that makes up more than half of users/{uid}, if one does.
+function heaviestPart(st: AppState): 'files' | 'notes' | 'importText' | 'cards' | 'other' {
+  const w = { files: 0, notes: 0, importText: 0, cards: 0 };
+  for (const s of st.subjects || []) {
+    if (!s) continue;
+    if (Array.isArray(s.cards)) w.cards += firestoreValueSize(s.cards);
+    for (const d of Array.isArray(s.documents) ? s.documents : []) {
+      if (!d) continue;
+      if (typeof d.aiText === 'string') w.importText += utf8Bytes(d.aiText);
+      if (typeof d.content !== 'string') continue;
+      if (d.type === 'note') w.notes += utf8Bytes(d.content);
+      else if (d.type === 'file') w.files += utf8Bytes(d.content);
+    }
+  }
+  const half = userDocBytes(st) / 2;
+  for (const k of Object.keys(w) as (keyof typeof w)[]) if (w[k] > half) return k;
+  return 'other';
+}
+
+// localStorage refused the working copy. Almost always its quota (about 5 MB
+// per site): the device then stops keeping recent changes, which used to fail
+// silently. Say so once per session, until a write succeeds again.
+let _quotaWarnedIn = -1;   // the session (_sessionEpoch) already told
+function isQuotaError(e: unknown): boolean {
+  const x = e as { name?: string; code?: number } | null;
+  return !!x && (x.name === 'QuotaExceededError' || x.name === 'NS_ERROR_DOM_QUOTA_REACHED' || x.code === 22 || x.code === 1014);
+}
+// Store `st` (`json` is it serialised) as the working copy. `free`: false
+// while the slot still holds another account's edits there was no room to
+// move aside (see save()): nothing is stored, and the user is told the same.
+function storeWorkingCopy(st: AppState, json: string = JSON.stringify(st), free = true): boolean {
+  let err: unknown = null;   // null: no room at all, the slot is someone else's
+  if (free) {
+    try {
+      localStorage.setItem(STORAGE_KEY, json);
+      _quotaWarnedIn = -1;
+      return true;
+    } catch (e) { err = e; }
+  }
+  if ((err === null || isQuotaError(err)) && _quotaWarnedIn !== _sessionEpoch) {
+    _quotaWarnedIn = _sessionEpoch;
+    track('local.save.quota', { code: 'quota' });
+    showToast(tooLargeToSync(st)
+      ? 'Your study data is too large to sync or to save on this device, so recent changes will be lost when you close Brainfy. Delete large documents or notes in your Library.'
+      : 'This device’s storage is full, so recent changes aren’t saved on it. They still sync to your account while you’re online.',
+      'warning', 10000);
+  }
+  return false;
+}
+
 // Tiny helper — returns the user's Firestore doc reference or null if the
 // SDK isn't ready / not signed in.
 function userDoc(): any | null {
@@ -1662,12 +1784,13 @@ function save(force = false) {
   // find and merge. The marker also names the copy's owner (localBelongsTo).
   // A working copy that is still someone else's (unsynced edits there was no
   // room to move aside) is moved aside first; until that works it is never
-  // overwritten, and this account works from the cloud alone.
+  // overwritten, and this account works from the cloud alone (the user is
+  // told once, by storeWorkingCopy).
   if (localBelongsTo(uid) || vacateWorkingCopy(null)) {
-    try { localStorage.setItem(STORAGE_KEY, json); _localWriteOk = true; } catch (_) { _localWriteOk = false; }
+    _localWriteOk = storeWorkingCopy(S, json);
     const prev = readSyncMeta();
     writeSyncMeta({ uid, dirty: true, syncedAt: prev?.uid === uid ? prev.syncedAt : undefined });
-  } else _localWriteOk = false;
+  } else _localWriteOk = storeWorkingCopy(S, json, false);
   _localRev++;
   _tabDirty = true;
 
@@ -1708,6 +1831,7 @@ function writeCloud(ref: any, uid: string, epoch: number, state: AppState = S): 
   return new Promise<boolean>(resolve => {
     // (Nor while another tab deletes this account: it would re-create the document.)
     if (epoch !== _sessionEpoch || _deletingElsewhere === uid) { resolve(false); return; }
+    if (!cloudWriteFits(state, epoch)) { resolve(false); return; }
     const rev = _localRev;
     // ref.set() validates its argument BEFORE returning a promise, so an
     // unserialisable value (an `undefined` field, most likely) throws
@@ -1740,7 +1864,7 @@ function writeCloud(ref: any, uid: string, epoch: number, state: AppState = S): 
 }
 
 // Why edits on this device can't be confirmed in the cloud right now.
-type FlushProblem = 'offline' | 'unread' | 'too-large' | 'failed' | 'timeout';
+type FlushProblem = 'offline' | 'unread' | 'too-large' | 'moving' | 'failed' | 'timeout';
 
 // Before a sign-out: send whatever this device holds for the signed-in account
 // that the cloud hasn't confirmed, and wait for it. Resolves null once the
@@ -1761,7 +1885,7 @@ async function flushPendingSave(): Promise<FlushProblem | null> {
   const ref = userDoc();
   if (!ref || !cloudReadOk) return 'unread';
   if (navigator.onLine === false) return 'offline';
-  if (userDocBytes(state) > FIRESTORE_DOC_LIMIT) return 'too-large';
+  if (tooLargeToSync(state)) return _originalsMovingIn === _sessionEpoch ? 'moving' : 'too-large';
   return Promise.race([
     writeCloud(ref, uid, _sessionEpoch, state).then(ok => ok ? null : 'failed' as const),
     new Promise<FlushProblem>(r => window.setTimeout(() => r('timeout'), 8000)),
@@ -1798,6 +1922,7 @@ function retrySync(): void {
         } else {
           save(true);                    // the cloud is empty: push what this device has
         }
+        void moveInlineOriginals();      // as on a first read that succeeds (resolveStateAfterAuth)
         showToast('Reconnected — your data is safe', 'success');
       })
       .catch((err: any) => {
@@ -1813,7 +1938,7 @@ function retrySync(): void {
   void writeCloud(ref, uid, epoch).then(ok => {
     if (epoch !== _sessionEpoch) return;
     if (ok) showToast('Synced to cloud', 'success');
-    else    showToast('Still offline. Will retry on next change.', 'warning');
+    else if (!syncPausedForSize()) showToast('Still offline. Will retry on next change.', 'warning');
   });
 }
 
@@ -1946,7 +2071,8 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
 
   // Decide what is local NOW, synchronously, before any await lets a save() or
   // another tab change it: this account's working copy (anything else in the
-  // slot is moved aside first) plus edits kept for it from an earlier session.
+  // slot is moved aside first, or left alone if there's no room for that) plus
+  // edits kept for it from an earlier session.
   const uid: string = user.uid;
   if (!localBelongsTo(uid)) vacateWorkingCopy(null);
   const own  = workingCopyOf(uid);
@@ -2056,9 +2182,20 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
     // Not if a sign-out was asked for meanwhile, here or in another tab.
     if (_endingFor !== uid && readOwed()?.uid !== uid) setSigninHint(realName);
 
+    // Kept edits are in S now; once S is stored as this account's working
+    // copy, the kept copy goes. If the working slot is this account's (or
+    // empty), the kept copy goes first: the two may not fit side by side (a
+    // file kept inline can be half of localStorage), and it comes back if S
+    // still isn't stored. If the slot holds someone else's edits, save()
+    // moves those aside first: the kept copy stays until S is stored, so that
+    // move can't take its room.
+    const keptFirst = !!kept && (localBelongsTo(uid) || lsRaw(STORAGE_KEY) === null);
+    const keptRaw = keptFirst ? lsRaw(KEPT_PREFIX + uid) : null;
+    if (keptRaw !== null) dropKept(uid);
     save(true);             // store + push the resolved state (refuses to push if the read failed)
-    // Kept edits now live in the working copy (and are on their way to the cloud).
-    if (kept && _localWriteOk) dropKept(uid);
+    if (keptRaw !== null) { if (!_localWriteOk) lsSetRaw(KEPT_PREFIX + uid, keptRaw); }   // not stored: they stay kept
+    else if (kept && _localWriteOk) dropKept(uid);   // they live in the working copy now
+    void moveInlineOriginals();   // originals stored inline before P0-5 → Storage
     if (cloudReadOk) setSyncState('synced');
     else if (!localDirty && !tookUnclaimed) {
       // Nothing was edited: the local copy is what the cloud last confirmed, and
@@ -2148,6 +2285,8 @@ function resetSession(opts: { to?: ViewName | null; keep?: boolean } = {}): Keep
   _sessionAbort = null;
   for (const t of _uploads) { try { t.cancel?.(); } catch (_) { /* already done */ } }
   _uploads.clear();
+  _userUploads.clear();                  // (before signOutSettled: no leave warning for them either)
+  _originalsUploading.clear();
   _sessionClosing   = false;
   _signOutSent      = false;
   _deleting         = false;
@@ -2445,9 +2584,11 @@ let _heldBack = false;                  // a session left alone while another ta
 let _onAuthState: ((user: any) => Promise<void>) | null = null;   // init's auth observer
 function warnBeforeLeaving(e: BeforeUnloadEvent): void { e.preventDefault(); e.returnValue = ''; }
 // The beforeunload warning is on only while it's needed (a listener left on
-// would also keep the page out of some browsers' back/forward cache).
+// would also keep the page out of some browsers' back/forward cache): while a
+// sign-out is owed, and while a file the user added is uploading (closing the
+// tab would stop it).
 function updateLeaveWarning(): void {
-  const on = !!_endingFor || _deleting;
+  const on = !!_endingFor || _deleting || _userUploads.size > 0;
   if (on === _leaveWarned) return;
   _leaveWarned = on;
   if (on) window.addEventListener('beforeunload', warnBeforeLeaving);
@@ -4555,9 +4696,9 @@ function renderDocModal(): void {
         ondrop="event.preventDefault();this.style.borderColor='rgba(255,255,255,0.12)';this.style.background='';handleDocDrop(event)">
         <span class="ms" style="font-size:40px;color:var(--plight);display:block;margin-bottom:10px;">cloud_upload</span>
         <div style="font-weight:600;font-size:14px;margin-bottom:6px;">Drop files here or click to browse</div>
-        <div style="font-size:12px;color:var(--muted);">PDF, images, text, video — up to 1 GB</div>
+        <div style="font-size:12px;color:var(--muted);">PDF, images, Office &amp; text documents, audio, video — up to 25 MB</div>
       </div>
-      <input type="file" id="docFileInput" style="display:none;" multiple accept="*/*" onchange="handleDocFileSelect(this)">
+      <input type="file" id="docFileInput" style="display:none;" multiple accept="${DOC_ACCEPT}" onchange="handleDocFileSelect(this)">
       <div id="docFilePreview" style="margin-top:12px;display:flex;flex-direction:column;gap:6px;"></div>
     ` : docModalTab === 'cards' ? `
       <!-- Cards: import / export -->
@@ -4677,32 +4818,134 @@ function handleDocDrop(e: DragEvent): void {
 
 // Two-tier upload strategy:
 //   • Files < 200 KB stay inline as base64 (instant, no Storage round-trip, works offline)
-//   • Files ≥ 200 KB go to Firebase Storage with resumable upload + progress UI
-//   • Hard cap: 1 GB
+//     while the users/{uid} document has room for them (base64 is 4/3 the size)
+//   • Larger files go to Firebase Storage with resumable upload + progress UI
+//   • Hard cap: 25 MB, and only the types storage.rules accepts (keep the two in step)
 const DOC_INLINE_MAX  = 200 * 1024;            // 200 KB
-const DOC_HARD_MAX    = 1024 * 1024 * 1024;    // 1 GB
+const DOC_HARD_MAX    = 25 * 1024 * 1024;      // 25 MB — storage.rules' size cap
+// AI Import makes cards from a file's text, read in memory, and keeps the
+// original only up to DOC_HARD_MAX (saveImportOriginal): it reads larger files.
+const AI_IMPORT_MAX   = 1024 * 1024 * 1024;    // 1 GB
+
+// The content types storage.rules lets a user store: documents, images, audio
+// and video someone studies from, and nothing a browser renders as a page
+// (HTML, SVG, XML, scripts). Keep in step with storage.rules.
+const STORAGE_TYPE_RE = /^(application\/pdf|image\/(png|jpeg|gif|webp|heic|heif|bmp)|text\/(plain|markdown|x-markdown|csv|tab-separated-values|rtf)|application\/(json|rtf|msword|epub\+zip|vnd\.ms-excel|vnd\.ms-powerpoint)|application\/vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|spreadsheetml\.sheet|presentationml\.presentation)|application\/vnd\.oasis\.opendocument\.(text|spreadsheet|presentation)|audio\/(mpeg|mp4|x-m4a|aac|wav|x-wav|ogg|webm|flac)|video\/(mp4|webm|quicktime))$/;
+const MIME_BY_EXT: Record<string, string> = {
+  pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
+  heic: 'image/heic', heif: 'image/heif', bmp: 'image/bmp', txt: 'text/plain', md: 'text/markdown', markdown: 'text/markdown',
+  csv: 'text/csv', tsv: 'text/tab-separated-values', json: 'application/json', rtf: 'application/rtf', doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  odt: 'application/vnd.oasis.opendocument.text', ods: 'application/vnd.oasis.opendocument.spreadsheet',
+  odp: 'application/vnd.oasis.opendocument.presentation', epub: 'application/epub+zip',
+  mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg', flac: 'audio/flac',
+  mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm',
+};
+// Other plain text people study from (code, LaTeX, captions, markup) is
+// stored as text/plain: its text is kept, but it is never served as a page.
+const TEXT_EXTS = ['tex', 'bib', 'py', 'ipynb', 'js', 'ts', 'java', 'c', 'h', 'cpp', 'cs', 'go', 'rs', 'rb', 'php', 'swift', 'kt',
+  'r', 'm', 'sql', 'sh', 'vtt', 'srt', 'html', 'htm', 'xml', 'css', 'yaml', 'yml', 'toml', 'ini', 'log', 'rst', 'org', 'adoc'];
+// The library's file picker offers what storedMime() can keep.
+const DOC_ACCEPT = Object.keys(MIME_BY_EXT).concat(TEXT_EXTS).map(e => '.' + e).join(',') + ',text/*';
+function fileExt(name: string): string {
+  return (/\.([a-z0-9]+)$/i.exec(String(name || ''))?.[1] || '').toLowerCase();
+}
+// The content type to store a file under: the browser's, normalised, or the
+// one its extension implies when the browser gives none (common for .md, .heic).
+function uploadMime(name: string, type: string): string {
+  let t = String(type || '').toLowerCase().split(';')[0]!.trim();
+  if (t === 'image/jpg') t = 'image/jpeg';
+  if (t === 'audio/mp3') t = 'audio/mpeg';
+  if (t && t !== 'application/octet-stream') return t;
+  return MIME_BY_EXT[fileExt(name)] || t;
+}
+function storableType(mime: string): boolean { return STORAGE_TYPE_RE.test(mime); }
+// What a file is kept as: its own type when storage.rules takes it,
+// text/plain for other text, or '' when it can't be kept.
+function storedMime(name: string, type: string): string {
+  const m = uploadMime(name, type);
+  if (storableType(m)) return m;
+  return m.startsWith('text/') || TEXT_EXTS.includes(fileExt(name)) ? 'text/plain' : '';
+}
+function canUseStorage(): boolean {
+  return !!firebaseUser && typeof firebase !== 'undefined' && typeof firebase.storage === 'function';
+}
+
+// What a file kept inline adds to users/{uid}: its data: URL (base64 is 4/3
+// of the bytes), the "data:…;base64," prefix and the doc's other fields.
+function inlineCost(size: number): number { return Math.ceil(size / 3) * 4 + 1024; }
+// Whether a picked file may be kept inline: a small one, while the document
+// plus the room reserved by files still being read (`pending`) stays within
+// USER_DOC_BUDGET.
+function fitsInline(docBytes: number, pending: number, size: number): boolean {
+  return size < DOC_INLINE_MAX && docBytes + pending + inlineCost(size) <= USER_DOC_BUDGET;
+}
+// What a note (its text, and the text kept for the AI) adds to users/{uid}.
+function noteCost(text: string, aiText = ''): number { return utf8Bytes(text) + utf8Bytes(aiText) + 512; }
+// The text an AI import keeps for later summaries (aiText) is stored in
+// users/{uid}, and imports add up: keep as much of it as fits under
+// USER_DOC_BUDGET beside a document of `docBytes`, with room for the entry's
+// other fields, or none when less than AI_TEXT_MIN bytes would.
+const AI_TEXT_MIN = 2000;
+function aiTextToKeep(docBytes: number, text: string): string {
+  const room = USER_DOC_BUDGET - docBytes - 1024;
+  if (utf8Bytes(text) <= room) return text;
+  if (room < AI_TEXT_MIN) return '';
+  let n = 0, i = 0;
+  for (; i < text.length; i++) {
+    const c = text.charCodeAt(i), pair = c >= 0xd800 && c <= 0xdbff;
+    const w = c < 0x80 ? 1 : c < 0x800 ? 2 : pair ? 4 : 3;
+    if (n + w > room) break;
+    n += w;
+    if (pair) i++;
+  }
+  return text.slice(0, i);
+}
+// Files picked or dropped together are all checked before any of them has been
+// read (and added): each reserves its room here until then.
+let _inlinePending = 0;
 
 function readAndAddDoc(file: File): void {
   if (docModalSubjId === null) return;
+  const subjectId = docModalSubjId;
 
   if (file.size > DOC_HARD_MAX) {
-    showToast(`${file.name} is too large (max 1 GB)`, 'warning');
+    showToast(`${file.name} is too large (max 25 MB)`, 'warning');
+    return;
+  }
+  const mime = storedMime(file.name, file.type);
+  if (!mime) {
+    showToast(`${file.name} can’t be added: use a PDF, image, Office or text document, audio or video`, 'warning');
     return;
   }
 
-  // Small file → keep inline as base64 (current behaviour)
-  if (file.size < DOC_INLINE_MAX) {
+  // Small file → keep inline as base64 (current behaviour), if the document
+  // has room for it; otherwise it goes to Storage like a large one.
+  if (fitsInline(userDocBytes(S), _inlinePending, file.size)) {
+    const cost = inlineCost(file.size), scope = sessionScope();
+    _inlinePending += cost;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onloadend = () => {
+      _inlinePending = Math.max(0, _inlinePending - cost);
+      if (!scope.alive()) return;
+      const data = reader.result;
+      if (typeof data !== 'string') { showToast(`Couldn’t read ${file.name}`, 'error'); return; }
+      // Something else may have filled the document while the file was read.
+      if (!fitsInline(userDocBytes(S), _inlinePending, file.size) && canUseStorage()) {
+        uploadFileToStorage(file, subjectId, mime);
+        return;
+      }
       addDocToSubject({
         id:      S.nextId++,
         name:    file.name,
         type:    'file',
-        content: reader.result as string,
-        mime:    file.type,
+        content: data.replace(/^data:[^;,]*/, 'data:' + mime),   // labelled with the type it is kept as
+        mime,
         size:    file.size,
         date:    Date.now(),
-      });
+      }, subjectId);
     };
     reader.readAsDataURL(file);
     return;
@@ -4718,64 +4961,336 @@ function readAndAddDoc(file: File): void {
     return;
   }
 
-  uploadFileToStorage(file, docModalSubjId);
+  uploadFileToStorage(file, subjectId, mime);
 }
 
 // In-flight Storage uploads; resetSession() cancels them.
 const _uploads = new Set<any>();
-function uploadFileToStorage(file: File, subjectId: number): void {
-  const scope     = sessionScope();   // a file that finishes after sign-out isn't added to whoever is here then
-  const uid       = firebaseUser.uid;
-  const safeName  = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
-  const path      = `users/${uid}/docs/${subjectId}/${Date.now()}-${safeName}`;
-  const storageRef = firebase.storage().ref(path);
-
-  const task = storageRef.put(file, {
-    contentType:    file.type || 'application/octet-stream',
-    customMetadata: { originalName: file.name },
+// The ones the user started (library files, AI-import originals), as opposed
+// to moveInlineOriginals(), which simply runs again next time if stopped.
+// Closing or reloading the tab cancels them too: the browser asks first
+// (updateLeaveWarning).
+const _userUploads = new Set<any>();
+// Upload `blob` to users/{uid}/docs/{subjectId}/… (the folder deleteAccount()
+// empties), with a progress toast. Resolves with its path and download URL;
+// rejects with the Storage error, including when resetSession() cancels it.
+function putOriginal(blob: Blob, name: string, mime: string, subjectId: number, background = false): Promise<{ path: string; downloadURL: string }> {
+  return new Promise((resolve, reject) => {
+    if (!firebaseUser) { reject(new Error('Not signed in')); return; }
+    const safeName = name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+    const path     = `users/${firebaseUser.uid}/docs/${subjectId}/${Date.now()}-${safeName}`;
+    const task = firebase.storage().ref(path).put(blob, {
+      contentType:    mime || 'application/octet-stream',
+      customMetadata: { originalName: name },
+    });
+    const prog = showUploadToast(name);
+    _uploads.add(task);
+    if (!background) { _userUploads.add(task); updateLeaveWarning(); }
+    const done = () => { _uploads.delete(task); _userUploads.delete(task); updateLeaveWarning(); };
+    task.on('state_changed',
+      (snap: any) => prog.update(snap.totalBytes ? (snap.bytesTransferred / snap.totalBytes) * 100 : 0),
+      (err: any) => { done(); prog.dismiss(); reject(err); },
+      async () => {
+        done();
+        try {
+          const downloadURL = await task.snapshot.ref.getDownloadURL();
+          prog.dismiss();
+          resolve({ path, downloadURL });
+        } catch (e) { prog.dismiss(); reject(e); }
+      });
   });
+}
+// Whether a file that has just uploaded may be kept. Not once this session is
+// ending (a sign-out, an account deletion: nothing more reaches the cloud), nor
+// while another tab of this device deletes the account (its Storage folder is
+// being emptied, and writeCloud() sends nothing meanwhile): it is deleted again.
+function keepingUploads(): boolean {
+  return !_sessionClosing && !(firebaseUser && _deletingElsewhere === firebaseUser.uid);
+}
+// An upload stopped on purpose as the session ends (stopUploads): nothing to tell.
+function uploadStopped(err: any): boolean {
+  return err?.code === 'storage/canceled' && !keepingUploads();
+}
+// Cancel every upload in flight, and resolve once each has reported back (or
+// after `ms`): from then on none of them can land in Storage. The account
+// deletion runs this before it lists the account's Storage folder; a file
+// arriving after that listing would outlive the account.
+async function stopUploads(ms = 5000): Promise<void> {
+  for (const t of _uploads) { try { t.cancel?.(); } catch (_) { /* already done */ } }
+  const t0 = Date.now();
+  while (_uploads.size && Date.now() - t0 < ms) await new Promise<void>(r => window.setTimeout(r, 50));
+}
+// Remove a file this account stored (fire-and-forget: the entry goes either way).
+function deleteStoredFile(path: string): void {
+  if (path && canUseStorage()) firebase.storage().ref(path).delete().catch(() => {});
+}
+function refreshDocViews(subjectId: number): void {
+  if (docModalSubjId === subjectId) renderDocModal();
+  renderLibrary();
+}
 
-  const prog = showUploadToast(file.name);
-  _uploads.add(task);
+// A library file to Storage, then into the subject's library.
+function uploadFileToStorage(file: File, subjectId: number, mime: string): void {
+  const scope = sessionScope();   // a file that finishes after sign-out isn't added to whoever is here then
+  putOriginal(file, file.name, mime, subjectId).then(({ path, downloadURL }) => {
+    if (!scope.alive()) return;
+    // The subject went while the file uploaded, or the session is ending (it
+    // is no longer saved to the cloud): don't leave the file behind.
+    if (!keepingUploads() || !S.subjects.some(s => s.id === subjectId)) { deleteStoredFile(path); return; }
+    addDocToSubject({
+      id:          S.nextId++,
+      name:        file.name,
+      type:        'file',
+      content:     '',                  // empty for Storage-backed
+      mime,
+      size:        file.size,
+      date:        Date.now(),
+      storagePath: path,
+      downloadURL: downloadURL,
+    }, subjectId);                      // bind to the subject id captured at upload start
+  }, (err: any) => {
+    if (!scope.alive() || uploadStopped(err)) return;
+    showToast(err?.code === 'storage/unauthorized'
+      ? 'Upload blocked: enable Storage rules for signed-in users'
+      : (err?.message || 'Upload failed'), 'error');
+  });
+}
 
-  task.on('state_changed',
-    (snap: any) => {
-      const pct = snap.totalBytes ? (snap.bytesTransferred / snap.totalBytes) * 100 : 0;
-      prog.update(pct);
-    },
-    (err: any) => {
-      _uploads.delete(task);
-      prog.dismiss();
-      if (!scope.alive()) return;
-      const msg = err?.code === 'storage/unauthorized'
-        ? 'Upload blocked: enable Storage rules for signed-in users'
-        : (err?.message || 'Upload failed');
-      showToast(msg, 'error');
-    },
-    async () => {
-      _uploads.delete(task);
-      try {
-        const downloadURL = await task.snapshot.ref.getDownloadURL();
-        prog.dismiss();
-        if (!scope.alive()) return;
-        addDocToSubject({
-          id:          S.nextId++,
-          name:        file.name,
-          type:        'file',
-          content:     '',                  // empty for Storage-backed
-          mime:        file.type,
-          size:        file.size,
-          date:        Date.now(),
-          storagePath: path,
-          downloadURL: downloadURL,
-        }, subjectId);                      // bind to the subject id captured at upload start
-      } catch (e: any) {
-        prog.dismiss();
-        if (!scope.alive()) return;
-        showToast(`Could not finalise upload: ${e?.message || e}`, 'error');
+// AI-import entries whose original file is still uploading (attachOriginal), by originalKey().
+const _originalsUploading = new Set<string>();
+// What finds an AI-import entry again once its original has uploaded: its name
+// and creation time. Not its id, nor its subject's: a merge (a sync retry,
+// another device's changes coming in) can renumber both, and keeps these
+// (mergeStates matches documents on them).
+function originalKey(d: Pick<Doc, 'name' | 'date'>): string { return `${d.name}\n${d.date || ''}`; }
+// The entry still waiting for that original: a file with no content and no stored file.
+function entryAwaitingOriginal(key: string): { subjectId: number; doc: Doc } | null {
+  for (const s of S.subjects) {
+    for (const d of s.documents || []) {
+      if (d.type === 'file' && !d.content && !d.storagePath && originalKey(d) === key) return { subjectId: s.id, doc: d };
+    }
+  }
+  return null;
+}
+// Upload `file` (to subject `subjectId`'s folder) and attach it to `entry`,
+// already in the library. If the entry is gone by then, so is the file; if the
+// upload fails, the entry stays without it and `onFail` says so.
+function attachOriginal(file: File, mime: string, subjectId: number, entry: Doc, onFail: (err: any) => void): void {
+  const scope = sessionScope(), key = originalKey(entry);
+  _originalsUploading.add(key);
+  putOriginal(file, file.name, mime, subjectId).then(({ path, downloadURL }) => {
+    _originalsUploading.delete(key);
+    if (!scope.alive()) return;
+    const found = keepingUploads() ? entryAwaitingOriginal(key) : null;
+    if (!found) { deleteStoredFile(path); return; }
+    found.doc.storagePath = path; found.doc.downloadURL = downloadURL; found.doc.mime = mime;
+    save();
+    refreshDocViews(found.subjectId);
+  }, (err: any) => {
+    _originalsUploading.delete(key);
+    if (!scope.alive() || uploadStopped(err)) return;
+    onFail(err);
+    refreshDocViews(entryAwaitingOriginal(key)?.subjectId ?? subjectId);
+  });
+}
+
+// Before a sign-out (handleSignOut). Signing out stops the uploads the user
+// started: ask first; true to go ahead. This comes before the sign-out is
+// owed (signOutOwed): "Wait" leaves the session as it was.
+async function confirmStopUploads(): Promise<boolean> {
+  const n = _userUploads.size;
+  if (!n) return true;
+  return showConfirm({
+    title:        n === 1 ? 'A file is still uploading' : `${n} files are still uploading`,
+    message:      'Signing out now stops the upload, so the file itself won’t be kept. Everything else is saved to your account.',
+    confirmLabel: 'Sign out anyway',
+    cancelLabel:  'Wait',
+    dangerous:    true,
+  });
+}
+// Then, with the sign-out owed: large files on their way to Storage
+// (moveInlineOriginals) are what lets an account that was too large sync
+// again, so wait for them a while, rather than tell the user the data is too
+// large.
+async function waitForOriginalsMoved(): Promise<void> {
+  if (_originalsMovingIn !== _sessionEpoch) return;
+  showBusy('Signing out…', 'Moving your files to cloud storage first.');
+  await Promise.race([_originalsMoved, new Promise<void>(r => window.setTimeout(r, 20000))]);
+}
+
+// ── Inline originals → Storage ──────────────────────────────────────────────
+// AI Import used to keep the original file inside the document (a PDF or image
+// as a data: URL, a text file as its text), at any size — past ~750 KB, enough
+// to push users/{uid} over Firestore's 1 MiB limit, after which no save
+// succeeded (audit P0-5). Once an account's state has resolved, such originals
+// move to Storage like any large upload: every one larger than a library
+// upload may be kept inline (DOC_INLINE_MAX bytes, as a data: URL) and, while
+// the document is still over budget, smaller ones too, largest first.
+interface InlineOriginal { subjectId: number; docId: number; bytes: number; name: string; storable: boolean }
+function inlineOriginalsToMove(st: AppState): InlineOriginal[] {
+  const all: InlineOriginal[] = [];
+  for (const s of st.subjects || []) {
+    for (const d of (s && Array.isArray(s.documents)) ? s.documents : []) {
+      if (d && d.type === 'file' && typeof d.content === 'string' && d.content) {
+        all.push({ subjectId: s.id, docId: d.id, bytes: utf8Bytes(d.content), name: String(d.name || ''), storable: !!inlineStoreMime(d) });
       }
     }
-  );
+  }
+  all.sort((a, b) => b.bytes - a.bytes);
+  let excess = userDocBytes(st) - USER_DOC_BUDGET;
+  const keptInlineMax = inlineCost(DOC_INLINE_MAX);   // what readAndAddDoc() may keep inline, base64 and all
+  return all.filter(o => {
+    if (o.bytes < keptInlineMax && excess <= 0) return false;
+    excess -= o.bytes;
+    return true;
+  });
+}
+// Which inline originals Storage can never take (of `sizes` bytes each) to
+// remove so a document of `docBytes` syncs again: the largest first and only
+// as many as needed — none if it already fits, or if removing them all still
+// wouldn't be enough (then nothing would be gained).
+function originalsToDrop(docBytes: number, sizes: number[]): number[] {
+  if (docBytes <= SYNC_DOC_MAX) return [];
+  const order = sizes.map((_, i) => i).sort((a, b) => sizes[b]! - sizes[a]!);
+  const out: number[] = [];
+  let left = docBytes;
+  for (const i of order) {
+    if (left <= SYNC_DOC_MAX) break;
+    out.push(i);
+    left -= sizes[i]!;
+  }
+  return left <= SYNC_DOC_MAX ? out : [];
+}
+function dataUrlToBlob(u: string): Blob | null {
+  const m = /^data:([^,]*?)(;base64)?,/.exec(u);
+  if (!m) return null;
+  try {
+    const body = u.slice(m[0].length), type = (m[1] || '').split(';')[0]!;
+    if (!m[2]) return new Blob([decodeURIComponent(body)], { type });
+    const bin = atob(body), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type });
+  } catch (_) { return null; }
+}
+// The type Storage would keep an inline original under, or '' if it takes
+// none: a data: URL's own type, or text/plain for a text file AI Import kept
+// as its text (text whatever its name says).
+function inlineStoreMime(d: Pick<Doc, 'name' | 'mime' | 'content'>): string {
+  const c = typeof d.content === 'string' ? d.content : '';
+  if (!c.startsWith('data:')) return storedMime(d.name, d.mime || 'text/plain') || 'text/plain';
+  return storedMime(d.name, d.mime || (/^data:([^;,]*)/.exec(c)?.[1] || ''));
+}
+// Whether an inline original Storage can't take may be removed to let sync
+// resume. Only an AI import's, whose value lives on in what was made from it
+// (the text it read, aiText, with its cards and summaries), or one whose
+// data: URL doesn't decode (`decodes` false), which no one can open. A library
+// upload is the user's own file and may be its only copy: it stays, and the
+// size notice names it for the user to download and delete.
+function mayDropOriginal(d: Pick<Doc, 'aiText'>, decodes: boolean): boolean {
+  return !decodes || !!d.aiText;
+}
+// “a”, “a” and “b”, “a”, “b” and “c”, or “a”, “b”, “c” and 2 more.
+function nameList(names: string[], max = 3): string {
+  const q = names.slice(0, max).map(n => `“${n}”`);
+  if (names.length > max) return `${q.join(', ')} and ${names.length - max} more`;
+  return q.length > 1 ? `${q.slice(0, -1).join(', ')} and ${q[q.length - 1]}` : (q[0] || '');
+}
+// What the user is told about originals removed by moveInlineOriginals().
+interface DroppedOriginal { name: string; damaged: boolean }
+function droppedNotice(dropped: DroppedOriginal[]): string {
+  const out: string[] = [];
+  const read = dropped.filter(x => !x.damaged).map(x => x.name), bad = dropped.filter(x => x.damaged).map(x => x.name);
+  if (read.length) {
+    const one = read.length === 1;
+    out.push(`The original ${one ? 'file' : 'files'} of ${nameList(read)} couldn’t be moved to cloud storage, so ${one ? 'it was' : 'they were'} removed to let your data sync again. ${one ? 'Its' : 'Their'} text stays in your Library, and the flashcards and summaries made from ${one ? 'it' : 'them'} are kept.`);
+  }
+  if (bad.length) {
+    const one = bad.length === 1;
+    out.push(`The original ${one ? 'file' : 'files'} of ${nameList(bad)} ${one ? 'was' : 'were'} damaged and couldn’t be opened, so ${one ? 'it was' : 'they were'} removed to let your data sync again.`);
+  }
+  return out.join(' ');
+}
+function inlineDocHolding(content: string): Doc | null {
+  for (const s of S.subjects) for (const d of s.documents || []) if (d.type === 'file' && d.content === content) return d;
+  return null;
+}
+// One at a time (each holds a decoded copy of its file). Runs when an
+// account's state has resolved, after a failed first read succeeds on retry,
+// and when the user taps a sync chip paused for size. If Storage refuses or
+// can't be reached, the original stays in place for the next of those to
+// retry: a refusal can come from the project (rules, quota, billing) rather
+// than the file. An original the app itself can't store (a type Storage
+// refuses, a corrupt data: URL) is removed only if mayDropOriginal() allows
+// (an AI import's, or one no one can open) and only when that brings the
+// document back under the limit: its entry and what was made from it stay,
+// and the user is told which. Any other stays inline, sync stays paused, and
+// the size notice names it.
+function moveInlineOriginals(): Promise<void> {
+  if (_originalsMovingIn === _sessionEpoch) return _originalsMoved;   // already under way
+  return _originalsMoved = moveInlineOriginalsNow();
+}
+async function moveInlineOriginalsNow(): Promise<void> {
+  if (!firebaseUser || sOwner !== firebaseUser.uid || !cloudReadOk || !keepingUploads()) return;
+  const picks = inlineOriginalsToMove(S);
+  if (!picks.length) return;
+  const epoch = _sessionEpoch, scope = sessionScope();
+  const wasOver = tooLargeToSync(S), wasPaused = syncPausedForSize();
+  const droppable: { content: string; damaged: boolean }[] = [];
+  let moved = 0;
+  _originalsMovingIn = epoch;
+  if (wasPaused) setSyncState('syncing');
+  try {
+    // Each original is found by its content, before and after its upload: S
+    // may be replaced meanwhile (a merge), and its ids renumbered.
+    const items = picks.map(p => ({ subjectId: p.subjectId, content: S.subjects.find(s => s.id === p.subjectId)?.documents?.find(x => x.id === p.docId)?.content || '' }));
+    for (const { subjectId, content } of items) {   // content: a data: URL or, from a text-file import, the text itself
+      if (!keepingUploads()) break;   // the session is ending (sign-out, account deletion): no new upload
+      const d = content ? inlineDocHolding(content) : null;
+      if (!d) continue;
+      const blob = content.startsWith('data:') ? dataUrlToBlob(content) : new Blob([content], { type: 'text/plain' });
+      const mime = blob ? inlineStoreMime(d) : '';
+      if (!blob || !mime) {
+        if (mayDropOriginal(d, !!blob)) droppable.push({ content, damaged: !blob });
+        continue;   // any other stays inline
+      }
+      if (!canUseStorage()) continue;
+      try {
+        const { path, downloadURL } = await putOriginal(blob, d.name, mime, subjectId, true);
+        if (!scope.alive()) return;
+        const cur = inlineDocHolding(content);   // S may have been replaced meanwhile
+        if (cur && keepingUploads()) {
+          cur.content = ''; cur.storagePath = path; cur.downloadURL = downloadURL; cur.mime = mime;
+          if (!cur.size) cur.size = blob.size;
+          moved++;
+        } else {
+          deleteStoredFile(path);
+        }
+      } catch (err: any) {
+        if (!scope.alive()) return;
+        track('sync.original.move.error', { code: err?.code, message: err?.message });
+      }
+    }
+  } finally {
+    if (_originalsMovingIn === epoch) _originalsMovingIn = -1;
+  }
+  if (!scope.alive() || !keepingUploads()) return;   // (ending: nothing more to store or say)
+  const dropped: DroppedOriginal[] = [];
+  for (const i of originalsToDrop(userDocBytes(S), droppable.map(x => utf8Bytes(x.content)))) {
+    const { content, damaged } = droppable[i]!;
+    const cur = inlineDocHolding(content);   // S may have been replaced meanwhile: check it again
+    if (cur && mayDropOriginal(cur, !damaged)) { cur.content = ''; dropped.push({ name: cur.name, damaged }); }
+  }
+  // (Forced: when nothing could be moved S is unchanged, and save() would skip
+  // it, leaving the chip on "syncing" with no word on why.)
+  if (moved || dropped.length || wasOver) save(true);   // still too large → the size guard says so now
+  if (dropped.length) {
+    track('sync.original.dropped', { code: String(dropped.length) });
+    showToast(droppedNotice(dropped), 'warning', 12000);
+  } else if (tooLargeToSync(S)) {
+    if (wasPaused) showSizeNotice();   // a retry from the sync chip that didn't help (a first pause is announced by save())
+  } else if (moved && wasOver && !wasPaused) {
+    showToast('Large files were moved to cloud storage, so your data syncs again.', 'success', 5000);
+  }
 }
 
 // Persistent progress toast: one bar + label + cancel.
@@ -4849,6 +5364,11 @@ function saveDocNote(): void {
   const title   = (elInput('docNoteTitle')?.value ?? '').trim();
   const content = (document.getElementById('docNoteContent') as HTMLTextAreaElement | null)?.value.trim() ?? '';
   if (!title) { showToast('Please enter a title', 'warning'); return; }
+  // One note mustn't be what stops sync for the whole account (audit P0-5).
+  if (!tooLargeToSync(S) && userDocBytes(S) + noteCost(content) > SYNC_DOC_MAX) {
+    showToast('This note is too long to save: with it, your study data would pass the 1 MB cloud limit and stop syncing. Shorten it or split it into smaller notes, or upload it as a text file.', 'warning', 9000);
+    return;
+  }
   addDocToSubject({ id: S.nextId++, name: title, type: 'note', content, date: Date.now() });
 }
 
@@ -5406,7 +5926,7 @@ function canSummarize(d: Doc): boolean {
   if (d.name.startsWith('AI Summary')) return false;
   if (d.type === 'note') return !!d.content;
   if (d.type === 'link') return !!d.aiText;
-  if (d.type === 'file') return !!d.aiText || (d.mime || '').startsWith('image/');
+  if (d.type === 'file') return !!d.aiText || ((d.mime || '').startsWith('image/') && !!(d.content || d.downloadURL));
   return false;
 }
 
@@ -5420,7 +5940,9 @@ async function generateSummaryForDoc(subjId: number, docId: number): Promise<voi
   // Build the summary-mode payload from whatever the doc carries.
   let payload: Record<string, unknown> | null = null;
   const isImage = d.type === 'file' && (d.mime || '').startsWith('image/');
-  if (isImage && d.content) {
+  // An image kept in Storage (AI imports, large uploads) is fetched back below.
+  const fetchImage = isImage && !d.content && d.downloadURL ? d.downloadURL : '';
+  if (isImage && (d.content || fetchImage)) {
     const b64 = d.content.replace(/^data:[^;]+;base64,/, '');
     payload = { contentType: 'image', title: d.name, subjName: s.name, image: { b64, mime: d.mime || 'image/png' }, mode: 'summary' };
   } else if (d.aiText) {
@@ -5436,6 +5958,12 @@ async function generateSummaryForDoc(subjId: number, docId: number): Promise<voi
   showToast('Generating summary…', 'info');
   const scope = sessionScope();   // a summary that arrives after sign-out goes nowhere
   try {
+    if (fetchImage) {
+      const url = await fetchAsDataUrl(fetchImage, scope.signal).catch(() => '');
+      if (!scope.alive()) return;
+      if (!url) throw new Error('Couldn’t load this image from cloud storage, so no summary was made. Try again later.');
+      (payload['image'] as { b64: string }).b64 = url.replace(/^data:[^;]+;base64,/, '');
+    }
     const res = await fetch('/api/process-content', {
       method: 'POST', headers: await aiHeaders(), body: JSON.stringify(payload), signal: scope.signal,
     });
@@ -5460,6 +5988,12 @@ async function generateSummaryForDoc(subjId: number, docId: number): Promise<voi
       if (docModalSubjId === subjId) renderDocModal();
     }
   }
+}
+
+async function fetchAsDataUrl(url: string, signal?: AbortSignal): Promise<string> {
+  const res = await fetch(url, { signal });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await readFileAs(await res.blob() as File, 'dataurl') as string;
 }
 
 function deleteDoc(subjId: number, docId: number): void {
@@ -5507,15 +6041,34 @@ function openDoc(subjId: number, docId: number): void {
     //   • Storage-backed (downloadURL set) → cross-origin URL, just navigate
     //   • Legacy inline base64 (data URI in d.content)
     const href = d.downloadURL || d.content;
-    if (!href) { showToast('File missing — not available locally', 'warning'); return; }
+    if (!href) {
+      showToast(_originalsUploading.has(originalKey(d))
+        ? `“${d.name}” is still uploading. Try again in a moment.`
+        : `The original file of “${d.name}” isn’t stored, only what was made from it.`, 'info');
+      return;
+    }
+
+    // A file kept inline opens from a blob: URL: browsers refuse to open a
+    // data: URL in a tab (and an imported text file's text is no URL at all).
+    // It is viewed only as a type Storage takes: a blob: URL has this page's
+    // origin, so an SVG or HTML file must never render from one (download it).
+    let url = href, type = d.mime || '';
+    if (!d.downloadURL) {
+      const blob = href.startsWith('data:') ? dataUrlToBlob(href) : new Blob([href], { type: 'text/plain' });
+      if (!blob) { showToast(`“${d.name}” is damaged and can’t be opened.`, 'warning'); return; }
+      type = inlineStoreMime(d);
+      const obj = URL.createObjectURL(type ? new Blob([blob], { type }) : blob);
+      window.setTimeout(() => URL.revokeObjectURL(obj), 60_000);
+      url = obj;
+    }
 
     // For viewable types (images, PDFs) open in a tab; otherwise force download.
-    const viewable = /^image\//.test(d.mime || '') || (d.mime || '') === 'application/pdf';
+    const viewable = /^image\//.test(type) || type === 'application/pdf';
     if (viewable) {
-      window.open(href, '_blank', 'noopener');
+      window.open(url, '_blank', 'noopener');
     } else {
       const a = document.createElement('a');
-      a.href     = href;
+      a.href     = url;
       a.download = d.name;
       a.target   = '_blank';
       a.rel      = 'noopener';
@@ -5554,11 +6107,13 @@ async function deleteSubject(id: number): Promise<void> {
   const scope = sessionScope();   // "subject <id>" means someone else's after a sign-out
   const ok = await showConfirm({
     title:        'Remove subject?',
-    message:      subj ? `"${subj.name}" and all its notes will be removed from this device.` : 'This subject will be removed.',
+    message:      subj ? `"${subj.name}" and all its flashcards, notes and files will be deleted.` : 'This subject will be removed.',
     confirmLabel: 'Remove',
     dangerous:    true,
   });
   if (!ok || !scope.alive()) return;
+  // Its files in Storage go with it, as deleteDoc() does for one file.
+  for (const d of S.subjects.find(s => s.id === id)?.documents || []) if (d.storagePath) deleteStoredFile(d.storagePath);
   S.subjects = S.subjects.filter(s => s.id !== id);
   save();
   renderLibrary();
@@ -5956,10 +6511,9 @@ async function generateSummary(): Promise<void> {
 // ── File handling ────────────────────────────────
 // Tagged union — each kind carries only the fields it needs.
 //   text  → readAsText, send the string to /api/process-content as before
-//   pdf   → text was extracted client-side via PDF.js; dataUrl preserves the
-//           original file so we can save it to the doc library unchanged.
-//   image → base64 payload sent to a vision model; dataUrl serves both as
-//           the AI input (data:<mime>;base64,...) and the saved doc.
+//   pdf   → text was extracted client-side via PDF.js.
+//   image → base64 payload (dataUrl) sent to a vision model.
+// The picked file itself (`file`) is what goes to the library, via Storage.
 type AIFileKind = 'text' | 'pdf' | 'image';
 interface AIImportFileData {
   kind:    AIFileKind;
@@ -5967,7 +6521,8 @@ interface AIImportFileData {
   size:    number;
   mime:    string;
   text?:   string;   // text/pdf — extracted plain text for the AI
-  dataUrl?: string;  // pdf/image — original file as data: URL for the doc
+  dataUrl?: string;  // image — the file as a data: URL, for the vision model
+  file?:   File;     // the picked file (absent for pasted text) → library, via Storage
   pasted?: boolean;  // typed/pasted rather than uploaded → save it as a note
 }
 let aiImportFileData: AIImportFileData | null = null;
@@ -6049,11 +6604,11 @@ function readFileAs(file: File, as: 'text' | 'dataurl' | 'arraybuffer'): Promise
 }
 
 async function readAIFile(file: File): Promise<void> {
-  // Matches DOC_HARD_MAX (1 GB) — the Storage-rules cap. We keep the file
-  // entirely in memory on this path, so very large uploads can stall the
-  // tab before the limit kicks in; route huge files through the
-  // Storage-streaming path in Library instead.
-  if (file.size > DOC_HARD_MAX) { showToast('File too large (max 1 GB)', 'warning'); return; }
+  // The file is read into memory here (PDF.js, the vision model), so very
+  // large ones can stall the tab. Cards need only its text: it may be larger
+  // than DOC_HARD_MAX, the cap on the original kept in Storage
+  // (saveImportOriginal then says the original isn't kept).
+  if (file.size > AI_IMPORT_MAX) { showToast('File too large (max 1 GB)', 'warning'); return; }
 
   const kind = classifyAIFile(file);
   if (!kind) {
@@ -6071,15 +6626,14 @@ async function readAIFile(file: File): Promise<void> {
     if (kind === 'text') {
       const content = await readFileAs(file, 'text') as string;
       if (!scope.alive()) return;
-      aiImportFileData = { kind, name: file.name, size: file.size, mime: file.type, text: content };
+      aiImportFileData = { kind, name: file.name, size: file.size, mime: file.type, text: content, file };
     } else if (kind === 'image') {
       const dataUrl = await readFileAs(file, 'dataurl') as string;
       if (!scope.alive()) return;
-      aiImportFileData = { kind, name: file.name, size: file.size, mime: file.type || guessImageMime(file.name), dataUrl };
+      aiImportFileData = { kind, name: file.name, size: file.size, mime: file.type || guessImageMime(file.name), dataUrl, file };
     } else {
-      // PDF — read twice: once as ArrayBuffer for PDF.js, once as data URL
-      // for the doc library. Both come from a single File reference so the
-      // tab keeps only one copy in memory at a time.
+      // PDF — read as an ArrayBuffer for PDF.js. The original goes to the
+      // library from the File itself (Storage), not from a copy in memory.
       const buf     = await readFileAs(file, 'arraybuffer') as ArrayBuffer;
       const result  = await extractPdfText(buf);
       // Scanned PDFs have negligible text-layer content. Threshold is
@@ -6094,11 +6648,10 @@ async function readAIFile(file: File): Promise<void> {
         );
         return;
       }
-      const dataUrl = await readFileAs(file, 'dataurl') as string;
       if (!scope.alive()) return;
       aiImportFileData = {
         kind, name: file.name, size: file.size, mime: 'application/pdf',
-        text: result.text, dataUrl,
+        text: result.text, file,
       };
       if (result.pages > result.extracted) {
         showToast(`Read first ${result.extracted} of ${result.pages} pages. The rest will be ignored.`, 'info');
@@ -6208,7 +6761,7 @@ async function processYouTube(): Promise<void> {
     // so a summary can be generated later from the saved doc.
     if (aiImportSubjId !== null) {
       const doc: Doc = { id: S.nextId++, name: info.title, type: 'link', content: url, date: Date.now() };
-      if (info.transcript) doc.aiText = String(info.transcript).slice(0, 12000);
+      if (info.transcript) keepAiText(doc, String(info.transcript).slice(0, 12000));
       addDocToSubject(doc, aiImportSubjId);
     }
 
@@ -6289,18 +6842,28 @@ async function processFile(): Promise<void> {
     aiImportResult = { flashcards: result.flashcards || [], outline: result.outline || [], summary: '' };
     aiImportResultTab = 'flashcards';
 
-    // Auto-save the original file as a doc. For text we save the text itself;
-    // for PDFs/images we save the data URL so the user can re-open the file
-    // unchanged from the library. Pass aiImportSubjId explicitly — the import
-    // flow never opens the doc modal, so addDocToSubject's docModalSubjId
-    // fallback would be null and silently drop the doc.
+    // Auto-save the source to the library. An uploaded file's original goes to
+    // Storage, like a large library upload: kept inline, a PDF or image of any
+    // size counted against the 1 MiB users/{uid} document, and one big enough
+    // stopped every later sync (audit P0-5). Pass aiImportSubjId explicitly —
+    // the import flow never opens the doc modal, so addDocToSubject's
+    // docModalSubjId fallback would be null and silently drop the doc.
     if (aiImportSubjId !== null) {
-      const docContent = kind === 'text' ? (fd.text || '') : (fd.dataUrl || '');
-      // Pasted notes are saved as a note, so they re-open in the note viewer
-      // instead of being treated as an uploaded file.
-      const doc: Doc = { id: S.nextId++, name, type: fd.pasted ? 'note' : 'file', content: docContent, mime, size, date: Date.now() };
-      if (kind !== 'image' && fd.text) doc.aiText = fd.text.slice(0, 12000);
-      addDocToSubject(doc, aiImportSubjId);
+      const aiText = kind !== 'image' && fd.text ? fd.text.slice(0, 12000) : undefined;
+      const text = fd.text || '';
+      if (fd.file) {
+        saveImportOriginal(fd.file, aiImportSubjId, aiText);
+      } else if (userDocBytes(S) + noteCost(text, aiText) > USER_DOC_BUDGET) {
+        // Too long to keep in the document, where it would stop sync for the
+        // whole account: kept as a text file in Storage, like an uploaded one.
+        saveImportOriginal(new File([text], /\.txt$/i.test(name) ? name : name + '.txt', { type: 'text/plain' }), aiImportSubjId, aiText);
+      } else {
+        // Pasted notes are saved as a note, so they re-open in the note viewer
+        // instead of being treated as an uploaded file.
+        const doc: Doc = { id: S.nextId++, name, type: fd.pasted ? 'note' : 'file', content: text, mime, size, date: Date.now() };
+        if (aiText) doc.aiText = aiText;
+        addDocToSubject(doc, aiImportSubjId);
+      }
     }
 
     renderAIImportStep('result');
@@ -6310,6 +6873,40 @@ async function processFile(): Promise<void> {
     track('ai.file.error', { kind, message: msg });
     showToast('Error: ' + msg, 'error');
     renderAIImportStep('input');
+  }
+}
+
+// An AI-imported file goes into the subject's library at once: its entry,
+// with the text the AI read (aiText) for later summaries. The original file
+// follows through Storage and is attached to that entry when it is uploaded;
+// if it can't be, the entry, cards and summary stay and the user is told.
+function saveImportOriginal(file: File, subjectId: number, aiText?: string): void {
+  const mime = storedMime(file.name, file.type);
+  const doc: Doc = { id: S.nextId++, name: file.name, type: 'file', content: '', mime: mime || uploadMime(file.name, file.type), size: file.size, date: Date.now() };
+  keepAiText(doc, aiText);
+  addDocToSubject(doc, subjectId);
+  const scope = sessionScope();
+  const fail = (why: string) => {
+    if (scope.alive()) showToast(`Couldn’t keep the original “${file.name}” (${why}). Your flashcards and summary are kept${doc.aiText ? ', and so is its text in your library' : ''}.`, 'warning', 8000);
+  };
+  if (!mime) { fail('this file type can’t be stored'); return; }
+  if (file.size > DOC_HARD_MAX) { fail('it is over 25 MB'); return; }
+  if (!canUseStorage()) { fail('cloud storage isn’t available'); return; }
+  attachOriginal(file, mime, subjectId, doc, (err: any) => {
+    track('ai.original.upload.error', { code: err?.code, message: err?.message });
+    fail('the upload failed');
+  });
+}
+
+// Keep `text`, what the AI read, on an imported entry for later summaries:
+// as much as fits (aiTextToKeep), saying so when that isn't all of it.
+function keepAiText(doc: Doc, text?: string): void {
+  if (!text) return;
+  const kept = aiTextToKeep(userDocBytes(S), text);
+  if (kept) doc.aiText = kept;
+  if (kept.length < text.length) {
+    track('ai.text.trimmed', { code: kept ? 'part' : 'none' });
+    showToast(`Your study data is close to the 1 MB cloud limit, so ${kept ? 'only part of' : 'none of'} the text of “${doc.name}” was kept for later summaries.`, 'info', 8000);
   }
 }
 
@@ -6662,7 +7259,8 @@ function deleteTask(id: number): void {
 }
 
 // ── TOAST ────────────────────────────────────────────────────────────────────
-function showToast(msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info'): void {
+// `ms`: how long it stays up (default: 7 s for a warning or an error, 3 s otherwise).
+function showToast(msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', ms?: number): void {
   document.querySelector('.brainfy-toast')?.remove();
   const colors = {
     info:    'var(--plight)',
@@ -6686,8 +7284,8 @@ function showToast(msg: string, type: 'info' | 'success' | 'warning' | 'error' =
     'box-shadow:0 8px 32px rgba(0,0,0,0.5)',
     // One line where it fits; on a narrow screen it wraps inside a 16 px margin
     // instead of running off both edges (a message that says whether the account
-    // was deleted must be readable on a phone).
-    'width:max-content','max-width:calc(100vw - 32px)','box-sizing:border-box','white-space:normal',
+    // was deleted must be readable on a phone), and a long one wraps at 560 px.
+    'width:max-content','max-width:min(560px, calc(100vw - 32px))','box-sizing:border-box','white-space:normal',
     'display:flex','align-items:center','gap:10px',
     'animation:toastSpringIn 0.28s cubic-bezier(0.34,1.2,0.64,1) both',
     'font-family:Manrope,sans-serif',
@@ -6703,7 +7301,7 @@ function showToast(msg: string, type: 'info' | 'success' | 'warning' | 'error' =
     toast.style.opacity = '0';
     toast.style.transform = 'translateX(-50%) translateY(8px)';
     setTimeout(() => toast.remove(), 320);
-  }, type === 'error' || type === 'warning' ? 7000 : 3000);
+  }, ms ?? (type === 'error' || type === 'warning' ? 7000 : 3000));
 }
 
 // ── DELETE ACCOUNT ───────────────────────────────────────────────────────────
@@ -6870,6 +7468,11 @@ async function deleteAccount(): Promise<void> {
   discardKept(uid);
   vacateWorkingCopy(uid);
   announceDiscard(uid);
+  // Uploads still on their way (a file just added, an original being moved to
+  // Storage) would land after step 2 has listed the folder, and outlive the
+  // account: they stop first.
+  await stopUploads();
+  if (!same()) return;
 
   // ── 2) Storage, and the public decks ──
   // Best effort: orphan files are not worth stopping for. Both are bounded.
@@ -7100,6 +7703,7 @@ const UNSYNCED_REASON: Record<FlushProblem, string> = {
   timeout:     'Brainfy can’t reach your account right now, so some changes on this device haven’t been saved to it. Signing out now deletes them. Stay signed in and they’ll sync once the connection recovers.',
   unread:      'Brainfy couldn’t load your account this session, so changes made on this device haven’t been saved to it. Signing out now deletes them. Stay signed in and tap the sync status to try again.',
   'too-large': 'Your study data has grown past the cloud’s 1 MB limit, so recent changes are only on this device. Signing out now deletes them. Stay signed in, then remove large notes or documents, or export your data in Settings.',
+  moving:      'Large files are still being moved to cloud storage, so recent changes haven’t reached your account yet. Signing out now deletes them. Stay signed in for a minute and they’ll sync by themselves.',
   failed:      'Saving to your account failed, so some changes are only on this device. Signing out now deletes them. Stay signed in and tap the sync status to try again.',
 };
 
@@ -7114,12 +7718,22 @@ async function handleSignOut(): Promise<void> {
   });
   if (!ok || !firebaseUser || _sessionClosing) return;
   const uid: string = firebaseUser.uid, epoch = _sessionEpoch;
+  // Signing out stops the uploads the user started: they are asked first.
+  // (Awaited only when there are some: otherwise the sign-out goes on in the
+  // same turn, its "Saving your latest changes" notice following at once.)
+  if (_userUploads.size && (!(await confirmStopUploads()) || epoch !== _sessionEpoch || !firebaseUser || _sessionClosing)) return;
   // The user has asked to sign out: from here it happens even if the tab is
   // closed before it's done (and closing it is warned against meanwhile).
   signOutOwed(uid);
   // A focus session in progress ends here, its time so far logged (and so
   // sent with the rest below).
   logFocusSoFar();
+  // Large files on their way to cloud storage are what lets an account that
+  // was too large sync again: give them a moment.
+  if (_originalsMovingIn === _sessionEpoch) {
+    await waitForOriginalsMoved();
+    if (epoch !== _sessionEpoch) return;
+  }
 
   if (hasUnsynced(uid)) showBusy('Signing out…', 'Saving your latest changes to your account.');
   // An edit that lands while a write is in flight (a focus session ending, say)
@@ -7378,7 +7992,11 @@ function initEvents() {
 
   // ── Sidebar: sync status chip — click to retry when in error state ────────
   el('syncStatus')?.addEventListener('click', () => {
-    if (syncState === 'error')   retrySync();
+    if (syncState === 'error') {
+      if (!(syncPausedForSize() && tooLargeToSync(S))) retrySync();
+      else if (inlineOriginalsToMove(S).some(o => o.storable) && canUseStorage()) void moveInlineOriginals();
+      else showSizeNotice();
+    }
     if (syncState === 'offline') showToast('You appear to be offline. Changes are saved locally.', 'info');
   });
 

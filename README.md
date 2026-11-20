@@ -64,7 +64,10 @@ You'll need:
 - A Firebase project of your own if you want sync/auth to work. Update
   `FB_CONFIG` in `index.html`. Publish `firestore.rules` and
   `storage.rules` in the Firebase Console (or via
-  `firebase deploy --only firestore:rules,storage`).
+  `firebase deploy --only firestore:rules,storage`), and apply `cors.json`
+  to the Storage bucket once (`gcloud storage buckets update
+  gs://<your-bucket> --cors-file=cors.json`) so the app can read stored
+  files back.
 
 ## Licensing
 
