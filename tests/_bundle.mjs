@@ -2,7 +2,7 @@
 //
 // src/main.ts compiles with `module: "None"` + `outFile`, so it is one big
 // concatenation of globals rather than an importable module — which is why the
-// pure logic at the heart of the app (the SRS scheduler, the guest/cloud merge)
+// pure logic at the heart of the app (the SRS scheduler, the local/cloud merge)
 // had no tests at all while the JWT verifier had 18.
 //
 // Rather than refactor the bundle (a large, risky change) or duplicate the logic
@@ -54,6 +54,7 @@ export function loadBundle() {
     body: makeStubEl(), head: makeStubEl(), documentElement: makeStubEl(),
     title: '',
   };
+  const windowListeners = {};
   const ctx = {
     console, document, JSON, Math, Date, Set, Map, Intl, URL, URLSearchParams,
     structuredClone, Promise, Error, Array, Object, String, Number, Boolean, RegExp,
@@ -61,7 +62,10 @@ export function loadBundle() {
     sessionStorage: { ...storage, _m: new Map() },
     setTimeout, clearTimeout, setInterval: () => 0, clearInterval: noop,
     requestAnimationFrame: noop, cancelAnimationFrame: noop,
-    addEventListener: noop, removeEventListener: noop,
+    // window listeners are recorded (ctx.listeners('pagehide')), so a test can fire them
+    addEventListener(type, fn) { (windowListeners[type] ||= []).push(fn); },
+    removeEventListener(type, fn) { windowListeners[type] = (windowListeners[type] || []).filter(f => f !== fn); },
+    listeners: type => (windowListeners[type] || []).slice(),
     matchMedia: () => ({ matches: false, addEventListener: noop, removeEventListener: noop }),
     fetch: () => Promise.reject(new Error('no network in tests')),
     navigator: { onLine: true, userAgent: 'node-test', serviceWorker: { register: () => Promise.reject(new Error('none')) } },

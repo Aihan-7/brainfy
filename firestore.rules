@@ -21,10 +21,25 @@ service cloud.firestore {
 
     // Users can read + write only the document keyed by their own uid.
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, create, delete: if request.auth != null && request.auth.uid == userId;
 
-      // (Future) subcollections under users/{uid}/...
-      match /{document=**} {
+      // The app writes this document through a transaction that raises `rev`
+      // with every write, so a tab left open can't overwrite newer data from
+      // another device (AUDIT-2026-10-17.md, P0-3). Once a document carries
+      // `rev`, an update must raise it — which also stops a tab still running
+      // an app version from before revisions (it writes no `rev`) from
+      // overwriting newer data. A document without `rev` yet stays writable as
+      // before, so these rules can be published before or after the app update.
+      allow update: if request.auth != null && request.auth.uid == userId
+        && (!('rev' in resource.data)
+            || (request.resource.data.get('rev', 0) is number
+                && request.resource.data.get('rev', 0) > resource.data.rev));
+
+      // (Future) subcollections under users/{uid}/... At least one segment
+      // below users/{uid}: in rules_version 2 a bare {document=**} here also
+      // matches users/{uid} itself, and its `allow write` would let any update
+      // through, `rev` or not.
+      match /{subcollection}/{document=**} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
@@ -51,6 +66,18 @@ service cloud.firestore {
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 120
+        // The colour lands in other users' style="" attributes, where escaping
+        // does not help: strict #rrggbb only (AUDIT-2026-10-17.md, P0-2).
+        && request.resource.data.color is string
+        && request.resource.data.color.matches('^#[0-9a-fA-F]{6}$')
+        // Bound the other free-text fields that land on other users' screens and
+        // in the /decks pages. The app trims them to 60 / 300 characters; these
+        // limits are looser so a legitimate publish is never refused, however
+        // size() counts non-Latin text.
+        && request.resource.data.get('ownerName', '') is string
+        && request.resource.data.get('ownerName', '').size() <= 200
+        && request.resource.data.get('desc', '') is string
+        && request.resource.data.get('desc', '').size() <= 1000
         && request.resource.data.cards is list
         && request.resource.data.cards.size() > 0
         && request.resource.data.cards.size() <= 1000;
@@ -65,6 +92,12 @@ service cloud.firestore {
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 120
+        && request.resource.data.color is string
+        && request.resource.data.color.matches('^#[0-9a-fA-F]{6}$')
+        && request.resource.data.get('ownerName', '') is string
+        && request.resource.data.get('ownerName', '').size() <= 200
+        && request.resource.data.get('desc', '') is string
+        && request.resource.data.get('desc', '').size() <= 1000
         && request.resource.data.cards is list
         && request.resource.data.cards.size() > 0
         && request.resource.data.cards.size() <= 1000;

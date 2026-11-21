@@ -13,18 +13,40 @@ rules_version = '2';
 //
 //  ALSO: if you've never enabled Storage on this project, open the Storage
 //  tab in the console first and click "Get started" → accept defaults.
+//
+//  ONCE PER BUCKET: let the app read stored files back in the browser (an AI
+//  summary of a stored image fetches it). From the repo root, with the Google
+//  Cloud SDK signed in to this project:
+//    gcloud storage buckets update gs://brainfy-65b7a.firebasestorage.app --cors-file=cors.json
+//  (or: gsutil cors set cors.json gs://brainfy-65b7a.firebasestorage.app)
 // ────────────────────────────────────────────────────────────────────────────
 
 service firebase.storage {
   match /b/{bucket}/o {
+
+    // What the app stores: Library uploads and AI-import originals (PDFs,
+    // images, Office/text documents, audio, video). Nothing a browser would
+    // render as a page (HTML, SVG, XML, scripts), so the bucket can't host
+    // one: the app stores other text (code, captions, markup) as text/plain.
+    // Keep in step with STORAGE_TYPE_RE and DOC_HARD_MAX in src/main.ts.
+    function isStudyFile(t) {
+      return t == 'application/pdf'
+          || t.matches('image/(png|jpeg|gif|webp|heic|heif|bmp)')
+          || t.matches('text/(plain|markdown|x-markdown|csv|tab-separated-values|rtf)')
+          || t.matches('application/(json|rtf|msword|epub[+]zip|vnd[.]ms-excel|vnd[.]ms-powerpoint)')
+          || t.matches('application/vnd[.]openxmlformats-officedocument[.](wordprocessingml[.]document|spreadsheetml[.]sheet|presentationml[.]presentation)')
+          || t.matches('application/vnd[.]oasis[.]opendocument[.](text|spreadsheet|presentation)')
+          || t.matches('audio/(mpeg|mp4|x-m4a|aac|wav|x-wav|ogg|webm|flac)')
+          || t.matches('video/(mp4|webm|quicktime)');
+    }
 
     // User-owned files: /users/{uid}/...
     match /users/{uid}/{allPaths=**} {
       allow read:   if request.auth != null && request.auth.uid == uid;
       allow write:  if request.auth != null
                        && request.auth.uid == uid
-                       && request.resource.size < 1024 * 1024 * 1024     // 1 GB hard cap
-                       && request.resource.contentType.matches('(image|application|text|video|audio)/.*');
+                       && request.resource.size <= 25 * 1024 * 1024      // 25 MB hard cap (the app's DOC_HARD_MAX)
+                       && isStudyFile(request.resource.contentType);
       allow delete: if request.auth != null && request.auth.uid == uid;
     }
 

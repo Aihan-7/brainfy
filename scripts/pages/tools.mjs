@@ -7,10 +7,10 @@ export default [
     slug: 'free-flashcard-maker', cat: 'tool', eyebrow: 'Free tool · Flashcards',
     crumb: 'Free Flashcard Maker',
     title: 'Free Flashcard Maker — No Ads, No Paywall | Brainfy',
-    desc: 'Make flashcards free with Brainfy — by hand, by import, or with AI from your notes. No ads, no paywall, no signup to try. Then study with spaced repetition.',
+    desc: 'Make flashcards free with Brainfy — by hand, by import, or with AI from your notes. No ads, no paywall. Then study with spaced repetition.',
     keywords: 'free flashcard maker, make flashcards free, online flashcard maker, flashcard app free, create flashcards online',
     h1: 'A Truly Free Flashcard Maker',
-    lede: 'Make as many flashcards as you want — <strong>by hand, by import, or with AI from your notes</strong> — and study them with real spaced repetition. No ads, no paywall on the core, and no signup needed to start.',
+    lede: 'Make as many flashcards as you want — <strong>by hand, by import, or with AI from your notes</strong> — and study them with real spaced repetition. No ads and no paywall on the core.',
     body: `
       <h2>Three ways to build a deck</h2>
       <p>Most flashcard tools make you type every card. Brainfy gives you three on-ramps so you spend your time studying, not building:</p>
@@ -21,14 +21,14 @@ export default [
       </ul>
       <h2>How it works</h2>
       <div class="steps">
-        <div class="step"><div class="step-n">1</div><div><h3>Open Brainfy and make a deck</h3><p>No signup needed to try. Name a deck and start adding cards by hand, by import, or with AI.</p></div></div>
+        <div class="step"><div class="step-n">1</div><div><h3>Open Brainfy and make a deck</h3><p>Sign up free with Google or email, then name a deck and start adding cards by hand, by import, or with AI.</p></div></div>
         <div class="step"><div class="step-n">2</div><div><h3>Build the cards your way</h3><p>Type them, paste a term/definition list, or let the AI draft a deck from your notes — then edit anything before you keep it.</p></div></div>
         <div class="step"><div class="step-n">3</div><div><h3>Study with spaced repetition</h3><p>Your cards enter an SM-2-style schedule, plus Learn, Test, and Match modes — so the cards you miss come back sooner.</p></div></div>
       </div>
       <h2>What "free" actually means here</h2>
       <p>Free during beta, with <strong>no ads</strong> and <strong>no feature paywall</strong> on the core flashcard maker and study modes. You can also export any deck back to CSV, so your cards are always yours — there is no lock-in.</p>`,
     faq: [
-      { q: 'Is the flashcard maker really free?', a: 'Yes — free during beta, with no ads and no paywall on the core maker, study modes, or spaced repetition. You can try it with no signup.' },
+      { q: 'Is the flashcard maker really free?', a: 'Yes — free during beta, with no ads and no paywall on the core maker, study modes, or spaced repetition.' },
       { q: 'Do I have to type every card?', a: 'No. You can type cards by hand, import a CSV / tab-separated / Anki / Quizlet list, or let the AI draft a deck from pasted notes, a PDF, or a photo.' },
       { q: 'Can I edit AI-generated cards?', a: 'Yes — every AI-drafted card is fully editable before it enters your deck, so you keep what is right and fix or delete the rest.' },
       { q: 'Can I export my flashcards?', a: 'Yes — every deck exports to CSV, which re-imports into Anki, Quizlet, or a spreadsheet. No lock-in.' },
@@ -49,7 +49,7 @@ export default [
       <p>Lecture notes, a summary doc, a chapter outline — the hardest part of flashcards has always been making them. Brainfy reads your notes and pulls out the testable facts as question-answer pairs, grounded in your own material rather than invented.</p>
       <h2>How it works</h2>
       <div class="steps">
-        <div class="step"><div class="step-n">1</div><div><h3>Paste or upload your notes</h3><p>Drop in pasted text or a PDF (text). No signup needed to try.</p></div></div>
+        <div class="step"><div class="step-n">1</div><div><h3>Paste or upload your notes</h3><p>Drop in pasted text or a PDF (text).</p></div></div>
         <div class="step"><div class="step-n">2</div><div><h3>AI drafts a Q/A deck</h3><p>In seconds you get question-answer cards extracted from your notes — not made up.</p></div></div>
         <div class="step"><div class="step-n">3</div><div><h3>Keep, edit, then review</h3><p>Tweak or delete any card, then study it with spaced repetition plus Learn, Test, and Match modes.</p></div></div>
       </div>
@@ -65,7 +65,7 @@ export default [
       { q: 'Are the cards accurate?', a: 'The generator is conservative — it extracts from your notes rather than inventing facts — and every card is editable before it enters your deck. Always verify against your source.' },
       { q: 'How long does it take?', a: 'Seconds for a typical set of notes. You then review the draft and keep, edit, or remove cards.' },
       { q: 'Do the cards get scheduled automatically?', a: 'Yes — kept cards enter an SM-2-style spaced-repetition queue, and you can also drill them in Learn, Test, and Match modes.' },
-      { q: 'Is it free?', a: 'Yes — free during beta, no ads, no signup needed to try.' },
+      { q: 'Is it free?', a: 'Yes — free during beta, with no ads.' },
     ],
     related: ['ai-flashcards', 'pdf-to-flashcards', 'image-to-flashcards', 'free-flashcard-maker'],
   },
@@ -81,7 +81,7 @@ export default [
       <h2>How the quizzing works</h2>
       <p>Brainfy does not invent a standalone exam bank — it builds a deck from your material, then quizzes you on that deck. The multiple-choice options in Learn are drawn from your own cards, so the distractors are realistic, and Test makes you type the answer for true recall.</p>
       <div class="steps">
-        <div class="step"><div class="step-n">1</div><div><h3>Add your material</h3><p>Paste notes or upload a PDF (text), and the AI drafts a question-answer deck. No signup needed to try.</p></div></div>
+        <div class="step"><div class="step-n">1</div><div><h3>Add your material</h3><p>Paste notes or upload a PDF (text), and the AI drafts a question-answer deck.</p></div></div>
         <div class="step"><div class="step-n">2</div><div><h3>Quiz yourself in Learn</h3><p>Multiple-choice questions with distractors pulled from your own deck — instant right/wrong feedback on every one.</p></div></div>
         <div class="step"><div class="step-n">3</div><div><h3>Prove it in Test</h3><p>Type-the-answer questions with fair, accent-aware grading, so you confirm you can recall it cold.</p></div></div>
       </div>
@@ -97,7 +97,7 @@ export default [
       { q: 'Where do the multiple-choice options come from?', a: 'In Learn mode the wrong answers (distractors) are drawn from your own deck, which keeps the choices realistic and relevant to your material.' },
       { q: 'Do I get instant feedback?', a: 'Yes — every question is graded immediately, so you see what you got right and wrong as you go.' },
       { q: 'Can I quiz myself on a PDF?', a: 'Yes — upload a text-based PDF, the AI drafts a deck from it, and you can then quiz yourself in Learn and Test.' },
-      { q: 'Is it free?', a: 'Yes — free during beta, no ads, no signup needed to try.' },
+      { q: 'Is it free?', a: 'Yes — free during beta, with no ads.' },
     ],
     related: ['ai-flashcards', 'notes-to-flashcards', 'pdf-to-flashcards', 'active-recall'],
   },
@@ -114,7 +114,7 @@ export default [
       <p>Most of your studying lives on paper, slides, and whiteboards — not in a tidy text file. Brainfy uses vision-based OCR to read images, so a photo of your messy lecture notes becomes a clean question-answer deck without retyping a word.</p>
       <h2>How it works</h2>
       <div class="steps">
-        <div class="step"><div class="step-n">1</div><div><h3>Snap or upload a photo</h3><p>Handwritten notes, a textbook page, or a whiteboard shot all work. No signup needed to try.</p></div></div>
+        <div class="step"><div class="step-n">1</div><div><h3>Snap or upload a photo</h3><p>Handwritten notes, a textbook page, or a whiteboard shot all work.</p></div></div>
         <div class="step"><div class="step-n">2</div><div><h3>OCR reads the image</h3><p>Brainfy extracts the text from your photo, including handwriting it can recognise.</p></div></div>
         <div class="step"><div class="step-n">3</div><div><h3>AI drafts the cards</h3><p>It turns the extracted text into question-answer flashcards you can edit, keep, and study with spaced repetition.</p></div></div>
       </div>
@@ -129,7 +129,7 @@ export default [
       { q: 'What can I photograph?', a: 'Handwritten notes, printed textbook or slide pages, and whiteboards all work. Try to capture one section per photo for cleaner cards.' },
       { q: 'Is the photo data private?', a: 'Brainfy is privacy-first. Your image is processed to read the text and draft cards; the resulting deck is yours and exports to CSV anytime.' },
       { q: 'Can I edit the cards afterwards?', a: 'Yes — every card is editable before it enters your deck, so you can correct any OCR slips and trim what you do not need.' },
-      { q: 'Is it free?', a: 'Yes — free during beta, no ads, no signup needed to try.' },
+      { q: 'Is it free?', a: 'Yes — free during beta, with no ads.' },
     ],
     related: ['ai-flashcards', 'notes-to-flashcards', 'pdf-to-flashcards', 'free-flashcard-maker'],
   },
@@ -162,7 +162,7 @@ export default [
       { q: 'Can I paste instead of uploading a file?', a: 'Yes — paste the text directly into a deck and Brainfy detects the delimiter. CSV, TSV, Anki text, and Quizlet exports all work.' },
       { q: 'Does it handle Excel or Google Sheets?', a: 'Export your sheet as a CSV (or copy the cells) and import that. Brainfy reads the CSV/TSV, not the native .xlsx file.' },
       { q: 'Can I export my deck back to CSV?', a: 'Yes — every deck exports to CSV, which re-imports into a spreadsheet, Anki, or Quizlet. No lock-in.' },
-      { q: 'Is it free?', a: 'Yes — free during beta, no ads, no signup needed to try.' },
+      { q: 'Is it free?', a: 'Yes — free during beta, with no ads.' },
     ],
     related: ['free-flashcard-maker', 'free-quizlet-alternative', 'ai-flashcards', 'spaced-repetition-app'],
   },
@@ -170,7 +170,7 @@ export default [
     slug: 'study-timer', cat: 'tool', eyebrow: 'Free tool · Focus',
     crumb: 'Study Timer',
     title: 'Free Online Study Timer (Pomodoro) | Brainfy',
-    desc: 'A free online Pomodoro study timer with ambient sound and session logging that feeds your analytics and study coach. No ads, no signup needed to try.',
+    desc: 'A free online Pomodoro study timer with ambient sound and session logging that feeds your analytics and study coach. No ads.',
     keywords: 'study timer, online study timer, pomodoro study timer, free focus timer, study timer with sound',
     h1: 'A Free Online Study Timer That Remembers Your Sessions',
     lede: 'A clean <strong>Pomodoro study timer</strong> with optional ambient sound — and unlike a kitchen timer, it <strong>logs every session</strong> so your focus history feeds your analytics and study coach.',
@@ -179,7 +179,7 @@ export default [
       <p>A timer that forgets the moment it rings cannot help you improve. Brainfy logs each focus session, so over time you can see when you actually focus best and which subjects are getting your hours — the same data the built-in coach uses to nudge you.</p>
       <h2>How it works</h2>
       <div class="steps">
-        <div class="step"><div class="step-n">1</div><div><h3>Set a focus block</h3><p>Start a Pomodoro-style block (25 minutes by default) on one task. No signup needed to try.</p></div></div>
+        <div class="step"><div class="step-n">1</div><div><h3>Set a focus block</h3><p>Start a Pomodoro-style block (25 minutes by default) on one task.</p></div></div>
         <div class="step"><div class="step-n">2</div><div><h3>Focus with ambient sound</h3><p>Turn on optional ambient sound to settle in, and let the running timer make distractions feel expensive.</p></div></div>
         <div class="step"><div class="step-n">3</div><div><h3>Sessions feed your analytics</h3><p>Each finished block is logged, so your focus trends and study coach get smarter the more you use it.</p></div></div>
       </div>
@@ -191,7 +191,7 @@ export default [
         <li><strong>Free during beta.</strong> No ads, no paywall on the timer.</li>
       </ul>`,
     faq: [
-      { q: 'Is the study timer free?', a: 'Yes — the Pomodoro timer, ambient sound, and session logging are free during beta, with no ads and no signup needed to try.' },
+      { q: 'Is the study timer free?', a: 'Yes — the Pomodoro timer, ambient sound, and session logging are free during beta, with no ads.' },
       { q: 'Can I change the block length?', a: 'Yes — 25 minutes is the default, but you can tune the focus and break lengths to whatever rhythm suits you.' },
       { q: 'What does session logging do?', a: 'Every finished focus block is recorded, so Brainfy can show your focus trends and the coach can highlight when you focus best and what to prioritise.' },
       { q: 'Does it work with my flashcards?', a: 'Yes — a focus block spent clearing due cards pairs focus with active recall, and both feed the same analytics and coach.' },
@@ -227,7 +227,7 @@ export default [
       { q: 'Why are my flashcards not working?', a: 'The most common reason is flipping too fast — read the front, guess, then check. Also space your reviews over days rather than cramming them all at once.' },
       { q: 'What are flashcards best for?', a: 'Facts, definitions, vocabulary, formulas — anything with a clear question and answer. For deep concepts, pair them with explaining the idea in your own words.' },
       { q: 'How many cards should I review a day?', a: 'Only what is due. A spaced-repetition scheduler caps new cards and surfaces the rest, so a daily session stays short and finishable.' },
-      { q: 'Can I try it free?', a: 'Yes — generate a deck from your notes in Brainfy and review it daily for a week. It is free during beta, no signup needed to try.' },
+      { q: 'Is Brainfy free?', a: 'Yes, during beta. Make a free account, generate a deck from your notes and review it daily for a week.' },
     ],
     related: ['active-recall', 'spaced-repetition-app', 'how-to-study-with-flashcards', 'ai-flashcards'],
   },
@@ -263,7 +263,7 @@ export default [
       { q: 'What is the Leitner system?', a: 'A spaced-repetition method using boxes: cards you get right move to a slower-review box, cards you miss go back to a fast one. A spaced-repetition app automates this for you.' },
       { q: 'How do I write a good flashcard?', a: 'One idea per card, phrased as a clear question with a single answer. Split multi-part cards, and add a short cue or example to make recall stick.' },
       { q: 'How often should I review?', a: 'Daily, but only the cards that are due. Spaced repetition caps new cards and surfaces the rest, so a session stays short.' },
-      { q: 'Can Brainfy schedule the reviews for me?', a: 'Yes — it runs an SM-2-style spaced-repetition schedule automatically and offers Learn, Test, Match, and Cloze modes. Free during beta, no signup needed to try.' },
+      { q: 'Can Brainfy schedule the reviews for me?', a: 'Yes — it runs an SM-2-style spaced-repetition schedule automatically and offers Learn, Test, Match, and Cloze modes. Free during beta.' },
     ],
     related: ['active-recall', 'spaced-repetition-app', 'are-flashcards-effective', 'ai-flashcards'],
   },

@@ -14,7 +14,7 @@
 // activate. Even if it isn't bumped, network-first navigations + ?v= versioned
 // asset URLs mean online users still get fresh code — stale cache can't brick.
 
-const VERSION = 'brainfy-v1';
+const VERSION = 'brainfy-v2';   // v2: CSP connect-src fix — new script bytes make browsers install the worker with the new headers
 const SHELL   = `${VERSION}-shell`;
 const RUNTIME = `${VERSION}-runtime`;
 
