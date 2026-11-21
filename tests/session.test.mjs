@@ -158,7 +158,8 @@ test('save() stores nothing unless S is the signed-in account\'s', () => {
   runInContext(`sOwner = 'uid_b';`, ctx);
   save();
   assert.equal(json(KEY).tasks[0].text, 'x');
-  assert.deepEqual({ ...json(META) }, { uid: 'uid_b', dirty: true });
+  // (the marker also names the stored copy by its hash: P0-3's storeWorkingCopyFor)
+  assert.deepEqual((({ uid, dirty }) => ({ uid, dirty }))(json(META)), { uid: 'uid_b', dirty: true });
   runInContext(`firebaseUser = null; sOwner = null; S = freshState(); _lastSaved = null; clearTimeout(_pendingSaveTimer); _pendingSaveTimer = undefined; _tabDirty = false;`, ctx);
   ls.clear();
 });

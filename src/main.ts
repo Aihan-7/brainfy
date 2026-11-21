@@ -1232,7 +1232,9 @@ let _signOutSent = false;
 let _deleting = false;
 // S as this tab last stored it (JSON), this session. save() compares: a call
 // that changes nothing (a view change, a repaint) stores, marks and sends
-// nothing, so it can't make a device that changed nothing look unsynced.
+// nothing, so it can't make a device that changed nothing look unsynced (and
+// can't overwrite newer cloud data: AUDIT-2026-10-17.md, P0-3). A cloud write
+// of it that fails clears it: the next save() sends it again.
 let _lastSaved: string | null = null;
 // Accounts whose unsynced changes the user chose to lose when signing out in
 // another tab of this device (uid → when): see announceDiscard().
@@ -1257,6 +1259,102 @@ let _localWriteOk = true;   // did the last save() reach localStorage?
 // device that meant replacing a real account with an empty one.
 // So: no successful read, no write. See AUDIT-2026-08-16.md, P1-1.
 let cloudReadOk = false;
+// The read of the cloud document that will reconcile S with it while
+// cloudReadOk is false — the sign-in's, or a retry's (retrySync) — if one is on
+// its way in this session. One at a time: until it answers (or is given up),
+// another retry starts no second read, and the chip says "Syncing…" instead of
+// inviting a tap. Two overlapping retry reads used to both reconcile S: the
+// second merged without a base (the first had used it up: the cloud's fields
+// won, ticks were undone, deleted items came back) or put S back to the older
+// copy it had read. See AUDIT-2026-10-17.md, P0-3.
+let _cloudRead: { epoch: number } | null = null;
+function cloudReadPending(): boolean { return !!_cloudRead && _cloudRead.epoch === _sessionEpoch; }
+const RETRY_READ_MS = 20000;   // a retry read unanswered this long is given up (the chip offers another)
+// This account's cloud document is known to have existed: this session read
+// or wrote it, or this device's copy of the account was synced with it before
+// (its marker's `syncedAt`, a kept copy's base). Found missing, it was then
+// deleted (the account, on another device): nothing may be written, or this
+// device would bring the deleted data back (cloudDocGone). Without it, a
+// missing document is a new account's.
+let _docKnown = false;
+// A read that found `uid`'s document missing although it is known to have
+// existed: the account was deleted elsewhere — this session ends (true).
+// Only the server's word counts: a cache can lack a document that exists.
+function docGoneOnRead(snap: any, uid: string, epoch: number): boolean {
+  if (!snap || snap.exists || !_docKnown) return false;
+  // (This tab's called-off deletion still unanswered: unknown yet, like a read that failed.)
+  if (snap.metadata?.fromCache || deleteUnanswered(epoch)) { const e: any = new Error('only the cache answered'); e.code = 'unavailable'; throw e; }
+  if (deleteMayLand(epoch)) return false;
+  cloudDocGone(uid, epoch);
+  return true;
+}
+
+// ── Cloud revisions (AUDIT-2026-10-17.md, P0-3) ─────────────────────────────
+// save() used to overwrite users/{uid} wholesale, and every view change called
+// it, so a tab or device left open replaced newer work from another device the
+// moment it changed view. Now:
+//   • save() stores and sends nothing when S hasn't changed (_lastSaved);
+//   • every write raises the document's `rev` and goes through a transaction
+//     that only writes on top of the version this tab's S is built on (_base).
+//     If another device wrote in between, this tab's edits are re-applied on
+//     top of that newer copy (mergeSync) and the merge is written instead;
+//   • every write also adds its token ("rev|updatedAt|nonce", unique to that
+//     commit: two tabs or devices can write the same `rev` in the same
+//     millisecond) to the document's `writes`, the last WRITE_LOG of them: a
+//     write whose answer never came (a dropped connection) but that landed is
+//     recognised in any later version as this tab's own (_lostWrites), not
+//     merged as another device's;
+//   • a document this device has synced with that is found missing was
+//     deleted (the account, elsewhere): it is never written again (_docKnown);
+//   • a listener (onSnapshot) brings other devices' writes into an open tab:
+//     adopted as they are when this tab has no unsynced edits, merged when it
+//     has. resetSession() stops it;
+//   • edits the cloud hasn't confirmed are stored on the device with the
+//     version they are built on, tied to that exact copy (storeWorkingCopyFor), so
+//     a later merge (after a reload, a closed tab, a kept session) can tell
+//     this device's edits from everyone else's.
+// `writes`: the tokens of the document's latest writes, newest last (WRITE_LOG).
+interface CloudVersion { rev: number; at: string; tok: string; state: AppState; writes?: string[] }
+// A write of this tab's whose commit may have landed unheard (see _lostWrites):
+// its token, its `rev`, what it sent, and the ids the merge it wrote moved.
+interface SentWrite { tok: string; rev: number; sent: AppState; renumbered: Map<number, number> }
+const WRITE_LOG = 20;
+let _base: CloudVersion | null = null;          // the cloud copy S is built on: last read, written or adopted
+let _unreadBase: CloudVersion | null = null;   // cloud unread: what S is built on instead (retrySync merges against it)
+// ...or, for a copy an app version from before revisions marked unsynced, the
+// time this device last confirmed the cloud copy: that copy, still unchanged
+// when read, is what S is built on (see resolveStateAfterAuth).
+let _unreadLegacyAt: string | null = null;
+const _seenVersions = new Set<string>();        // cloud versions this session has read or written (see knownOrOlder)
+let _writeChain: Promise<unknown> = Promise.resolve();   // cloud writes run one at a time
+let _writing = false;                           // ...and one of S is in flight
+let _pendingRemote: CloudVersion | null = null; // a snapshot that waits for that write
+// This tab's writes that went unconfirmed — given up (writeStallMs) or failed
+// — after their commit was sent, since its last confirmed one, oldest first:
+// each may have landed all the same. A version that holds one (landedIn) is
+// this tab's own write, not another device's (applyPendingRemote,
+// writeCloudNow). All of them, not just the last: a second write can go
+// unconfirmed before the first one lands, and that first version, taken for
+// another device's, would bring back what the user deleted in between.
+// Dropped once known to have landed or no longer able to (settleLostWrites),
+// all of them at a confirmed write, and by resetSession().
+let _lostWrites: SentWrite[] = [];
+let _unsubCloud: (() => void) | null = null;    // stops the listener
+let _retryTimer: number | undefined;            // a failed write tried again by itself (scheduleRetry)
+let _retryDelay = 0;                            // ...after this long (grows with each failure)
+let _listenRetryTimer: number | undefined;      // a failed listener started again by itself (startCloudListener)
+let _listenRetryDelay = 0;                      // ...after this long (grows with each failure)
+let _idMoves = 0;                               // bumped whenever items of S get new ids (see liveItem)
+// The cloud version this device's unsynced edits are built on, stored beside
+// the working copy while it has such edits, so that a merge after a reload (or
+// a tab closed with edits unsent) can tell this device's changes from
+// everyone else's (storeWorkingCopyFor, storedBase).
+const BASE_KEY = 'brainfy_sync_base';
+// The working copy S already contains, by the hash its sync marker gives it
+// (`wc`): the copy this tab stored last, read at sign-in or merged in. A dirty
+// copy with any other hash holds another tab's unsent edits (othersUnsent).
+let _wcMine: string | null = null;
+let _cacheCleared = false;                      // Settings → Clear local cache: nothing is stored until the reload
 
 // Tracks whether the local copy contains edits that never reached the cloud, so
 // a later session can tell "cloud is authoritative" from "local is ahead".
@@ -1265,7 +1363,15 @@ const SYNC_META_KEY = 'brainfy_sync_meta';
 // `held`: the working copy is unsynced edits of `uid`, left there when its
 // session ended because the device had no room to move them to its kept copy
 // (see keepUnsynced). Nobody else's sign-in or save() overwrites them.
-interface SyncMeta { uid: string; dirty: boolean; syncedAt?: string; held?: boolean }
+// `wc`: a hash of the working copy as stored (wcHash), naming the copy the
+// marker describes. `base`: the token of the cloud version stored under
+// BASE_KEY that this copy's edits are built on ('' or absent: unknown, or a
+// clean copy, which is its own base). See storeWorkingCopyFor. `left`: the tab
+// that stored this copy has closed with its edits in it unsent ('pagehide').
+// `pend`: a write of exactly this copy (`wc`) was being committed, with this
+// token: if the tab closed before its answer came, the next sign-in here sees
+// in the cloud's `writes` whether it landed (notePending, resolveStateAfterAuth).
+interface SyncMeta { uid: string; dirty: boolean; syncedAt?: string; held?: boolean; base?: string; wc?: string; left?: boolean; pend?: { tok: string; wc: string } }
 
 function readSyncMeta(): SyncMeta | null {
   try {
@@ -1274,6 +1380,12 @@ function readSyncMeta(): SyncMeta | null {
   } catch (_) { return null; }
 }
 function writeSyncMeta(meta: SyncMeta): void {
+  // Which copy the marker describes, and the base stored for it, survive
+  // rewrites of the marker for the same account unless the caller sets them.
+  if (!('base' in meta) && !('wc' in meta)) {
+    const prev = readSyncMeta();
+    if (prev && prev.uid === meta.uid) meta = { ...meta, base: prev.base, wc: prev.wc };
+  }
   try { localStorage.setItem(SYNC_META_KEY, JSON.stringify(meta)); } catch (_) { /* quota — non-fatal */ }
 }
 // Are there local edits this account never managed to push? Only counts when the
@@ -1304,6 +1416,7 @@ function localBelongsTo(uid: string): boolean {
 //     account's, it was that account's copy and simply goes; otherwise that
 //     account is asked whether it is theirs. Never merged without asking.
 const KEPT_PREFIX   = 'brainfy_unsynced:';
+const KEPT_BASE_PREFIX = 'brainfy_unsynced_base:';   // the cloud version a kept copy is built on (keepUnsynced)
 const UNCLAIMED_KEY = 'brainfy_unclaimed';
 interface Unclaimed { state: AppState; declined: string[] }
 
@@ -1326,7 +1439,7 @@ function asState(v: unknown): AppState | null {
   return v && typeof v === 'object' && !Array.isArray(v) ? { ...freshState(), ...(v as AppState) } : null;
 }
 function readKept(uid: string): AppState | null { return asState(lsJSON(KEPT_PREFIX + uid)); }
-function dropKept(uid: string): void { lsDel(KEPT_PREFIX + uid); }
+function dropKept(uid: string): void { lsDel(KEPT_PREFIX + uid); lsDel(KEPT_BASE_PREFIX + uid); }
 // Write `v` under `key`, making room if needed by removing the working copy
 // (the caller is emptying it, and `v` carries what it held). If there still
 // isn't room, the working copy is left as it was (a failed setItem changes
@@ -1348,15 +1461,46 @@ function putInPlaceOfWorkingCopy(key: string, v: unknown): boolean {
 // held there instead: tagged {held}, it isn't emptied with the rest
 // (vacateWorkingCopy) or overwritten by another account (save()), and uid's
 // next sign-in here still merges it.
+// `base`: the cloud version that copy is built on, kept beside it so that the
+// next sign-in merges it like any unsynced edits (mergeSync): edits to items
+// that already existed carry over, not only additions (P0-3).
+// Edits kept earlier (another open tab of this account kept its copy first)
+// are merged with these (mergeSync; where both changed the same thing, these
+// win). If both copies are built on the same cloud version, that is the
+// merge's base; on two versions of the document (each write raises `rev`) the
+// older copy's edits are first moved onto the newer version, which is then
+// the base. Otherwise the merge has no base (nothing in either copy is lost,
+// but an edit to an item the cloud already had may be).
 type KeepResult = 'kept' | 'lost';
-function keepUnsynced(uid: string, st: AppState): KeepResult {
+function keepUnsynced(uid: string, st: AppState, base: CloudVersion | null = null): KeepResult {
   const prev = readKept(uid);
-  const v = prev ? mergeStates(st, prev) : st;
+  let copy = st, b = base;
+  if (prev) {
+    const pb = readKeptBase(uid);
+    if (b && pb && pb.tok === b.tok) copy = mergeSync(b.state, st, prev);
+    else if (b && pb && pb.rev > 0 && b.rev > 0 && pb.rev !== b.rev) {
+      if (pb.rev < b.rev) copy = mergeSync(b.state, st, mergeSync(pb.state, prev, b.state));
+      else { copy = mergeSync(pb.state, mergeSync(b.state, st, pb.state), prev); b = pb; }
+    } else { copy = mergeSync(null, st, prev); b = null; }
+  }
   const m = readSyncMeta();
   const mine = !!m && m.uid === uid;
-  if (mine ? putInPlaceOfWorkingCopy(KEPT_PREFIX + uid, v) : lsPut(KEPT_PREFIX + uid, v)) return 'kept';
+  if (mine ? putInPlaceOfWorkingCopy(KEPT_PREFIX + uid, copy) : lsPut(KEPT_PREFIX + uid, copy)) {
+    // Its base beside it, where there is room (without one, the next merge of
+    // these edits deletes nothing: an edit to an item the cloud had may be lost).
+    if (!(b && lsPut(KEPT_BASE_PREFIX + uid, { tok: b.tok, state: b.state, kept: wcHash(JSON.stringify(copy)) }))) lsDel(KEPT_BASE_PREFIX + uid);
+    return 'kept';
+  }
+  // Not stored: what was kept before stays, with its base.
   if (mine && m!.dirty && lsRaw(STORAGE_KEY) !== null) writeSyncMeta({ ...m!, held: true });
   return 'lost';
+}
+// The base kept with `uid`'s kept copy, if that copy is still the one it was
+// kept with.
+function readKeptBase(uid: string): CloudVersion | null {
+  const b = lsJSON<{ tok: string; state: AppState; kept: string }>(KEPT_BASE_PREFIX + uid);
+  const raw = lsRaw(KEPT_PREFIX + uid);
+  return b && raw && typeof b.tok === 'string' && b.kept === wcHash(raw) ? versionOf(b.tok, b.state) : null;
 }
 function readUnclaimed(): Unclaimed | null {
   const u = lsJSON<Unclaimed>(UNCLAIMED_KEY);
@@ -1380,7 +1524,7 @@ function vacateWorkingCopy(ownUid: string | null): boolean {
   const st = asState(lsJSON(STORAGE_KEY));
   let moved = true;
   if (st && m && m.uid && m.dirty === true && (m.uid !== ownUid || m.held)) {
-    moved = keepUnsynced(m.uid, st) === 'kept';
+    moved = keepUnsynced(m.uid, st, storedBase(m.uid)) === 'kept';
   } else if (st && !m && hasUserData(st)) {
     const u = readUnclaimed();
     moved = putInPlaceOfWorkingCopy(UNCLAIMED_KEY, { state: u ? mergeStates(u.state, st) : st, declined: u ? u.declined : [] });
@@ -1388,6 +1532,7 @@ function vacateWorkingCopy(ownUid: string | null): boolean {
   if (!moved) { track('local.setaside.quota', { code: 'quota' }); return false; }
   lsDel(STORAGE_KEY);
   lsDel(SYNC_META_KEY);
+  lsDel(BASE_KEY);
   return true;
 }
 // Would merging `incoming` into `base` add anything to it: a subject, card,
@@ -1465,11 +1610,37 @@ window.addEventListener('online', () => {
     if (syncState === 'offline') setSyncState('idle');
     return;
   }
-  if (!cloudReadOk) { setSyncState('error'); retrySync(); return; }
-  if (hasUnsynced(firebaseUser.uid)) save(true);
+  if (!cloudReadOk) { if (!cloudReadPending()) setSyncState('error'); retrySync(); return; }
+  startCloudListener();
+  // This tab's own edits, or ones a closed tab left here. (Another open tab's
+  // are sent by that tab: storing this tab's state over them would lose them.)
+  if (tabHasUnsynced() || leftUnsent(firebaseUser.uid)) resave();
   else if (syncState === 'offline') setSyncState('synced');
 });
 window.addEventListener('offline', () => setSyncState('offline'));
+
+// A tab closing with edits the cloud hasn't confirmed (offline, or still on
+// their way) leaves them stored, marked `left`, for another open tab of this
+// account to take over — at once ('storage' below), or at its next save() —
+// or for the next sign-in here. Without this, the open tab's next save stored
+// its own state over them and they were lost (AUDIT-2026-10-17.md, P0-3).
+window.addEventListener('pagehide', () => {
+  if (!firebaseUser || sOwner !== firebaseUser.uid || !authResolved || _sessionClosing || _cacheCleared || !tabHasUnsynced()) return;
+  const uid: string = firebaseUser.uid;
+  resave();                                // this tab's latest, stored over whatever another tab stored since
+  const m = readSyncMeta();
+  if (m && m.uid === uid && m.dirty === true && (m.wc || '') === (_wcMine ?? '')) writeSyncMeta({ ...m, left: true });
+});
+// Back from the back/forward cache: open again, so its copy is no longer left.
+window.addEventListener('pageshow', (e: PageTransitionEvent) => {
+  if (!e.persisted || !firebaseUser || sOwner !== firebaseUser.uid) return;
+  const m = readSyncMeta();
+  if (m && m.left && m.uid === firebaseUser.uid && (m.wc || '') === (_wcMine ?? '')) writeSyncMeta({ ...m, left: false });
+});
+window.addEventListener('storage', (e: StorageEvent) => {
+  if (e.key !== SYNC_META_KEY || !firebaseUser || sOwner !== firebaseUser.uid || !authResolved || _sessionClosing) return;
+  if (leftUnsent(firebaseUser.uid)) resave();   // merges them in, stores and sends them
+});
 
 // ── Telemetry ───────────────────────────────────────────────────────────────
 // Fire-and-forget POST to /api/log. Used at every silent failure site (sync
@@ -1712,7 +1883,7 @@ function isQuotaError(e: unknown): boolean {
 }
 // Store `st` (`json` is it serialised) as the working copy. `free`: false
 // while the slot still holds another account's edits there was no room to
-// move aside (see save()): nothing is stored, and the user is told the same.
+// move aside (see storeWorkingCopyFor): nothing is stored, and the user is told the same.
 function storeWorkingCopy(st: AppState, json: string = JSON.stringify(st), free = true): boolean {
   let err: unknown = null;   // null: no room at all, the slot is someone else's
   if (free) {
@@ -1772,25 +1943,36 @@ function save(force = false) {
   if (sOwner !== firebaseUser.uid) return;
   const uid: string = firebaseUser.uid;
 
+  // Two items sharing an id would both go with a delete of either: the later
+  // one gets a fresh id before anything is stored or sent (repairIds), and the
+  // open view is repainted so its rows carry it.
+  if (repairIds(S)) { _idMoves++; window.setTimeout(repaintOpenView, 0); }
+
   // Nothing changed since the last save (a view change, a repaint): nothing to
-  // store or send, and nothing new is unsynced.
-  const json = JSON.stringify(S);
+  // store or send, and nothing new is unsynced. (Every navigation calls save();
+  // writing then is how a tab left open overwrote newer cloud data.
+  // AUDIT-2026-10-17.md, P0-3.)
+  let json = JSON.stringify(S);
   if (json === _lastSaved && !force) return;
+
+  // Another tab of this account closed with edits stored here that the cloud
+  // never confirmed (offline, say): they go into S first, so that storing S
+  // over them can't wipe them out. (A tab still open keeps its own edits and
+  // sends them itself.)
+  if (leftUnsent(uid) && absorbOthersCopy(uid)) json = JSON.stringify(S);
   _lastSaved = json;
 
   // Save locally first, for instant access. Mark the local copy as ahead of the
   // cloud BEFORE anything can bail out, so that edits made offline — or lost to
   // a crash mid-write — still leave a truthful marker for the next session to
-  // find and merge. The marker also names the copy's owner (localBelongsTo).
+  // find and merge. The marker also names the copy's owner (localBelongsTo),
+  // and the cloud version these edits are built on is stored beside them.
   // A working copy that is still someone else's (unsynced edits there was no
   // room to move aside) is moved aside first; until that works it is never
   // overwritten, and this account works from the cloud alone (the user is
-  // told once, by storeWorkingCopy).
-  if (localBelongsTo(uid) || vacateWorkingCopy(null)) {
-    _localWriteOk = storeWorkingCopy(S, json);
-    const prev = readSyncMeta();
-    writeSyncMeta({ uid, dirty: true, syncedAt: prev?.uid === uid ? prev.syncedAt : undefined });
-  } else _localWriteOk = storeWorkingCopy(S, json, false);
+  // told once, by storeWorkingCopy). See storeWorkingCopyFor.
+  const prev = readSyncMeta();
+  storeWorkingCopyFor(uid, json, true, _base || _unreadBase, prev?.uid === uid ? prev.syncedAt : undefined);
   _localRev++;
   _tabDirty = true;
 
@@ -1808,8 +1990,9 @@ function save(force = false) {
   // Never overwrite a document we have not successfully read this session —
   // that is how an empty local state ends up replacing a real account.
   // The local write above still happened, so nothing the user did is lost;
-  // it just stays on the device until a read succeeds (chip offers a retry).
-  if (!cloudReadOk) { setSyncState('error'); return; }
+  // it just stays on the device until a read succeeds (chip offers a retry —
+  // unless a read is already on its way: its answer sends this edit too).
+  if (!cloudReadOk) { setSyncState(cloudReadPending() ? 'syncing' : 'error'); return; }
 
   // Debounce so rapid edits collapse into one cloud write. The queued write
   // belongs to THIS account: resetSession() cancels it, so an edit made just
@@ -1823,44 +2006,241 @@ function save(force = false) {
   }, 400);
 }
 
-// One cloud write of `state` (normally S) for `uid`; resolves true once the
-// cloud has it. A result that arrives after its session ended is ignored (see
-// _sessionEpoch). It confirms only the revision it sent: an edit made while it
-// was in flight stays unsynced, and that edit's own queued write sends it.
-function writeCloud(ref: any, uid: string, epoch: number, state: AppState = S): Promise<boolean> {
+// One cloud write of `state` (default: S as it stands when the write starts)
+// for `uid`; resolves true once the cloud has it. Writes run one at a time, each
+// through a transaction that writes only on top of the version the state is
+// built on (`base`; for S, _base): if another device — or an older copy of the
+// app — wrote since, the state is merged onto that newer copy first
+// (mergeSync), the merge is what gets written, and S adopts it. Each write
+// raises the document's `rev`. A result that arrives after its session ended is
+// ignored (see _sessionEpoch). It confirms only the revision it sent: an edit
+// made while it was in flight stays unsynced, and that edit's own queued write
+// sends it. A write that never answers is given up after a while (see
+// writeStallMs), so it can't hold up the ones after it. See
+// AUDIT-2026-10-17.md, P0-3.
+function writeCloud(ref: any, uid: string, epoch: number, state?: AppState, base?: CloudVersion | null): Promise<boolean> {
+  const run = () => writeCloudNow(ref, uid, epoch, state, base);
+  const p = _writeChain.then(run, run);
+  _writeChain = p;
+  return p;
+}
+function writeCloudNow(ref: any, uid: string, epoch: number, given?: AppState, givenBase?: CloudVersion | null): Promise<boolean> {
   return new Promise<boolean>(resolve => {
     // (Nor while another tab deletes this account: it would re-create the document.)
     if (epoch !== _sessionEpoch || _deletingElsewhere === uid) { resolve(false); return; }
+    const own  = !given || given === S;
+    const state: AppState = given || S;
+    // Too large for one document: no write is attempted, and sync pauses
+    // until the data shrinks (cloudWriteFits, AUDIT-2026-10-17.md, P0-5).
     if (!cloudWriteFits(state, epoch)) { resolve(false); return; }
-    const rev = _localRev;
-    // ref.set() validates its argument BEFORE returning a promise, so an
-    // unserialisable value (an `undefined` field, most likely) throws
-    // synchronously and would sail straight past .catch() — leaving the chip
-    // stuck on "syncing" forever while nothing reached the cloud. Catch both.
+    const base = own ? _base : (givenBase || null);
+    const rev  = _localRev;
+    const confirm = (stamp: string | undefined) => {
+      if (epoch === _sessionEpoch && rev === _localRev) {
+        _tabDirty = false;
+        // The copy on this device has nothing the cloud lacks now (unless
+        // another tab has stored unsent edits over it since): it is synced,
+        // and is its own base.
+        if (!own || !othersUnsent(uid)) markSynced(uid, stamp);
+        setSyncState('synced');
+      }
+    };
+    // Nothing to send: the cloud already holds exactly this. (Not while a write
+    // of this tab's may yet land: the cloud may hold more by then. Nor while
+    // this tab's own called-off account deletion may land, or has: the
+    // document may be gone although S is just what was last written, and the
+    // write puts it back (deleteMayLand).)
+    if (base && sameData(state, base.state) && !(own && _lostWrites.length) && !deleteMayLand(epoch)) { confirm(readSyncMeta()?.syncedAt); resolve(true); return; }
+    const sent: AppState = structuredClone(state);
+    if (!own) repairIds(sent);   // (save() keeps S itself free of duplicate ids)
+    const sentWc = own ? wcHash(JSON.stringify(sent)) : '';   // which stored copy this write sends (notePending)
+    const stamp = new Date().toISOString();
+    let done = false;                // settled: answered, failed, or given up
+    let attempt: SentWrite | null = null;   // this write as last committed (the SDK may run it again)
+    let afterLateDelete: LateDelete | null = null;   // found the document missing during this tab's late delete (deleteMayLand)
+    // Unconfirmed, it may land all the same: kept to be recognised (_lostWrites).
+    const unconfirmed = () => {
+      const a = attempt;
+      if (!own || !a || epoch !== _sessionEpoch || _lostWrites.some(w => w.tok === a.tok)) return;
+      _lostWrites.push(a);
+      if (_lostWrites.length > WRITE_LOG) _lostWrites.shift();   // (older than the doc's write log can show)
+    };
+    const fail = (err: any, what: string, event: string) => {
+      console.error('[sync] ' + what, err?.code, err?.message, err);
+      track(event, { code: err?.code, message: err?.message });
+      if (epoch !== _sessionEpoch) return;
+      setSyncState(navigator.onLine === false ? 'offline' : 'error');
+      // Still owed: the next save() (an edit, a view change) sends it again
+      // even though S hasn't changed since.
+      if (own) _lastSaved = null;
+    };
+    const settle = (ok: boolean) => {
+      if (done) return;
+      done = true;
+      window.clearTimeout(stall);
+      if (own && epoch === _sessionEpoch) { _writing = false; applyPendingRemote(); }
+      resolve(ok);
+    };
+    if (own) _writing = true;
+    // A connection can hang instead of failing, and a transaction then never
+    // answers. Waiting for it would hold up every later write of this tab, and
+    // the other devices' changes it holds back meanwhile (_writing). So it is
+    // given up as failed, and tried again (scheduleRetry; the next edit or view
+    // change sends at once). Once given up it writes nothing more (see the
+    // transaction below); a commit already on its way may still land. It is
+    // kept in _lostWrites: the version it made (or one written on top of it)
+    // is then taken in as this tab's own write, with whatever the user did
+    // since put on top (rebaseAfterWrite) — not merged as another device's
+    // against the version before it, which would bring back an item deleted
+    // meanwhile, or keep both an item and its edited copy.
+    const stall = window.setTimeout(() => {
+      if (done) return;
+      const err: any = new Error('the write did not answer in time');
+      err.code = 'deadline-exceeded';
+      unconfirmed();
+      fail(err, 'save timed out', 'sync.save.timeout');
+      if (own && epoch === _sessionEpoch) scheduleRetry(err.code, epoch);
+      settle(false);
+    }, writeStallMs(sent));
+    // tx.set() validates its argument synchronously, so an unserialisable value
+    // (an `undefined` field, most likely) throws instead of rejecting: the
+    // transaction rejects with it, and a throw before it is caught below.
+    let tx: Promise<{ cur: CloudVersion | null; out: AppState; renumbered: Map<number, number>; rev: number; tok: string }>;
     try {
-      const stamp = new Date().toISOString();
-      ref.set({ state, updatedAt: stamp })
-        .then(() => {
-          if (epoch === _sessionEpoch && rev === _localRev) {
-            _tabDirty = false;
-            if (localBelongsTo(uid)) writeSyncMeta({ uid, dirty: false, syncedAt: stamp });
-            setSyncState('synced');
-          }
-          resolve(true);
-        })
-        .catch((err: any) => {
-          console.error('[sync] save failed', err?.code, err?.message, err);
-          track('sync.save.error', { code: err?.code, message: err?.message });
-          if (epoch === _sessionEpoch) setSyncState('error');
-          resolve(false);
-        });
+      tx = firebase.firestore().runTransaction(async (t: any) => {
+        const snap = await t.get(ref);
+        // Given up meanwhile (stall): a later write sends this tab's state, so
+        // this one (or a retry of it, after contention) writes nothing.
+        if (done) { const e: any = new Error('given up'); e.code = 'cancelled'; throw e; }
+        const cur  = snap && snap.exists ? cloudVersionOf(snap.data() || {}) : null;
+        afterLateDelete = !cur ? lateDeleteIn(epoch) : null;   // (it puts the document back)
+        // The document this state is built on has gone: the account was
+        // deleted on another device. Writing would bring its data back.
+        // (Not when this tab's own account deletion, called off, may have
+        // landed after all: held back while that is unknown, written back once
+        // it has; see deleteMayLand.)
+        if (!cur && (existed(base) || _docKnown)) {
+          if (deleteUnanswered(epoch)) { const e: any = new Error('waiting for the called-off deletion'); e.code = DEFERRED; throw e; }
+          if (!deleteMayLand(epoch)) { const e: any = new Error('the account document was deleted'); e.code = DOC_GONE; throw e; }
+        }
+        let renumbered = new Map<number, number>();
+        let out = sent;
+        // A write of this tab's that landed unheard: an earlier run of this
+        // one (the SDK runs a transaction again after an error, even one that
+        // came after its commit landed), or one given up (_lostWrites, the
+        // newest it holds). Its version is this tab's own: this state goes on
+        // top of it.
+        const prior = !cur ? null : attempt && landedIn(cur, attempt) ? attempt : own ? lostWriteIn(cur) : null;
+        if (cur && prior) {
+          const re = rebaseAfterWrite(prior.sent, sent, cur.state, prior.renumbered);
+          out = re.state; renumbered = re.ids;
+        }
+        // Written since `base` (another device, an app version from before
+        // revisions, or a writer outside the app that left `rev` alone — its
+        // change still shows in the data): merge onto what is there.
+        else if (cur && (!base || cur.tok !== base.tok || !sameData(cur.state, base.state))) out = mergeSync(base ? base.state : null, sent, cur.state, renumbered);
+        // What this write sends fitted (cloudWriteFits above). Merged with what
+        // another device wrote meanwhile it may not: then nothing is written
+        // either, and sync pauses as for any state too large (P0-5).
+        if (out !== sent && tooLargeToSync(out)) { const e: any = new Error('the merged document is too large'); e.code = TOO_LARGE; e.state = out; throw e; }
+        const next = Math.max(cur ? cur.rev : 0, base ? base.rev : 0) + 1;
+        const tok = writeToken(next, stamp);   // this commit's own, never another writer's
+        attempt = { tok, rev: next, sent, renumbered };
+        if (own && epoch === _sessionEpoch) notePending(uid, tok, sentWc);
+        t.set(ref, { state: out, updatedAt: stamp, rev: next, writes: [...(cur?.writes || []).slice(1 - WRITE_LOG), tok] });
+        return { cur, out, renumbered, rev: next, tok };
+      });
     } catch (err: any) {
-      console.error('[sync] save threw', err?.code, err?.message, err);
-      track('sync.save.throw', { code: err?.code, message: err?.message });
-      if (epoch === _sessionEpoch) setSyncState('error');
-      resolve(false);
+      fail(err, 'save threw', 'sync.save.throw');
+      settle(false);
+      return;
     }
+    tx.then(r => {
+      const ver: CloudVersion = { rev: r.rev, at: stamp, tok: r.tok, state: r.out };
+      if (done) {
+        // Given up (stall), but it landed: taken in as this tab's own write
+        // (applyPendingRemote), unless the tab has moved past it since.
+        if (own && epoch === _sessionEpoch && _lostWrites.some(w => w.tok === ver.tok)) {
+          if (!_pendingRemote || _pendingRemote.rev < ver.rev) _pendingRemote = ver;
+          applyPendingRemote();
+        }
+        return;
+      }
+      if (epoch !== _sessionEpoch) { settle(true); return; }   // it landed; its session is over
+      _docKnown = true;
+      lateDeleteWrittenBack(afterLateDelete, uid);   // the data is back on top of this tab's late delete
+      if (r.cur) _seenVersions.add(r.cur.tok);
+      if (!own) { confirm(stamp); settle(true); return; }
+      _retryDelay = 0;
+      // Writes given up earlier are now settled: each was in the version this
+      // one read (and so is in this one), or can't land any more (this commit
+      // changed the document it was built on).
+      _lostWrites = [];
+      setBase(ver);
+      const merged = r.out !== sent;
+      if (merged) {
+        // Another device's changes came in. S may have moved on while this was
+        // in flight: those edits go on top of what was written.
+        const re = rebaseAfterWrite(sent, S, r.out, r.renumbered);
+        applyToS(re.state, re.ids);
+      }
+      if (sameData(S, ver.state)) {
+        if (merged) storeSynced(uid, stamp);
+        confirm(stamp);
+      } else if (merged) {
+        save();                   // store the merge (built on this version); its queued write sends the rest
+      } else if (!othersUnsent(uid)) {
+        // S moved on while this was in flight: the copy stored for those edits
+        // is now built on the version just written.
+        storeWorkingCopyFor(uid, JSON.stringify(S), true, ver, readSyncMeta()?.syncedAt);
+      }
+      settle(true);
+    }).catch((err: any) => {
+      if (done) return;
+      if (err?.code === DOC_GONE) { settle(false); cloudDocGone(uid, epoch); return; }
+      // Held back until this tab's called-off deletion answers (which sends it
+      // again, or finds the account deleted elsewhere): still owed.
+      if (err?.code === DEFERRED) { if (own && epoch === _sessionEpoch) _lastSaved = null; settle(false); return; }
+      // Merged with another device's changes it would be too large: nothing
+      // was written, and sync pauses as for any state too large (cloudWriteFits
+      // says so) until the data shrinks; no retry before that.
+      if (err?.code === TOO_LARGE) {
+        if (epoch === _sessionEpoch) cloudWriteFits(err.state, epoch);
+        settle(false);
+        return;
+      }
+      if (RETRY_CODES.has(String(err?.code))) unconfirmed();   // a commit whose answer was lost fails like this, though it landed
+      fail(err, 'save failed', 'sync.save.error');
+      if (own && epoch === _sessionEpoch) scheduleRetry(err?.code, epoch);
+      settle(false);
+    });
   });
+}
+
+// How long a write may go unanswered before it is given up (writeCloudNow):
+// 10 s, plus 1 s for every 25 KB it carries, for a slow connection.
+function writeStallMs(st: AppState): number {
+  let chars = 0;
+  try { chars = JSON.stringify(st).length; } catch (_) { /* unserialisable: the write throws anyway */ }
+  return 10000 + Math.ceil(chars / 25000) * 1000;
+}
+
+// A write that failed for a passing reason (the network, the backend, too much
+// contention) is tried again by itself, after 5 s and then longer pauses (up to
+// 2 min), while this tab still has edits to send. A save() before then — any
+// edit or view change — tries at once, and so does coming back online. (The
+// old ref.set() was retried by the SDK; a transaction is not.)
+const RETRY_CODES = new Set(['unavailable', 'aborted', 'deadline-exceeded', 'internal', 'resource-exhausted', 'cancelled', 'unknown']);
+function scheduleRetry(code: unknown, epoch: number): void {
+  if (!RETRY_CODES.has(String(code))) return;
+  window.clearTimeout(_retryTimer);
+  _retryDelay = Math.min(_retryDelay ? _retryDelay * 2 : 5000, 120000);
+  _retryTimer = window.setTimeout(() => {
+    _retryTimer = undefined;
+    if (epoch !== _sessionEpoch || !firebaseUser || sOwner !== firebaseUser.uid || _sessionClosing) return;
+    if (navigator.onLine === false || !tabHasUnsynced()) return;
+    resave();
+  }, _retryDelay);
 }
 
 // Why edits on this device can't be confirmed in the cloud right now.
@@ -1881,13 +2261,15 @@ async function flushPendingSave(): Promise<FlushProblem | null> {
   if (!own && !localHasUnsyncedEdits(uid)) return null;
   // This tab's edits are in S. If only the working copy is behind, another
   // tab made those edits, and the working copy is their newest version.
-  const state = own ? S : (workingCopyOf(uid) || S);
+  const state = own ? S : workingCopyOf(uid);
+  if (!state) return null;   // a marker without its copy: nothing of this device's to send
   const ref = userDoc();
   if (!ref || !cloudReadOk) return 'unread';
   if (navigator.onLine === false) return 'offline';
   if (tooLargeToSync(state)) return _originalsMovingIn === _sessionEpoch ? 'moving' : 'too-large';
   return Promise.race([
-    writeCloud(ref, uid, _sessionEpoch, state).then(ok => ok ? null : 'failed' as const),
+    writeCloud(ref, uid, _sessionEpoch, state, own ? undefined : storedBase(uid))
+      .then(ok => ok ? null : syncPausedForSize() ? 'too-large' as const : 'failed' as const),
     new Promise<FlushProblem>(r => window.setTimeout(() => r('timeout'), 8000)),
   ]);
 }
@@ -1895,6 +2277,9 @@ async function flushPendingSave(): Promise<FlushProblem | null> {
 // Manual retry (called when user clicks the chip in error state)
 function retrySync(): void {
   if (!firebaseUser || sOwner !== firebaseUser.uid) return;
+  // A read of the cloud is already on its way (one at a time, see _cloudRead):
+  // its answer reconciles S, this device's latest edits included.
+  if (!cloudReadOk && cloudReadPending()) { setSyncState('syncing'); return; }
   if (syncState !== 'error') return;
   const ref = userDoc();
   if (!ref) return;
@@ -1906,29 +2291,57 @@ function retrySync(): void {
   //     overwrite an account we have never seen (P1-1).
   //   • the read was fine and a WRITE failed → just push again (below).
   if (!cloudReadOk) {
+    const read = { epoch };
+    _cloudRead = read;
+    let applying = false;   // this read is the one reconciling S
+    const finish = () => { window.clearTimeout(watchdog); if (_cloudRead === read) _cloudRead = null; };
+    // A read that never answers would block every retry: given up after a
+    // while, the chip offers another. (Its answer, if it comes, still counts
+    // as long as no other read has reconciled S first.)
+    const watchdog = window.setTimeout(() => {
+      if (_cloudRead !== read) return;
+      _cloudRead = null;
+      if (epoch === _sessionEpoch && !cloudReadOk) setSyncState(navigator.onLine === false ? 'offline' : 'error');
+    }, RETRY_READ_MS);
     ref.get()
       .then((snap: any) => {
+        finish();
         if (epoch !== _sessionEpoch) return;
+        // Another read reconciled S first (one given up, or the sign-in's): S
+        // is built on the cloud already, and the listener brings anything
+        // newer. Reconciling again with this read would merge without a base
+        // (it has been used) or put S back to this older copy.
+        if (cloudReadOk) return;
+        if (docGoneOnRead(snap, uid, epoch)) return;
+        applying = true;
         cloudReadOk = true;
-        const cloudState: AppState | null = (snap && snap.exists) ? ((snap.data() || {}).state || null) : null;
-        if (hasUserData(cloudState)) {
+        const doc = (snap && snap.exists) ? (snap.data() || {}) : null;
+        if (doc) _docKnown = true;
+        const ver = cloudVersionOf(doc);
+        if (doc) {
           // Local edits made while disconnected are merged in rather than
-          // dropped; with nothing local pending, the cloud copy simply wins.
-          S = sanitizeStateColors((hasUnsynced(uid) && hasUserData(S))
-            ? mergeStates(cloudState as AppState, S)
-            : { ...freshState(), ...(cloudState as AppState) });
-          save(true);                    // store + push the reconciled state
-          _goToFinish(currentView);      // repaint
+          // dropped; with nothing local pending, the cloud copy simply wins —
+          // also one with no study data left (emptied on another device: this
+          // copy is just older). Only a missing document leaves S as it is.
+          const renumbered = new Map<number, number>();
+          const lb = _unreadBase ? _unreadBase.state : _unreadLegacyAt && ver.at === _unreadLegacyAt ? structuredClone(ver.state) : null;
+          const next = hasUnsynced(uid) ? mergeSync(lb, S, ver.state, renumbered) : keepStoredOriginals(S, ver.state);
+          setBase(ver);
+          applyToS(next, renumbered);    // repaint with the reconciled state
         } else {
-          save(true);                    // the cloud is empty: push what this device has
+          setBase(ver);
         }
+        _unreadBase = null; _unreadLegacyAt = null;
+        resave();                        // store + push it (nothing is sent if the cloud has it)
+        startCloudListener();
         void moveInlineOriginals();      // as on a first read that succeeds (resolveStateAfterAuth)
         showToast('Reconnected — your data is safe', 'success');
       })
       .catch((err: any) => {
+        finish();
         console.error('[sync] retry read failed', err?.code, err?.message, err);
         track('sync.retryread.error', { code: err?.code, message: err?.message });
-        if (epoch !== _sessionEpoch) return;
+        if (epoch !== _sessionEpoch || cloudReadPending() || (cloudReadOk && !applying)) return;   // another read answers
         setSyncState('error');
         showToast('Still can’t reach the cloud. Your work is saved on this device.', 'warning');
       });
@@ -1967,9 +2380,11 @@ function load() {
 // ── Cloud state resolution ────────────────────────────────────────────────
 // Reconcile cloud state with whatever is local after Firebase auth resolves —
 // WITHOUT silently destroying work:
-//   • cloud empty    → keep local (save() pushes it up).
-//   • cloud has data → load cloud, merging in any edits this device made that
-//                      never reached it (see localHasUnsyncedEdits).
+//   • no document yet → keep local (save() pushes it up).
+//   • cloud document  → load it, merging in any edits this device made that
+//                       never reached it (see localHasUnsyncedEdits) — also
+//                       one with no study data left: another device emptied
+//                       the account, and this copy is just older.
 // "Local" only ever means THIS account's copy on this device (localBelongsTo,
 // readKept), read from storage when its sign-in starts. Whatever a tab holds in
 // memory, and anything another account left, is never adopted. Data saved with
@@ -2010,7 +2425,13 @@ function mergeStates(base: AppState, incoming: AppState): AppState {
       for (const c of (gs.cards || [])) if (!seenC.has(cardKey(c))) { seenC.add(cardKey(c)); match.cards.push({ ...c }); }
       const seenD = new Set((match.documents || []).map(docKey));
       match.documents = [...(match.documents || [])];
-      for (const d of (gs.documents || [])) if (!seenD.has(docKey(d))) { seenD.add(docKey(d)); match.documents!.push({ ...d, id: alloc() }); }
+      for (const d of (gs.documents || [])) {
+        if (!seenD.has(docKey(d))) { seenD.add(docKey(d)); match.documents!.push({ ...d, id: alloc() }); continue; }
+        // The same document on both sides, its original in Storage only in
+        // `incoming` (moved there since, P0-5): that is kept, not the inline copy.
+        const i = d.storagePath ? match.documents!.findIndex(x => !x.storagePath && docKey(x) === docKey(d)) : -1;
+        if (i !== -1) match.documents![i] = { ...match.documents![i]!, content: d.content, storagePath: d.storagePath, downloadURL: d.downloadURL };
+      }
       match.docs = match.documents!.length;
     } else {
       const copy: Subject = { ...gs, id: alloc() };
@@ -2042,6 +2463,441 @@ function mergeStates(base: AppState, incoming: AppState): AppState {
   merged.bestStreak = Math.max(base.bestStreak || 0, incoming.bestStreak || 0);
   merged.nextId     = nextId;
   return sanitizeStateColors(merged);
+}
+
+// ── Cloud sync merge (AUDIT-2026-10-17.md, P0-3) ─────────────────────────────
+// When another device wrote to the account since this device's copy was synced,
+// this device's unsynced edits are re-applied on top of the newer cloud copy
+// instead of overwriting it (mergeStates above is for data from no account):
+//
+//   mergeSync(base, local, remote)
+//     base   — the cloud copy this device's edits were made on (null: unknown)
+//     local  — this device's copy: base + its unsynced edits
+//     remote — the newer cloud copy: base + the other devices' edits
+//
+// Items are matched by id (subjects, tasks, milestones, timetable blocks, a
+// subject's documents), by question + answer (cards), or by date + length +
+// subject (study sessions). Cards and sessions have no id: the app never edits
+// a card's text or a session, so a changed one counts as a different item (a
+// card whose text was changed on one device while the other reviewed it is
+// kept in both versions, rule 4). With a base:
+//   1. Changed on one side only → that side's version: additions, edits and
+//      deletions from either device all carry over.
+//   2. Added on both sides → both kept. An item this device added is one
+//      item with the cloud's under the same id only if it is the same item:
+//      the same text (a task, a milestone), name (a subject), title + day +
+//      start + end (a timetable block: one subject often has a block on
+//      several days, and two blocks that differ there are two blocks), or
+//      kind + name + creation time (a document) — added on both, or written
+//      by this device without its hearing so (a write whose answer was lost).
+//      It is then kept once, merged as in 3 except that where both differ the
+//      cloud's value is kept (a block's colour, a task's tick). Two different new
+//      items with the same id (each device took the next free id) → this
+//      device's item gets a fresh id, and the sessions, blocks and documents
+//      of a renumbered subject follow it. An item this device added that the
+//      cloud already holds under another id (an earlier merge renumbered it,
+//      and this copy predates that) takes that id: merging the same edits
+//      twice never duplicates them.
+//   3. Edited on both sides → merged field by field: a field changed on one
+//      side only takes that change; a field changed on both takes this
+//      device's value (its write is the later one). A subject's cards and
+//      documents are merged item by item by these same rules.
+//   4. Edited on one side, deleted on the other → kept, with the edit: no edit
+//      is lost to a concurrent delete.
+//   5. Settings and other single values: per field, as in 3.
+//   6. The streak and its freezes go together: from the side that changed
+//      them; changed on both, from the side that studied last (its latest
+//      study session is on a later day; on the same day, the longer streak).
+//      A device back after days away resets the streak in its own copy
+//      (reconcileStreak() can't see the other device's sessions), and that 0
+//      must not beat a streak the other device kept going.
+//   7. A document's original, once in Storage on either side, stays there:
+//      its path, URL and empty inline content, never the inline copy a side
+//      from before the move still holds (P0-5 moves originals one way only;
+//      see mergeDoc and keepStoredOriginals). This holds whichever side's
+//      version of the document, or of its subject, rules 1-3 took.
+// Changed on both sides (or without a base): a card's review progress (its SRS
+// fields, together) comes from whichever side reviewed it last
+// (lastReviewedAt; a tie keeps the cloud's); bestStreak and a subject's
+// `accessed` take the larger value. nextId always ends up above every id in use.
+// Without a base (edits left by an older app version, or whose base couldn't
+// be stored or no longer matches them exactly) an addition can't be told from a
+// deletion, nor an edit from a stale copy: everything on either side is kept
+// (nothing is deleted). Every item of this device's is paired with the cloud's
+// as in rule 2: two items that merely share an id (each device took the same
+// next id) are both kept, this device's with a fresh id; where both sides have
+// the same item the cloud's fields win — except card review progress (the most
+// recent review), the streak (rule 6) and the larger values above.
+// A merge never leaves two items with one id (rule 2), and repairIds() fixes a
+// state that somehow has them before it is stored or sent.
+
+// Equality for JSON-like data: key order doesn't matter, and an undefined
+// property counts as absent (neither JSON nor Firestore keeps one).
+function sameData(a: unknown, b: unknown): boolean {
+  if (a === b || (a !== a && b !== b)) return true;
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    const y = b as unknown[];
+    if (a.length !== y.length) return false;
+    for (let i = 0; i < a.length; i++) if (!sameData(a[i], y[i])) return false;
+    return true;
+  }
+  const x = a as Record<string, unknown>, y = b as Record<string, unknown>;
+  let n = 0;
+  for (const k of Object.keys(x)) {
+    if (x[k] === undefined) continue;
+    if (!sameData(x[k], y[k])) return false;
+    n++;
+  }
+  for (const k of Object.keys(y)) if (y[k] !== undefined) n--;
+  return n === 0;
+}
+function isPlain(v: unknown): v is Record<string, any> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+type MergeFn = (b: any, l: any, r: any, hasBase: boolean) => any;
+// Both sides changed one value, irreconcilably: with a base this device's wins
+// (it writes last); without one the cloud's (see above).
+const mergeAtom: MergeFn = (_b, l, r, hasBase) => hasBase ? l : (r !== undefined ? r : l);
+const mergeMax: MergeFn = (b, l, r, hasBase) =>
+  typeof l === 'number' && typeof r === 'number' ? Math.max(l, r) : mergeAtom(b, l, r, hasBase);
+function mergeValue(b: any, l: any, r: any, hasBase: boolean, fn: MergeFn): any {
+  if (sameData(l, r)) return r;
+  if (hasBase) {
+    if (sameData(l, b)) return r;     // only the cloud changed it
+    if (sameData(r, b)) return l;     // only this device changed it
+  }
+  return fn(b, l, r, hasBase);
+}
+// An object merged field by field; `fields` names the fields with their own rule.
+function mergeFields(fields: Record<string, MergeFn>): MergeFn {
+  return (b, l, r, hasBase) => {
+    if (!isPlain(l) || !isPlain(r)) return mergeAtom(b, l, r, hasBase);
+    const base: Record<string, any> = hasBase && isPlain(b) ? b : {};
+    const out: Record<string, unknown> = {};
+    for (const k of [...Object.keys(r), ...Object.keys(l).filter(k => !(k in r))]) {
+      const v = mergeValue(base[k], l[k], r[k], hasBase, fields[k] || mergeAtom);
+      if (v !== undefined) out[k] = v;
+    }
+    return out;
+  };
+}
+// A list merged item by item (rules 1-4). Order: the cloud's, then this
+// device's additions. Items with equal keys on one side are told apart by order.
+function keyedItems(list: unknown, keyOf: (x: any) => string): Map<string, any> {
+  const m = new Map<string, any>(), seen = new Map<string, number>();
+  for (const x of Array.isArray(list) ? list : []) {
+    const k = keyOf(x), n = (seen.get(k) || 0) + 1;
+    seen.set(k, n);
+    m.set(n === 1 ? k : k + '#' + n, x);
+  }
+  return m;
+}
+function mergeListOf(keyOf: (x: any) => string, item: MergeFn): MergeFn {
+  return (b, l, r, hasBase) => {
+    const B = hasBase ? keyedItems(b, keyOf) : null;
+    const L = keyedItems(l, keyOf), R = keyedItems(r, keyOf);
+    const out: unknown[] = [];
+    for (const [k, rv] of R) {
+      if (L.has(k)) out.push(mergeValue(B?.get(k), L.get(k), rv, !!B && B.has(k), item));
+      // Absent here: added by the cloud, or deleted here — which stands unless
+      // the cloud edited the item since (rule 4).
+      else if (!B || !B.has(k) || !sameData(rv, B.get(k))) out.push(rv);
+    }
+    for (const [k, lv] of L) {
+      if (R.has(k)) continue;
+      // Absent in the cloud: added here, or deleted there — which stands unless
+      // this device edited the item since (rule 4).
+      if (!B || !B.has(k) || !sameData(lv, B.get(k))) out.push(lv);
+    }
+    return out;
+  };
+}
+const idKeyOf      = (x: any) => isPlain(x) && typeof x.id === 'number' ? 'id:' + x.id : 'raw:' + JSON.stringify(x);
+const cardKeyOf    = (c: any) => 'card:' + JSON.stringify([c?.q ?? null, c?.a ?? null]);
+const sessionKeyOf = (s: any) => 'session:' + JSON.stringify([s?.date ?? null, s?.duration ?? null, s?.subjectId ?? null]);
+const mergeCard: MergeFn = (b, l, r, hasBase) => {
+  const out = mergeFields({})(b, l, r, hasBase);
+  if (!isPlain(out) || !isPlain(l) || !isPlain(r)) return out;
+  // Review progress moves as one block, from the side that reviewed it last.
+  const srs = (c: any) => SRS_CARD_KEYS.map(k => c?.[k]);
+  const from = hasBase && sameData(srs(l), srs(b)) ? r
+             : hasBase && sameData(srs(r), srs(b)) ? l
+             : (Number(l.lastReviewedAt) || 0) > (Number(r.lastReviewedAt) || 0) ? l : r;
+  for (const k of SRS_CARD_KEYS) { if (from[k] !== undefined) out[k] = from[k]; else delete out[k]; }
+  return out;
+};
+// A subject's document, field by field (rule 3), except for its original
+// file. Once either side has that in Storage (P0-5 moves originals kept inline
+// there, and attaches an AI import's once it has uploaded), the merge keeps it
+// there: its path, URL and (empty) inline content together, from the side
+// whose stored file the merge kept. A merge must neither drop a stored
+// original nor bring back the inline copy the other side may still hold.
+// Moving an original to Storage is one way (nothing puts one back inline), so
+// this holds even where the field-by-field merge would take the inline copy as
+// "the only change": an app version from before P0-5 writing back the copy it
+// had from before the move. Then the stored file is this device's, else the
+// cloud's. (Not the base's alone: a side that no longer has it stored may have
+// deleted the document, and its file with it, since; the inline copy is then
+// the only one left.)
+const storedOriginal = (x: any): boolean => isPlain(x) && typeof x.storagePath === 'string' && !!x.storagePath;
+const mergeDoc: MergeFn = (b, l, r, hasBase) => {
+  const out = mergeFields({})(b, l, r, hasBase);
+  if (!isPlain(out)) return out;
+  const from = storedOriginal(out) && storedOriginal(l) && l.storagePath === out.storagePath ? l
+             : storedOriginal(out) && storedOriginal(r) && r.storagePath === out.storagePath ? r
+             : storedOriginal(l) ? l : storedOriginal(r) ? r : null;
+  if (from) for (const k of ['storagePath', 'downloadURL', 'content']) {
+    if (from[k] !== undefined) out[k] = from[k]; else delete out[k];
+  }
+  return out;
+};
+// The same one-way rule where a version is taken in whole, not merged (this
+// device has no unsynced edits): a document of `into` that has its original
+// inline while `from` (S, or this device's copy) has that same document's in
+// Storage takes the stored file back: its path, URL and empty inline content,
+// the rest of the document as `into` has it. The result then differs from
+// `into`, so the corrected version is written back. Returns `into` itself if
+// there is nothing to take back.
+function keepStoredOriginals(from: AppState, into: AppState): AppState {
+  const stored = new Map<string, Doc>();
+  for (const s of Array.isArray(from?.subjects) ? from.subjects : []) {
+    for (const d of isPlain(s) && Array.isArray(s.documents) ? s.documents : []) if (storedOriginal(d)) stored.set(s.id + '/' + d.id, d);
+  }
+  if (!stored.size) return into;
+  let out: AppState | null = null;
+  (Array.isArray(into?.subjects) ? into.subjects : []).forEach((s, i) => {
+    (isPlain(s) && Array.isArray(s.documents) ? s.documents : []).forEach((d, j) => {
+      const f = isPlain(d) ? stored.get(s.id + '/' + d.id) : undefined;
+      if (!f || storedOriginal(d) || f.type !== d.type || (f.date || 0) !== (d.date || 0)) return;
+      out ||= structuredClone(into);
+      const t: any = out.subjects[i].documents![j];
+      t.content = ''; t.storagePath = f.storagePath;
+      if (f.downloadURL !== undefined) t.downloadURL = f.downloadURL; else delete t.downloadURL;
+    });
+  });
+  return out || into;
+}
+const mergeSubject: MergeFn = (b, l, r, hasBase) => {
+  const out = mergeFields({
+    cards:     mergeListOf(cardKeyOf, mergeCard),
+    documents: mergeListOf(idKeyOf, mergeDoc),
+    accessed:  mergeMax,
+  })(b, l, r, hasBase);
+  if (isPlain(out) && Array.isArray(out.documents)) out.docs = out.documents.length;
+  return out;
+};
+const mergeStateFields: MergeFn = mergeFields({
+  subjects:   mergeListOf(idKeyOf, mergeSubject),
+  tasks:      mergeListOf(idKeyOf, mergeFields({})),
+  milestones: mergeListOf(idKeyOf, mergeFields({})),
+  timetable:  mergeListOf(idKeyOf, mergeFields({})),
+  sessions:   mergeListOf(sessionKeyOf, mergeFields({})),
+  bestStreak: mergeMax,
+  nextId:     mergeMax,
+});
+
+// Every numbered item of a state by id: subjects, tasks, milestones, timetable
+// blocks and documents all draw from the one nextId counter.
+function idIndex(st: AppState): Map<number, { list: string; item: any }> {
+  const m = new Map<number, { list: string; item: any }>();
+  const add = (list: string, xs: unknown) => {
+    for (const x of Array.isArray(xs) ? xs : []) if (isPlain(x) && typeof x.id === 'number' && !m.has(x.id)) m.set(x.id, { list, item: x });
+  };
+  add('subjects', st.subjects); add('tasks', st.tasks); add('milestones', st.milestones); add('timetable', st.timetable);
+  for (const s of Array.isArray(st.subjects) ? st.subjects : []) if (isPlain(s)) add('documents:' + s.id, s.documents);
+  return m;
+}
+function maxIdIn(st: AppState): number {
+  let n = 0;
+  for (const id of idIndex(st).keys()) if (id > n) n = id;
+  return n;
+}
+// Give items new ids (old → new), with the sessions and blocks that point at a
+// renumbered subject. Edits `st` itself, and returns it.
+function renumberInPlace(st: AppState, ids: Map<number, number>): AppState {
+  if (!ids.size) return st;
+  const re  = (x: any) => { if (isPlain(x) && typeof x.id === 'number' && ids.has(x.id)) x.id = ids.get(x.id); };
+  const ref = (x: any) => { if (isPlain(x) && typeof x.subjectId === 'number' && ids.has(x.subjectId)) x.subjectId = ids.get(x.subjectId); };
+  const each = (xs: unknown, f: (x: any) => void) => { if (Array.isArray(xs)) xs.forEach(f); };
+  each(st.subjects, s => { re(s); if (isPlain(s)) each(s.documents, re); });
+  each(st.tasks, re);
+  each(st.milestones, re);
+  each(st.timetable, x => { re(x); ref(x); });
+  each(st.sessions, ref);
+  return st;
+}
+// One id per item again: of items sharing an id (subjects, tasks, milestones,
+// timetable blocks and documents all draw from nextId), the first in idIndex
+// order keeps it and the others get fresh ones; nextId ends up above every id.
+// Only a bug can make a duplicate, but a delete of either item would delete
+// both (deleteTask filters by id). A session keeps pointing at the first
+// subject with its id. Edits `st`; true if anything changed.
+function repairIds(st: AppState): boolean {
+  const seen = new Set<number>();
+  let next = Math.max(Number(st.nextId) || 1, maxIdIn(st) + 1), fixed = false;
+  const fix = (xs: unknown) => {
+    for (const x of Array.isArray(xs) ? xs : []) {
+      if (!isPlain(x) || typeof x.id !== 'number') continue;
+      if (seen.has(x.id)) { x.id = next++; fixed = true; }
+      seen.add(x.id);
+    }
+  };
+  fix(st.subjects); fix(st.tasks); fix(st.milestones); fix(st.timetable);
+  for (const s of Array.isArray(st.subjects) ? st.subjects : []) if (isPlain(s)) fix(s.documents);
+  if (st.nextId !== next) { st.nextId = next; fixed = true; }
+  return fixed;
+}
+
+// The merge described above. Pure: its inputs are left untouched (the result
+// may share parts of them). Ids this device's items had to give up are added to
+// `renumbered` (old → new) for the caller to apply to anything that holds them.
+function mergeSync(base: AppState | null, local: AppState, remote: AppState, renumbered?: Map<number, number>): AppState {
+  let next = Math.max(Number(base?.nextId) || 1, Number(local.nextId) || 1, Number(remote.nextId) || 1,
+                      maxIdIn(local) + 1, maxIdIn(remote) + 1);
+  const ids = matchNewItems(base, local, remote, () => next++);   // rule 2
+  if (renumbered) for (const [a, b] of ids) renumbered.set(a, b);
+  const mine   = ids.size ? renumberInPlace(structuredClone(local), ids) : local;
+  const merged = { ...(mergeValue(base, mine, remote, !!base, mergeStateFields) as AppState) };
+  merged.nextId = Math.max(next, maxIdIn(merged) + 1);
+  // Rule 6.
+  const streak = (st: AppState) => [st.streak, st.freezes];
+  if (!sameData(streak(mine), streak(remote))) {
+    const dl = lastStudyDay(mine), dr = lastStudyDay(remote);
+    const from = base && sameData(streak(mine), streak(base)) ? remote
+               : base && sameData(streak(remote), streak(base)) ? mine
+               : dl !== dr ? (dl > dr ? mine : remote)
+               : (Number(mine.streak) || 0) > (Number(remote.streak) || 0) ? mine : remote;
+    for (const k of ['streak', 'freezes'] as const) {
+      if (from[k] !== undefined) (merged as any)[k] = from[k]; else delete (merged as any)[k];
+    }
+  }
+  // Rule 7. (Rule 1 takes a side's version of a subject whole, mergeDoc unasked.)
+  return keepStoredOriginals(remote, keepStoredOriginals(mine, sanitizeStateColors(merged)));
+}
+// What identifies an item to the user, in place of its id, for rule 2 and
+// merges without a base: fields the app never edits once the item exists — a
+// task's or milestone's text, a subject's name, a document's kind, name and
+// creation time — and a timetable block's title, day and times. (Any of a
+// block's fields can be edited, and one title usually has blocks on several
+// days: two blocks are one only where all four match. A block that differs —
+// another day, or moved since — is kept beside the cloud's, never folded into
+// it: when it can't be shown to be the same item, both stay.)
+function itemIdentity(list: string, x: any): string {
+  if (!isPlain(x)) return 'raw:' + JSON.stringify(x);
+  const t = (v: unknown) => typeof v === 'string' ? v.trim() : JSON.stringify(v ?? null);
+  if (list === 'tasks' || list === 'milestones') return t(x.text);
+  if (list === 'subjects') return t(x.name).toLowerCase();
+  if (list === 'timetable') return JSON.stringify([t(x.title), x.day ?? null, x.start ?? null, x.end ?? null]);
+  return JSON.stringify([x.type ?? null, x.name ?? null, x.date ?? null]);   // a subject's documents
+}
+// Rule 2: which of this device's items take another id before the merge (old
+// → new). Items this device added since `base` (with no base: all its items)
+// are paired with the cloud's: with the cloud's item under the same id if it is
+// the same item (same list and itemIdentity) — the same item added, or written,
+// by both — else with that same item under another id that the cloud added
+// since the base (its twin: an earlier merge renumbered it, and this copy
+// predates that), which this item then takes. With neither, an item whose id
+// the cloud uses for something else gets a fresh one (`fresh`). Subjects,
+// tasks, milestones and blocks first; then documents, compared within the
+// subject they now belong to.
+function matchNewItems(base: AppState | null, local: AppState, remote: AppState, fresh: () => number): Map<number, number> {
+  const B = base ? idIndex(base) : null, L = idIndex(local), R = idIndex(remote);
+  const ids = new Map<number, number>(), claimed = new Set<number>();
+  const listOf = (list: string) => {
+    if (!list.startsWith('documents:')) return list;
+    const sid = Number(list.slice(10));
+    return 'documents:' + (ids.get(sid) ?? sid);
+  };
+  const same = (list: string, a: any, b: any) => itemIdentity(list, a) === itemIdentity(list, b);
+  const mine = [...L.keys()].filter(id => !B || !B.has(id)).sort((x, y) => x - y);
+  for (const docs of [false, true]) {
+    const open: number[] = [];
+    for (const id of mine) {
+      const l = L.get(id)!;
+      if (l.list.startsWith('documents:') !== docs) continue;
+      const r = R.get(id), list = listOf(l.list);
+      if (r && r.list === list && !claimed.has(id) && same(list, l.item, r.item)) claimed.add(id);
+      else open.push(id);
+    }
+    for (const id of open) {
+      const l = L.get(id)!, list = listOf(l.list);
+      let twin: number | null = null;
+      for (const [rid, x] of R) {
+        if (x.list === list && !claimed.has(rid) && !B?.has(rid) && same(list, l.item, x.item)) { twin = rid; break; }
+      }
+      if (twin !== null) { claimed.add(twin); if (twin !== id) ids.set(id, twin); }
+      else if (R.has(id)) ids.set(id, fresh());
+    }
+  }
+  return ids;
+}
+// The day (local midnight, ms) of a state's latest study session; -Infinity with none.
+function lastStudyDay(st: AppState): number {
+  let t = -Infinity;
+  for (const s of Array.isArray(st.sessions) ? st.sessions : []) {
+    const ms = new Date(s?.date).getTime();
+    if (ms > t) t = ms;
+  }
+  if (t === -Infinity) return t;
+  const d = new Date(t); d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+// After this tab's write had to merge (another device wrote first): `sent` is
+// what the tab sent, `written` what the cloud holds now — the merge, in which
+// the ids in `renumbered` (old → new) moved off ids the other device had taken —
+// and `live` is S, which may have moved on while the write was in flight.
+// Returns `live` on top of `written`, and every id of `live`'s items that
+// changed (old → new) for the caller to apply to S and the screens. An item
+// `live` added during the write never saw the merge: if it took an id the
+// merge has now used (a renumbering's target, or any id in the cloud copy), it
+// moves to a fresh id first, so no two items can end up sharing one.
+// Pure: the inputs are left untouched.
+function rebaseAfterWrite(sent: AppState, live: AppState, written: AppState, renumbered: Map<number, number>): { state: AppState; ids: Map<number, number> } {
+  const first = new Map(renumbered);
+  const had = idIndex(sent), own = idIndex(live);
+  const taken = new Set<number>([...renumbered.values(), ...idIndex(written).keys()]);
+  let next = Math.max(Number(live.nextId) || 1, Number(written.nextId) || 1, maxIdIn(live) + 1, maxIdIn(written) + 1, ...[...renumbered.values()].map(v => v + 1));
+  for (const id of [...own.keys()].sort((x, y) => x - y)) if (!had.has(id) && taken.has(id)) first.set(id, next++);
+  const mine = renumberInPlace(structuredClone(live), first);
+  if (!(Number(mine.nextId) >= next)) mine.nextId = next;
+  const more = new Map<number, number>();   // ids that merge moves in turn (rule 2)
+  const state = mergeSync(renumberInPlace(structuredClone(sent), renumbered), mine, written, more);
+  const ids = new Map<number, number>();
+  for (const id of own.keys()) {
+    const a = first.get(id) ?? id, b = more.get(a) ?? a;
+    if (b !== id) ids.set(id, b);
+  }
+  return { state, ids };
+}
+
+// Make `cur` equal to `next` by editing it in place, keeping every object and
+// array that is still there (list items matched by id, or by question + answer
+// for a card). A change from the cloud then doesn't strand references the UI
+// holds into S — an open review session's cards, a subject's card list.
+function patchInPlace(cur: any, next: any): any {
+  if (cur === next) return cur;
+  if (Array.isArray(cur) && Array.isArray(next)) {
+    const keyOf = (x: any) => typeof x.id === 'number' ? 'id:' + x.id : ('q' in x && 'a' in x) ? cardKeyOf(x) : 'raw:' + JSON.stringify(x);
+    const pool = new Map<string, any[]>();
+    for (const x of cur) if (isPlain(x)) { const k = keyOf(x), a = pool.get(k); if (a) a.push(x); else pool.set(k, [x]); }
+    const items = next.map((n: any) => {
+      const o = isPlain(n) ? pool.get(keyOf(n))?.shift() : undefined;
+      return o ? patchInPlace(o, n) : n;
+    });
+    cur.length = 0;
+    for (const x of items) cur.push(x);
+    return cur;
+  }
+  if (isPlain(cur) && isPlain(next)) {
+    for (const k of Object.keys(cur)) if (next[k] === undefined) delete cur[k];
+    for (const k of Object.keys(next)) if (next[k] !== undefined) cur[k] = patchInPlace(cur[k], next[k]);
+    return cur;
+  }
+  return next;
 }
 
 // Single entry point for "auth just resolved — decide what S should be." Both
@@ -2077,7 +2933,37 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
   if (!localBelongsTo(uid)) vacateWorkingCopy(null);
   const own  = workingCopyOf(uid);
   const kept = readKept(uid);
+  // The marker's "unsynced edits" live in the working copy. With the copy gone
+  // (Settings → Clear local cache used to remove only the copy) there are none
+  // and the marker goes: merging "no data" as this device's edits against the
+  // stored base would delete everything in the account.
+  // (Unsynced edits built on a version of the document also show it existed.)
+  _docKnown = (localBelongsTo(uid) && !!readSyncMeta()?.syncedAt) || existed(readKeptBase(uid)) || existed(storedBase(uid));
+  if (!own && localHasUnsyncedEdits(uid)) markSynced(uid, readSyncMeta()?.syncedAt);
   const keptOrDirty = !!kept || localHasUnsyncedEdits(uid);
+  // A write of exactly this copy was being committed when its tab closed
+  // (notePending): if the cloud shows it landed, the copy has nothing the
+  // cloud lacks, and is not merged as unsynced edits (see below).
+  const meta = readSyncMeta();
+  const pend = !kept && own && meta && meta.uid === uid && meta.dirty && meta.pend && meta.pend.wc === meta.wc ? meta.pend.tok : null;
+  // A copy with unsynced edits marked by an app version from before revisions
+  // ({uid, dirty, syncedAt}: no base stored beside it, no hash of the copy).
+  // If the cloud copy is still the one this device last confirmed (written at
+  // that `syncedAt`), it is exactly what those edits are built on: the merge's
+  // base (below), so that ticks, edits and deletions made here carry over, not
+  // only additions. (The cloud changed since: no base, as for any copy without one.)
+  const legacyAt = !kept && own && meta && meta.uid === uid && meta.dirty === true && !('wc' in meta) && !('base' in meta)
+    && typeof meta.syncedAt === 'string' && meta.syncedAt ? meta.syncedAt : null;
+  // What that copy is built on, to merge it with the cloud (mergeSync): the
+  // cloud version stored beside unsynced edits (used only with the exact copy
+  // it was stored with: storedBase), or — with none — the copy itself, which
+  // is what the cloud last confirmed. Edits kept from an earlier session: the
+  // version kept beside them. Unknown (null): the merge deletes nothing.
+  const localBase: CloudVersion | null = kept ? (own ? null : readKeptBase(uid))
+    : localHasUnsyncedEdits(uid) ? storedBase(uid)
+    : { rev: 0, at: '', tok: 'local:' + Date.now(), state: own ? structuredClone(own) : freshState() };
+  // S starts from that copy, so storing S over it later loses nothing of it.
+  _wcMine = own ? (readSyncMeta()?.wc || '') : '';
   S = sanitizeStateColors(kept ? (own ? mergeStates(own, kept) : kept) : (own || freshState()));
   sOwner = uid;
   firebaseUser = user;
@@ -2086,6 +2972,9 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
   // (the save(true) at the end stores and sends the resolved state).
   _lastSaved = JSON.stringify(S);
   _discarded.delete(uid);   // an old "discard" from another tab doesn't apply to this session
+  _base = null;
+  _unreadBase = localBase;
+  _unreadLegacyAt = legacyAt;
   const epoch = _sessionEpoch;
   authResolutionUid = uid;
   authResolved = false;
@@ -2099,11 +2988,15 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
 
     // Peek the cloud doc.
     let cloudState: AppState | null = null;
+    let cloudDoc: any = null;
+    const read = { epoch };
+    _cloudRead = read;   // (no retry read starts while this one is on its way)
     try {
       const ref  = userDoc();
       const snap = ref && await ref.get();
       if (epoch !== _sessionEpoch) return;   // signed out while reading
-      if (snap && snap.exists) cloudState = (snap.data() || {}).state || null;
+      if (ref && docGoneOnRead(snap, uid, epoch)) return;   // deleted elsewhere: nothing of it comes back
+      if (snap && snap.exists) { cloudDoc = snap.data() || {}; cloudState = cloudDoc.state || null; _docKnown = true; }
       // A missing document is still a SUCCESSFUL read — it genuinely means
       // "new account, nothing stored yet", which is safe to overwrite.
       if (ref) cloudReadOk = true;
@@ -2118,29 +3011,42 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
       // document — on a fresh device that silently replaced a whole account
       // with an empty one.
       showToast('Couldn’t reach your cloud data — working from this device for now.', 'warning');
+    } finally {
+      if (_cloudRead === read) _cloudRead = null;
     }
     const cloudHasData = hasUserData(cloudState);
     // S is still this account's local copy, plus anything edited since.
     const localState   = S;
     const localHasData = hasUserData(localState);
-    const localDirty   = keptOrDirty || _tabDirty;
+    // The copy's last write landed (pend) and nothing was edited since: its
+    // edits are all in the cloud copy, which may have moved on since (another
+    // device edited or deleted what that write added): the cloud's copy as it is.
+    const landed = !!pend && !_tabDirty && !!cloudDoc && cloudVersionOf(cloudDoc).writes!.includes(pend);
+    const localDirty   = (keptOrDirty || _tabDirty) && !landed;
 
+    let adopted = false;   // S is study data saved with no account, just added to this one
     if (!cloudReadOk) {
       // Unknown cloud state → no reconciliation: S stays this account's local copy.
-    } else if (cloudHasData) {
-      // The cloud copy is normally authoritative. But if this device still holds
+    } else if (cloudHasData || (cloudDoc && localHasData)) {
+      // The cloud copy is normally authoritative — also when it holds no study
+      // data but this device does: another device emptied the account, and
+      // keeping this older copy would bring it all back. But if this device still holds
       // edits that never reached it — the tab was closed inside save()'s 400 ms
       // debounce, the network dropped mid-write, or a session ended before they
       // could be sent — then replacing S would throw that work away without a
-      // word. Merge instead. mergeStates() dedupes.
-      S = (localHasData && localDirty)
-        ? mergeStates(cloudState as AppState, localState)
-        : { ...freshState(), ...(cloudState as AppState) };
+      // word. Merge instead: those edits go on top of the cloud copy (mergeSync).
+      const renumbered = new Map<number, number>();
+      const cv = cloudVersionOf(cloudDoc);
+      const mergeBase = localBase ? localBase.state : legacyAt && cv.at === legacyAt ? structuredClone(cv.state) : null;
+      S = localDirty
+        ? mergeSync(mergeBase, localState, cv.state, renumbered)
+        : keepStoredOriginals(localState, { ...freshState(), ...(cloudState as AppState) });
+      if (renumbered.size) { _idMoves++; remapOpenIds(renumbered); }
     } else if (!localHasData) {
       // Cloud empty, nothing local: a brand-new account starts clean.
       S = { ...freshState(), ...(cloudState || {}) };
     }
-    // else cloud empty → keep this account's local copy (save() pushes it up).
+    // else no cloud document yet → keep this account's local copy (save() pushes it up).
 
     // Study data on this device with no account named on it (guest mode, or an
     // account's copy from before the sync marker existed). If all of it is
@@ -2166,6 +3072,7 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
         if (epoch !== _sessionEpoch) return;
         const now = readUnclaimed();
         if (add && now) {
+          adopted = !hasUserData(S);   // (added to an account with data, that account's name stays)
           S = hasUserData(S) ? mergeStates(S, now.state) : { ...freshState(), ...now.state };
           lsDel(UNCLAIMED_KEY);
           tookUnclaimed = true;
@@ -2177,23 +3084,40 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
     // cleaned state back, so the bad value stops following the user around.
     S = sanitizeStateColors(S);
 
-    const realName = typedName || user.displayName || user.email?.split('@')[0] || 'Student';
-    S.userName = realName;
+    // The account's name — in its cloud copy, or in this device's copy of it —
+    // stays as it is: a rename in Settings changes only that. Only an account
+    // without one yet (a new account, or data from no account just added) takes
+    // the name typed at sign-up or the Google / Auth profile's. (Overwriting it
+    // at every sign-in undid renames, and wrote the old name over the cloud's.)
+    if (adopted || typeof S.userName !== 'string' || !S.userName.trim()) {
+      S.userName = typedName || user.displayName || user.email?.split('@')[0] || 'Student';
+    }
     // Not if a sign-out was asked for meanwhile, here or in another tab.
-    if (_endingFor !== uid && readOwed()?.uid !== uid) setSigninHint(realName);
+    if (_endingFor !== uid && readOwed()?.uid !== uid) setSigninHint(S.userName);
 
+    // The cloud version S is now built on. If S is exactly that, there is
+    // nothing to send: a sign-in on its own writes nothing.
+    const built = cloudReadOk ? cloudVersionOf(cloudDoc) : null;
+    if (built) { setBase(built); _unreadBase = null; _unreadLegacyAt = null; }
     // Kept edits are in S now; once S is stored as this account's working
     // copy, the kept copy goes. If the working slot is this account's (or
     // empty), the kept copy goes first: the two may not fit side by side (a
-    // file kept inline can be half of localStorage), and it comes back if S
-    // still isn't stored. If the slot holds someone else's edits, save()
-    // moves those aside first: the kept copy stays until S is stored, so that
-    // move can't take its room.
+    // file kept inline can be half of localStorage), and it comes back (with
+    // the base kept beside it) if S still isn't stored. If the slot holds
+    // someone else's edits, save() moves those aside first: the kept copy
+    // stays until S is stored, so that move can't take its room.
     const keptFirst = !!kept && (localBelongsTo(uid) || lsRaw(STORAGE_KEY) === null);
     const keptRaw = keptFirst ? lsRaw(KEPT_PREFIX + uid) : null;
+    const keptBaseRaw = keptRaw !== null ? lsRaw(KEPT_BASE_PREFIX + uid) : null;
     if (keptRaw !== null) dropKept(uid);
-    save(true);             // store + push the resolved state (refuses to push if the read failed)
-    if (keptRaw !== null) { if (!_localWriteOk) lsSetRaw(KEPT_PREFIX + uid, keptRaw); }   // not stored: they stay kept
+    // (Read, the document is known to exist (`syncedAt`, see _docKnown): found
+    // missing later, it was deleted, and a device that only ever read it brings
+    // nothing back.)
+    if (built && sameData(S, built.state)) storeSynced(uid, built.at || readSyncMeta()?.syncedAt);
+    else save(true);        // store + push the resolved state (refuses to push if the read failed)
+    if (keptRaw !== null) {   // not stored: they stay kept
+      if (!_localWriteOk && lsSetRaw(KEPT_PREFIX + uid, keptRaw) && keptBaseRaw !== null) lsSetRaw(KEPT_BASE_PREFIX + uid, keptBaseRaw);
+    }
     else if (kept && _localWriteOk) dropKept(uid);   // they live in the working copy now
     void moveInlineOriginals();   // originals stored inline before P0-5 → Storage
     if (cloudReadOk) setSyncState('synced');
@@ -2206,6 +3130,7 @@ function resolveStateAfterAuth(user: any, displayName?: string): Promise<void> {
     // The timer was set up for a blank state: show this account's durations.
     if (!timer.running && timer.mode === 'focus' && timer.timeLeft === timer.totalTime) timer.totalTime = timer.timeLeft = S.focusDuration;
     authResolved = true;
+    startCloudListener();   // from now on, other devices' writes reach this tab
     // Already inside the app (a restored session, "Continue as"): repaint with
     // the resolved data. On the splash: "Continue as <name>".
     if (!(['splash', 'signin', 'signup'] as ViewName[]).includes(currentView)) _goToFinish(currentView);
@@ -2279,7 +3204,7 @@ function clearSigninHint(): void {
 function resetSession(opts: { to?: ViewName | null; keep?: boolean } = {}): KeepResult | null {
   const uid: string | null = firebaseUser?.uid ?? authResolutionUid;
   let kept: KeepResult | null = null;
-  if (opts.keep && uid) { const st = unsyncedCopy(uid); if (st) kept = keepUnsynced(uid, st); }
+  if (opts.keep && uid) { const st = unsyncedCopy(uid); if (st) kept = keepUnsynced(uid, st, st === S ? (_base || _unreadBase) : storedBase(uid)); }
   _sessionEpoch++;                       // in-flight reads, writes, replies of this session are now ignored
   _sessionAbort?.abort();                // ...and its AI requests stop
   _sessionAbort = null;
@@ -2297,6 +3222,11 @@ function resetSession(opts: { to?: ViewName | null; keep?: boolean } = {}): Keep
   authResolutionUid = null;
   authResolved      = false;
   cloudReadOk       = false;
+  _docKnown         = false;
+  stopCloudListener();                   // no later snapshot of this account reaches S (P0-3)
+  _base = null; _unreadBase = null; _unreadLegacyAt = null; _seenVersions.clear(); _wcMine = null; _lostWrites = []; _lateDelete = null;
+  _writing = false; _writeChain = Promise.resolve();
+  window.clearTimeout(_retryTimer); _retryTimer = undefined; _retryDelay = 0;
   firebaseUser      = null;              // from here save() stores nothing
   idToken           = null;
   pendingAuthName   = null;
@@ -2448,6 +3378,9 @@ function discardKept(uid: string): void {
   dropKept(uid);
   const m = readSyncMeta();
   if (m && m.uid === uid && m.held) { lsDel(STORAGE_KEY); lsDel(SYNC_META_KEY); }
+  // The cloud version stored beside that copy (BASE_KEY) is the account's data
+  // too: it goes with the copy, or if no copy of the account's is left for it.
+  if ((!m || m.uid !== uid || m.held) && lsJSON<{ uid?: unknown }>(BASE_KEY)?.uid === uid) lsDel(BASE_KEY);
 }
 // End a focus session in progress, logging the time studied so far (as
 // skipping it would): a sign-out must not silently drop it. Under 30 s isn't
@@ -2472,7 +3405,10 @@ function logFocusSoFar(): void {
 //                       event, and _discarded tells it the same.)
 //   deleting / resume   the account is being deleted in that tab / that
 //                       deletion stopped with nothing deleted. See
-//                       pauseForDeletionElsewhere().
+//                       pauseForDeletionElsewhere(). `mayLand`: its delete
+//                       timed out and may still land; 'late-delete' then says
+//                       how it ended (landed, written-back, refused). See
+//                       deleteMayLand().
 //   signout-owed        the tab that owed the account a sign-out is closing
 //                       (pagehide). A sign-out sent by a closing page may never
 //                       land, so a tab still signed in as it signs out itself.
@@ -2481,8 +3417,8 @@ function logFocusSoFar(): void {
 let _tabsChannel: BroadcastChannel | null = null;
 try { _tabsChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('brainfy-session') : null; } catch (_) { _tabsChannel = null; }
 _tabsChannel?.addEventListener('message', (e: MessageEvent) => onTabsMessage(e.data));
-function tellTabs(type: string, uid: string): void {
-  try { _tabsChannel?.postMessage({ type, uid }); } catch (_) { /* no other tabs to tell */ }
+function tellTabs(type: string, uid: string, extra?: Record<string, unknown>): void {
+  try { _tabsChannel?.postMessage({ ...extra, type, uid }); } catch (_) { /* no other tabs to tell */ }
 }
 function announceDiscard(uid: string): void { tellTabs('discarded', uid); }
 function onTabsMessage(d: any): void {
@@ -2503,7 +3439,10 @@ function onTabsMessage(d: any): void {
       if (mine && !_deleting) pauseForDeletionElsewhere(uid);
       break;
     case 'resume':
-      if (_deletingElsewhere === uid) resumeAfterDeletionElsewhere();
+      if (_deletingElsewhere === uid) resumeAfterDeletionElsewhere(uid, d.mayLand === true);
+      break;
+    case 'late-delete':
+      onLateDelete(uid, d.how);
       break;
     case 'signout-owed':
       finishOwedSignOut(uid);
@@ -2540,8 +3479,9 @@ function pauseForDeletionElsewhere(uid: string): void {
   if (_settingsDirtyTimer !== undefined) { window.clearTimeout(_settingsDirtyTimer); _settingsDirtyTimer = undefined; save(); }
   showBusy('Deleting your account…', 'Your account is being deleted in another Brainfy tab.');
 }
-function resumeAfterDeletionElsewhere(): void {
+function resumeAfterDeletionElsewhere(uid: string, mayLand: boolean): void {
   _deletingElsewhere = null;
+  if (mayLand) onLateDelete(uid, 'mayLand');   // that tab's delete timed out: it may still land (see deleteMayLand)
   if (_endingFor) return;   // as above
   _sessionClosing = false;
   endBusy();
@@ -2783,14 +3723,7 @@ function _goToFinish(view: ViewName): void {
   document.title = TITLES[view] || 'Brainfy';
 
   if (view === 'splash')     applySigninHint();
-  if (view === 'home')       renderHome();
-  if (view === 'focus')      renderFocus();
-  if (view === 'library')    renderLibrary();
-  if (view === 'flashcards') renderFlashcards();
-  if (view === 'stats')      renderStats();
-  if (view === 'tasks')      renderTasks();
-  if (view === 'timetable')  renderTimetable();
-  if (view === 'settings')   renderSettings();
+  renderView(view);
 
   // Re-trigger stagger animations on stat cards
   if (view === 'home') {
@@ -2802,6 +3735,521 @@ function _goToFinish(view: ViewName): void {
   }
 
   save();
+}
+
+function renderView(view: ViewName): void {
+  if (view === 'home')       renderHome();
+  if (view === 'focus')      renderFocus();
+  if (view === 'library')    renderLibrary();
+  if (view === 'flashcards') renderFlashcards();
+  if (view === 'stats')      renderStats();
+  if (view === 'tasks')      renderTasks();
+  if (view === 'timetable')  renderTimetable();
+  if (view === 'settings')   renderSettings();
+}
+
+// ── Live cloud updates (AUDIT-2026-10-17.md, P0-3) ──────────────────────────
+// A cloud document's version, and its state as this app holds it (defaults
+// filled in, colours cleaned) — a private copy: S is often built from the same
+// document, and a base that shared S's arrays would change with every edit.
+// An app version older than revisions wrote no `rev`; its writes still change
+// `updatedAt`.
+function cloudVersionOf(d: any): CloudVersion {
+  const rev = typeof d?.rev === 'number' && isFinite(d.rev) ? d.rev : 0;
+  const at  = typeof d?.updatedAt === 'string' ? d.updatedAt : '';
+  const st  = isPlain(d?.state) ? structuredClone(d.state) : {};
+  const writes = Array.isArray(d?.writes) ? d.writes.filter((w: unknown) => typeof w === 'string').slice(-WRITE_LOG) : [];
+  // Its token: the one the write that made it logged last in `writes`
+  // ("rev|updatedAt|nonce"), if that write is this version — not if a writer
+  // that keeps no log (an app version from before revisions) wrote since.
+  const last: string | undefined = writes[writes.length - 1];
+  const tok = last && last.startsWith(rev + '|' + at + '|') ? last : rev + '|' + at;
+  return { rev, at, tok, state: sanitizeStateColors({ ...freshState(), ...st } as AppState), writes };
+}
+// Does version `v` hold write `w` — is it the version `w` made, or one written
+// on top of it (within the last WRITE_LOG writes)?
+function landedIn(v: CloudVersion, w: SentWrite): boolean {
+  return v.tok === w.tok || (v.writes || []).includes(w.tok);
+}
+// The newest of this tab's unconfirmed writes (_lostWrites) that version `v`
+// holds, if any.
+function lostWriteIn(v: CloudVersion): SentWrite | null {
+  for (let i = _lostWrites.length - 1; i >= 0; i--) if (landedIn(v, _lostWrites[i])) return _lostWrites[i];
+  return null;
+}
+// Forget the unconfirmed writes that version `v` settles. A write can land only
+// on the version it read (its commit is refused on any other, and once given
+// up it never runs again). So: the newest write `v` holds (`landed`) and every
+// older one — they read versions the document is past — and any `v` doesn't
+// hold whose `rev` it has reached (written over the version they read).
+function settleLostWrites(v: CloudVersion, landed: SentWrite | null): void {
+  _lostWrites = _lostWrites.slice(landed ? _lostWrites.indexOf(landed) + 1 : 0).filter(w => v.rev < w.rev);
+}
+function setBase(v: CloudVersion): void {
+  _base = v;
+  _seenVersions.add(v.tok);
+}
+// A cloud version from its token ("rev|updatedAt", "rev|updatedAt|nonce") and
+// its stored state.
+function versionOf(tok: string, state: unknown): CloudVersion | null {
+  const st = asState(state);
+  if (!st) return null;
+  const i = tok.indexOf('|');
+  return { rev: i > 0 ? Number(tok.slice(0, i)) || 0 : 0, at: i > 0 ? tok.slice(i + 1).split('|')[0] : '', tok, state: st };
+}
+// The token of a commit about to be made: its `rev` and time, and a random
+// part. Time alone can't tell two writers apart: two tabs (or devices) can
+// commit the same `rev` in the same millisecond, and the one whose commit lost
+// the race then found its own token on the other's version, took that version
+// for its own landed write (`attempt` in writeCloudNow) and dropped its edits.
+function writeToken(rev: number, stamp: string): string {
+  let n = '';
+  try { n = Array.from(crypto.getRandomValues(new Uint32Array(2)), x => x.toString(36)).join(''); } catch (_) { /* no crypto */ }
+  return rev + '|' + stamp + '|' + (n || Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
+}
+// A hash of a stored copy (FNV-1a over its UTF-16 code units, with its
+// length): enough to tell one stored copy of the state from another, cheaply.
+function wcHash(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return s.length.toString(36) + '.' + (h >>> 0).toString(36);
+}
+// Store `json` (S) as `uid`'s working copy, with the sync marker that describes
+// it: `dirty` (it has edits the cloud never confirmed), its hash (`wc`) and,
+// while it is dirty, the cloud version those edits are built on (`base`, whose
+// state goes under BASE_KEY, rewritten only when it changes). A merge uses a
+// base only with the exact copy it was stored with (storedBase): a base paired
+// with an older copy, or with none, would make every item added in between
+// look deleted on this device. A clean copy is its own base: BASE_KEY goes.
+// If the copy can't be stored, the marker goes on describing the copy that is
+// still there (only `dirty` is raised, so no edit in it is taken for synced).
+// A working copy that is still someone else's (unsynced edits there was no
+// room to move aside, P0-4) is moved aside first; until that works nothing is
+// stored or marked, and this account works from the cloud alone. The user is
+// told once when the device refuses the copy (storeWorkingCopy, P0-5; `st` is
+// the state `json` serialises). Returns whether the copy was stored.
+function storeWorkingCopyFor(uid: string, json: string, dirty: boolean, base: CloudVersion | null, syncedAt: string | undefined, st: AppState = S): boolean {
+  if (_cacheCleared) return false;
+  if (!localBelongsTo(uid) && !vacateWorkingCopy(null)) { _localWriteOk = storeWorkingCopy(st, json, false); return false; }
+  const prev = readSyncMeta();
+  const mine = prev && prev.uid === uid ? prev : null;
+  _localWriteOk = storeWorkingCopy(st, json);
+  if (!_localWriteOk) {
+    writeSyncMeta({ uid, dirty: dirty || !!mine?.dirty, syncedAt, base: mine?.base || '', wc: mine?.wc || '', pend: mine?.pend });
+    return false;
+  }
+  const wc = wcHash(json);
+  _wcMine = wc;
+  const tok = dirty && base && (mine?.base === base.tok || lsPut(BASE_KEY, { uid, tok: base.tok, state: base.state })) ? base.tok : '';
+  if (!tok) lsDel(BASE_KEY);
+  // The same copy stored again (a resave, the tab closing): a write of it on its way still is.
+  writeSyncMeta({ uid, dirty, syncedAt, base: tok, wc, pend: dirty && mine?.pend?.wc === wc ? mine.pend : undefined });
+  return true;
+}
+// This tab is about to commit a write of `uid`'s copy whose hash is `wc`
+// (token `tok`). If the copy stored on the device is exactly that one, the
+// write is noted in its marker (`pend`): should the tab close before the
+// answer comes, the next sign-in can tell from the cloud's `writes` that this
+// copy reached it, and that it holds nothing the cloud lacks.
+function notePending(uid: string, tok: string, wc: string): void {
+  const m = readSyncMeta();
+  if (m && m.uid === uid && m.dirty === true && m.wc === wc) writeSyncMeta({ ...m, pend: { tok, wc } });
+}
+// The base stored for `uid`'s working copy, only if the marker pairs it with
+// the copy that is there now, exactly (see storeWorkingCopyFor).
+function storedBase(uid: string): CloudVersion | null {
+  const m = readSyncMeta();
+  if (!m || m.uid !== uid || !m.base || !m.wc) return null;
+  const raw = lsRaw(STORAGE_KEY);
+  if (!raw || wcHash(raw) !== m.wc) return null;
+  const b = lsJSON<{ uid: string; tok: string; state: AppState }>(BASE_KEY);
+  return b && b.uid === uid && b.tok === m.base ? versionOf(b.tok, b.state) : null;
+}
+// The copy on this device holds nothing the cloud lacks: mark it synced. It is
+// then its own base, so the stored one goes. (Only `uid`'s own copy: one that
+// is still another account's is never marked as this one's, P0-4.)
+function markSynced(uid: string, syncedAt: string | undefined): void {
+  if (!localBelongsTo(uid)) return;
+  const m = readSyncMeta();
+  writeSyncMeta({ uid, dirty: false, syncedAt, base: '', wc: m && m.uid === uid ? (m.wc || '') : '' });
+  lsDel(BASE_KEY);
+}
+// Has another tab of `uid` stored edits here that the cloud never confirmed
+// and S doesn't contain? (The copy is not the one S started from, stored or
+// merged in: _wcMine.)
+function othersUnsent(uid: string): boolean {
+  const m = readSyncMeta();
+  return !!m && m.uid === uid && m.dirty === true && (m.wc || '') !== (_wcMine ?? '');
+}
+// ...and has that tab closed since, leaving them for this one ('pagehide')?
+// Only such a copy is merged into S: an open tab's copy may hold items it has
+// taken from this one, and a merge would bring back any this tab deletes.
+function leftUnsent(uid: string): boolean {
+  return othersUnsent(uid) && readSyncMeta()?.left === true;
+}
+// Merge that closed tab's copy into S: its edits on top of S, this tab's
+// winning where both changed the same thing. Its base tells its edits from
+// what it hadn't caught up with; without one nothing is deleted, and where
+// both have an item S's fields win. S is changed in place and the open view
+// repainted once the caller is done. Returns whether S changed.
+function absorbOthersCopy(uid: string): boolean {
+  const m = readSyncMeta();
+  const other = workingCopyOf(uid);
+  const ob = other ? storedBase(uid) : null;
+  _wcMine = m?.wc || '';                    // from here S contains that copy
+  if (!other) return false;
+  const renumbered = new Map<number, number>();
+  const next = ob ? mergeSync(ob.state, S, other, renumbered) : mergeSync(null, other, S);
+  if (sameData(next, S)) return false;
+  applyToS(next, renumbered, true);
+  return true;
+}
+// This device's copy is exactly the cloud's: store it as synced — unless
+// another tab's unsent edits are stored there. Those wait for that tab, or for
+// this tab's next edit, whose save() merges them in.
+function storeSynced(uid: string, syncedAt: string | undefined): void {
+  const json = JSON.stringify(S);
+  _lastSaved = json;
+  _tabDirty = false;
+  if (!othersUnsent(uid)) storeWorkingCopyFor(uid, json, false, null, syncedAt);
+}
+// save() even though S hasn't changed since the last one: its cloud write is
+// still owed (back online, or the cloud could finally be read).
+function resave(): void {
+  save(true);
+}
+// Bring S to `next` (a merge, or a newer cloud copy) in place (patchInPlace),
+// after renumbering any of this device's items the merge gave a new id, and
+// repaint the open view.
+function applyToS(next: AppState, renumbered: Map<number, number>, paintLater = false): void {
+  if (renumbered.size) { renumberInPlace(S, renumbered); remapOpenIds(renumbered); _idMoves++; }
+  patchInPlace(S, structuredClone(next));
+  if (paintLater) {
+    const epoch = _sessionEpoch;
+    window.setTimeout(() => { if (epoch === _sessionEpoch) { renderSidebarBadges(); repaintOpenView(); } }, 0);
+    return;
+  }
+  renderSidebarBadges();
+  repaintOpenView();
+}
+// The item an action picked before an await, as S holds it now. While the
+// await is pending, a merge with another device's changes can give this
+// device's new items new ids (mergeSync rule 2), and the id the user picked
+// may then belong to the other device's item. Objects in S keep their identity
+// through those changes (renumberInPlace and patchInPlace edit S in place), so
+// the item is found again by identity; by its id only if no id has moved since
+// `moves` (_idMoves then), as when a sign-in resolving replaced S. Null: gone.
+function liveItem<T extends { id: number }>(list: T[] | undefined, item: T | undefined, id: number, moves: number): T | null {
+  if (!Array.isArray(list)) return null;
+  if (item && list.includes(item)) return item;
+  return moves === _idMoves ? list.find(x => x.id === id) || null : null;
+}
+// Ids the open screens hold (the subject being studied or edited, ...).
+function remapOpenIds(ids: Map<number, number>): void {
+  const f = <T extends number | null>(v: T): T => (v != null && ids.has(v) ? ids.get(v) as T : v);
+  timer.subjectId  = f(timer.subjectId);
+  fc.subjectId     = f(fc.subjectId);
+  sm.subjectId     = f(sm.subjectId);
+  docModalSubjId   = f(docModalSubjId);
+  aiImportSubjId   = f(aiImportSubjId);
+  summarizingDocId = f(summarizingDocId);
+  ttEditId         = f(ttEditId);
+  // The study-mode dialog names its subject in its buttons ("Modes", "Study again").
+  const fcm = document.getElementById('flashcardModal');
+  if (fcm?.classList.contains('open')) fcm.querySelectorAll('[onclick]').forEach(b => {
+    const h = b.getAttribute('onclick') || '';
+    const n = h.replace(/\b(openDeckStudy|openFlashcards|smStart(?:Learn|Match|Test|Cloze))\((\d+)\)/g,
+      (all: string, fn: string, id: string) => ids.has(+id) ? `${fn}(${ids.get(+id)})` : all);
+    if (n !== h) b.setAttribute('onclick', n);
+  });
+}
+// Repaint the open view, and an open document dialog, with S: every row on
+// screen then carries the id its item has now (a click acts on the item it
+// shows), and the user keeps what they are typing (keepTyping). Not while a
+// focus session runs, nor the community library (not S: it would only be
+// fetched again).
+function repaintOpenView(): void {
+  const v = currentView;
+  const skip = (['splash', 'signin', 'signup'] as ViewName[]).includes(v)
+    || (v === 'focus' && document.body.classList.contains('focus-active'))
+    || (v === 'library' && libTab === 'community');
+  try {
+    if (!skip) keepTyping(document.getElementById(v + 'View'), () => renderView(v));
+    if (docModalSubjId !== null) {
+      const s = S.subjects.find(x => x.id === docModalSubjId);
+      if (!s) closeDocModal();              // its subject was deleted on another device
+      else {
+        const title = el('docModalTitle');
+        if (title) title.textContent = s.name;
+        keepTyping(el('docModalBody'), renderDocModal);
+      }
+    }
+  } catch (err) { console.error('[sync] repaint failed', err); }
+}
+// Run `paint`, a repaint of `root`, without losing what the user is typing
+// there: the field with focus keeps its text, caret and focus, and a field the
+// repaint rebuilt empty (same id) gets back the text it had.
+function keepTyping(root: HTMLElement | null, paint: () => void): void {
+  const isText = (x: Element | null): x is HTMLInputElement | HTMLTextAreaElement =>
+    x instanceof HTMLTextAreaElement
+    || (x instanceof HTMLInputElement && !/^(checkbox|radio|file|button|submit|reset|hidden|range|color|image)$/i.test(x.type));
+  const typed = root ? Array.from(root.querySelectorAll('input[id], textarea[id]')).filter(isText).filter(x => x.value).map(x => ({ x, v: x.value })) : [];
+  const a = document.activeElement;
+  const focus = root && isText(a) && root.contains(a) ? { x: a, v: a.value, s: a.selectionStart, e: a.selectionEnd, d: a.selectionDirection } : null;
+  paint();
+  for (const { x, v } of typed) {
+    const n = x.isConnected ? null : document.getElementById(x.id);
+    if (n !== x && isText(n) && !n.value) n.value = v;
+  }
+  if (!focus) return;
+  const n = focus.x.isConnected ? focus.x : focus.x.id ? document.getElementById(focus.x.id) : null;
+  if (!isText(n)) return;
+  if (n.value !== focus.v) n.value = focus.v;
+  if (document.activeElement !== n) n.focus({ preventScroll: true });
+  try { if (focus.s !== null && focus.e !== null) n.setSelectionRange(focus.s, focus.e, focus.d ?? undefined); } catch (_) { /* a field without a caret */ }
+}
+
+// The listener on users/{uid}. Started once the cloud has been read; stopped
+// by resetSession() (sign-out, account switch or deletion), so no snapshot of
+// one account can reach whoever is signed in next.
+function startCloudListener(): void {
+  if (_unsubCloud || !firebaseUser || sOwner !== firebaseUser.uid || !cloudReadOk || _sessionClosing) return;
+  const ref = userDoc();
+  if (!ref || typeof ref.onSnapshot !== 'function') return;
+  const uid: string = firebaseUser.uid, epoch = _sessionEpoch;
+  window.clearTimeout(_listenRetryTimer); _listenRetryTimer = undefined;
+  try {
+    let unsub: (() => void) | null = null;
+    unsub = _unsubCloud = ref.onSnapshot(
+      (snap: any) => { if (epoch === _sessionEpoch) _listenRetryDelay = 0; onCloudSnapshot(snap, uid, epoch); },
+      (err: any) => {
+        console.error('[sync] listener failed', err?.code, err?.message);
+        track('sync.listen.error', { code: err?.code, message: err?.message });
+        if (epoch !== _sessionEpoch || (unsub && _unsubCloud !== unsub)) return;
+        _unsubCloud = null;
+        // A listener that fails stays stopped. Without one this tab no longer
+        // sees other devices' changes (its own writes still merge with them),
+        // so it is started again after a pause — 3 s, then longer, up to
+        // 5 min — or at once by 'online'. resetSession() cancels the restart.
+        _listenRetryDelay = Math.min(_listenRetryDelay ? _listenRetryDelay * 2 : 3000, 300000);
+        _listenRetryTimer = window.setTimeout(() => {
+          _listenRetryTimer = undefined;
+          if (epoch === _sessionEpoch) startCloudListener();
+        }, _listenRetryDelay);
+      });
+  } catch (err: any) {
+    console.error('[sync] listener threw', err?.code, err?.message);
+    _unsubCloud = null;
+  }
+}
+function stopCloudListener(): void {
+  const stop = _unsubCloud;
+  _unsubCloud = null;
+  _pendingRemote = null;
+  window.clearTimeout(_listenRetryTimer); _listenRetryTimer = undefined; _listenRetryDelay = 0;
+  if (stop) { try { stop(); } catch (_) { /* already stopped */ } }
+}
+function onCloudSnapshot(snap: any, uid: string, epoch: number): void {
+  // Late delivery for a session that has ended — never applied.
+  if (epoch !== _sessionEpoch || firebaseUser?.uid !== uid || sOwner !== uid || _sessionClosing) return;
+  if (!snap || snap.metadata?.hasPendingWrites) return;
+  if (!snap.exists) {
+    // Gone although this session has seen it: the account was deleted on
+    // another device (not "an empty account"). Only the server's word counts:
+    // a cache can lack a document that exists.
+    if (snap.metadata?.fromCache || !(existed(_base) || _docKnown)) return;
+    // This tab's own account deletion, called off, may have landed after
+    // all: unanswered, nothing is decided yet; landed, the data is written
+    // back (see deleteMayLand).
+    if (deleteUnanswered(epoch)) return;
+    if (deleteMayLand(epoch)) { resave(); return; }
+    cloudDocGone(uid, epoch);
+    return;
+  }
+  _docKnown = true;
+  const v = cloudVersionOf(snap.data() || {});
+  if (knownOrOlder(v)) return;   // this tab's own write, a version it already has, or an older one
+  _pendingRemote = v;
+  applyPendingRemote();
+}
+// Has this tab already got `v`, or something newer? Every write raises `rev`
+// (writeCloudNow's transaction), so a snapshot that arrives late — a lagging
+// listener — is older than the version S is built on and can't roll S back. A
+// document an app version from before revisions wrote has no `rev`: only its
+// token tells. (Until the rules are published such a write also restarts
+// `rev`; a tab whose listener skipped it waits for the next write, whose
+// transaction merges against the cloud as it is.)
+function knownOrOlder(v: CloudVersion): boolean {
+  return _seenVersions.has(v.tok) || (!!_base && v.rev > 0 && v.rev <= _base.rev);
+}
+// Has the cloud held this version? A missing document reads as rev 0 with no
+// time; every app version stamps `updatedAt` on what it writes.
+function existed(v: CloudVersion | null | undefined): boolean {
+  return !!v && (v.rev > 0 || !!v.at);
+}
+const DOC_GONE = 'brainfy/doc-gone';
+const TOO_LARGE = 'brainfy/too-large';   // a merged write over the document limit (writeCloudNow, P0-5)
+// This tab's account deletion (deleteAccount) stopped because its Firestore
+// delete timed out: unanswered, that delete may still land. The user was told
+// nothing was deleted, so the document going missing because of it must not be
+// taken for a deletion elsewhere (cloudDocGone: the session would end, and this
+// device's copy of the account go, after the cloud's), nor may a deletion made
+// elsewhere be undone. So, for this session only:
+//   • while the delete is unanswered (`pending`), a missing document can't be
+//     told apart from a deletion elsewhere yet: nothing is written over it and
+//     the session goes on (`gone` remembers that it was seen missing);
+//   • once it has landed (its promise resolved, however late), the data is
+//     written back on top of it (resave), and a missing document is put back
+//     until then (`until`: Infinity), and for SETTLE_GRACE_MS after, while a
+//     listener may still report the document missing in between;
+//   • refused after all: nothing more is held; a document seen missing
+//     meanwhile is then a deletion elsewhere (the next write finds that out);
+//   • a delete the server refused at once can't land: nothing is held.
+// This device's other tabs of the account hold it as long: they hear 'resume'
+// (with `mayLand`) and then 'late-delete' (landed / written-back / refused, or
+// abandoned: the deleting tab closed with its delete unanswered, which may then
+// still land for a while, LATE_DELETE_MS: a missing document is put back).
+interface LateDelete { epoch: number; pending: boolean; until: number; gone: boolean; own: boolean }
+let _lateDelete: LateDelete | null = null;
+const LATE_DELETE_MS = 120000;
+const SETTLE_GRACE_MS = 15000;
+const DEFERRED = 'brainfy/deferred';   // a write held back while this tab's late delete is unanswered
+function lateDeleteIn(epoch: number): LateDelete | null {
+  const d = _lateDelete;
+  return d && d.epoch === epoch && (d.pending || Date.now() < d.until) ? d : null;
+}
+// The document missing now may be this session's own late delete (not a deletion elsewhere).
+function deleteMayLand(epoch: number): boolean { return !!lateDeleteIn(epoch); }
+// ...and whether it has can't be told yet: nothing is written over it. (Noted: `gone`.)
+function deleteUnanswered(epoch: number): boolean {
+  const d = lateDeleteIn(epoch);
+  if (d?.pending) d.gone = true;
+  return !!d?.pending;
+}
+function holdLateDelete(epoch: number, pending: boolean, ms: number, own = false): LateDelete {
+  return (_lateDelete = { epoch, pending, until: Date.now() + ms, gone: false, own });
+}
+// The deleting tab: follow its timed-out delete (`del`, the SDK's own promise)
+// to the end.
+function followLateDelete(del: Promise<void>, uid: string, epoch: number): void {
+  const mark = holdLateDelete(epoch, true, 0, true);
+  del.then(() => {
+    if (epoch !== _sessionEpoch) return;
+    // It landed: the document is gone, and the user was told it wasn't. Put
+    // it back (writeCloudNow ends the hold once a write has done so).
+    holdLateDelete(epoch, false, Infinity, true);
+    tellLateDelete(uid, 'landed');
+    resave();
+  }, () => {
+    if (epoch !== _sessionEpoch || _lateDelete !== mark) return;
+    _lateDelete = null;
+    tellLateDelete(uid, 'refused');
+    if (mark.gone) recheckGone(uid, epoch);
+  });
+}
+// The document was seen missing while this session's late delete was
+// unanswered, and that delete was refused: the account was deleted elsewhere,
+// unless the document is back by now. Read it again to find out (the session
+// ends, or the edits held back meanwhile are sent).
+function recheckGone(uid: string, epoch: number): void {
+  const ref = userDoc();
+  if (!ref) return;
+  Promise.resolve().then(() => ref.get()).then((snap: any) => {
+    if (epoch !== _sessionEpoch || firebaseUser?.uid !== uid) return;
+    if (!docGoneOnRead(snap, uid, epoch)) resave();
+  }).catch(() => { /* unknown: the listener or the next write tells */ });
+}
+// A write that found the document missing has put it back while this tab's
+// late delete had landed (or may have): the data is back.
+function lateDeleteWrittenBack(mark: LateDelete | null, uid: string): void {
+  if (!mark || _lateDelete !== mark || mark.epoch !== _sessionEpoch) return;
+  holdLateDelete(mark.epoch, false, SETTLE_GRACE_MS, mark.own);
+  tellLateDelete(uid, 'written-back');
+}
+function tellLateDelete(uid: string, how: 'landed' | 'written-back' | 'refused' | 'abandoned'): void {
+  tellTabs('late-delete', uid, { how });
+}
+// Another tab's ('resume' with mayLand, then 'late-delete').
+function onLateDelete(uid: string, how: unknown): void {
+  if (firebaseUser?.uid !== uid || sOwner !== uid) return;
+  const epoch = _sessionEpoch, d = lateDeleteIn(epoch);
+  if (d?.own && how !== 'written-back') return;   // this tab follows its own delete
+  const gone = !!d?.gone;
+  switch (how) {
+    case 'mayLand':      holdLateDelete(epoch, true, 0); break;
+    case 'landed':       holdLateDelete(epoch, false, Infinity); if (gone) resave(); break;   // (put back by that tab, or this one)
+    case 'written-back': if (d) holdLateDelete(epoch, false, SETTLE_GRACE_MS, d.own); break;
+    case 'abandoned':    if (d) { holdLateDelete(epoch, false, LATE_DELETE_MS); if (gone) resave(); } break;
+    case 'refused':      if (d && d.pending) { _lateDelete = null; if (gone) recheckGone(uid, epoch); } break;
+  }
+}
+// The deleting tab closing with its delete unanswered: nobody is left to hear
+// how it ends.
+window.addEventListener('pagehide', () => {
+  const d = lateDeleteIn(_sessionEpoch);
+  if (d?.own && d.pending && firebaseUser) tellLateDelete(firebaseUser.uid, 'abandoned');
+});
+// The account's document has gone although this session has read or written
+// it: the account was deleted on another device (or its data, while the
+// deletion waits for a fresh sign-in). Writing now would bring the deleted
+// data back, so nothing more is written: the session ends, keeping nothing of
+// the account on this device, and says why.
+function cloudDocGone(uid: string, epoch: number): void {
+  if (epoch !== _sessionEpoch || firebaseUser?.uid !== uid || sOwner !== uid || _sessionClosing) return;
+  // Being deleted in another tab of this device: that tab sees it through.
+  if (_deletingElsewhere === uid || deleteMayLand(epoch)) return;
+  console.warn('[sync] the account document was deleted elsewhere; ending the session');
+  track('sync.doc.gone');
+  _sessionClosing = true;                  // save() sends nothing more
+  _signOutSent = true;                     // the auth observer leaves the reset to this
+  stopCloudListener();
+  window.clearTimeout(_pendingSaveTimer); _pendingSaveTimer = undefined;
+  // This device's other tabs of the account keep none of its edits either
+  // (their own signed-out event would otherwise offer to keep them).
+  announceDiscard(uid);
+  const end = () => {
+    if (epoch !== _sessionEpoch) return;   // already ended
+    discardKept(uid);
+    resetSession();
+    showToast('Your account was deleted on another device, so you’ve been signed out.', 'warning');
+  };
+  window.setTimeout(end, 5000);            // a sign-out that never answers still ends it
+  Promise.resolve().then(() => firebase.auth().signOut()).catch(() => { /* ends anyway */ }).then(end);
+}
+// Take in the newest version another device wrote: as it is when this tab has
+// no unsynced edits, merged with them when it has (and the merge is sent). Waits
+// while a write of S is in flight — that write may already contain it.
+function applyPendingRemote(): void {
+  const v = _pendingRemote;
+  if (!v || _writing || !_base || !authResolved || !firebaseUser || sOwner !== firebaseUser.uid || _sessionClosing) return;
+  _pendingRemote = null;
+  if (knownOrOlder(v)) return;             // _base may have moved past it meanwhile (this tab's own write)
+  const uid: string = firebaseUser.uid;
+  const lost = lostWriteIn(v);
+  settleLostWrites(v, lost);
+  let renumbered = new Map<number, number>();
+  let next: AppState;
+  if (lost) {
+    // This tab's own write, given up on, landed after all (perhaps with other
+    // devices' writes on top): whatever S did since it was sent goes on top.
+    const re = rebaseAfterWrite(lost.sent, S, v.state, lost.renumbered);
+    next = re.state; renumbered = re.ids;
+  } else {
+    next = !sameData(S, _base.state) ? mergeSync(_base.state, S, v.state, renumbered) : keepStoredOriginals(S, v.state);
+  }
+  setBase(v);
+  applyToS(next, renumbered);
+  if (sameData(S, v.state)) {
+    // Nothing of this tab's is unsent. Store the cloud's copy as the device's
+    // (not over another tab's unsent edits: storeSynced).
+    storeSynced(uid, v.at);
+    // Sync paused for size, and another device's changes have made the data
+    // fit (they deleted large documents, say): the pause is over (P0-5).
+    if (syncPausedForSize() && !tooLargeToSync(S)) cloudWriteFits(S, _sessionEpoch);
+    if (syncState !== 'offline' && _pendingSaveTimer === undefined) setSyncState('synced');
+  } else {
+    resave();              // store the merge and send it, on top of the version just taken in
+  }
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -4925,6 +6373,7 @@ function readAndAddDoc(file: File): void {
   // has room for it; otherwise it goes to Storage like a large one.
   if (fitsInline(userDocBytes(S), _inlinePending, file.size)) {
     const cost = inlineCost(file.size), scope = sessionScope();
+    const subj = S.subjects.find(x => x.id === subjectId), moves = _idMoves;   // (liveItem)
     _inlinePending += cost;
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -4932,9 +6381,13 @@ function readAndAddDoc(file: File): void {
       if (!scope.alive()) return;
       const data = reader.result;
       if (typeof data !== 'string') { showToast(`Couldn’t read ${file.name}`, 'error'); return; }
+      // The subject picked, as S holds it now: a merge with another device's
+      // changes may have given it another id meanwhile.
+      const target = liveItem(S.subjects, subj, subjectId, moves);
+      if (!target) return;
       // Something else may have filled the document while the file was read.
       if (!fitsInline(userDocBytes(S), _inlinePending, file.size) && canUseStorage()) {
-        uploadFileToStorage(file, subjectId, mime);
+        uploadFileToStorage(file, target.id, mime);
         return;
       }
       addDocToSubject({
@@ -4945,7 +6398,7 @@ function readAndAddDoc(file: File): void {
         mime,
         size:    file.size,
         date:    Date.now(),
-      }, subjectId);
+      }, target.id);
     };
     reader.readAsDataURL(file);
     return;
@@ -5032,11 +6485,14 @@ function refreshDocViews(subjectId: number): void {
 // A library file to Storage, then into the subject's library.
 function uploadFileToStorage(file: File, subjectId: number, mime: string): void {
   const scope = sessionScope();   // a file that finishes after sign-out isn't added to whoever is here then
+  const subj  = S.subjects.find(x => x.id === subjectId), moves = _idMoves;   // (liveItem)
   putOriginal(file, file.name, mime, subjectId).then(({ path, downloadURL }) => {
     if (!scope.alive()) return;
     // The subject went while the file uploaded, or the session is ending (it
-    // is no longer saved to the cloud): don't leave the file behind.
-    if (!keepingUploads() || !S.subjects.some(s => s.id === subjectId)) { deleteStoredFile(path); return; }
+    // is no longer saved to the cloud): don't leave the file behind. (Its id
+    // may have changed meanwhile, in a merge with another device's changes.)
+    const target = keepingUploads() ? liveItem(S.subjects, subj, subjectId, moves) : null;
+    if (!target) { deleteStoredFile(path); return; }
     addDocToSubject({
       id:          S.nextId++,
       name:        file.name,
@@ -5047,7 +6503,7 @@ function uploadFileToStorage(file: File, subjectId: number, mime: string): void 
       date:        Date.now(),
       storagePath: path,
       downloadURL: downloadURL,
-    }, subjectId);                      // bind to the subject id captured at upload start
+    }, target.id);                      // bind to the subject picked at upload start
   }, (err: any) => {
     if (!scope.alive() || uploadStopped(err)) return;
     showToast(err?.code === 'storage/unauthorized'
@@ -5935,6 +7391,7 @@ async function generateSummaryForDoc(subjId: number, docId: number): Promise<voi
   const s = S.subjects.find(x => x.id === subjId);
   const d = s?.documents?.find(x => x.id === docId);
   if (!s || !d) return;
+  const moves = _idMoves;   // (liveItem)
   if (!gateAI('import')) return; recordAI('import');
 
   // Build the summary-mode payload from whatever the doc carries.
@@ -5975,7 +7432,8 @@ async function generateSummaryForDoc(subjId: number, docId: number): Promise<voi
     // Saved as a note doc — it then shows in the docs list and opens in the
     // existing note viewer. addDocToSubject re-renders + toasts on its own.
     const noteName = (`AI Summary — ${d.name}`).slice(0, 80);
-    addDocToSubject({ id: S.nextId++, name: noteName, type: 'note', content: summary, date: Date.now() }, subjId);
+    const target = liveItem(S.subjects, s, subjId, moves);   // its id may have changed meanwhile
+    if (target) addDocToSubject({ id: S.nextId++, name: noteName, type: 'note', content: summary, date: Date.now() }, target.id);
   } catch (e) {
     if (!scope.alive()) return;
     const msg = e instanceof Error ? e.message : String(e);
@@ -5985,7 +7443,7 @@ async function generateSummaryForDoc(subjId: number, docId: number): Promise<voi
     if (scope.alive()) {
       summarizingDocId = null;
       renderLibrary();
-      if (docModalSubjId === subjId) renderDocModal();
+      if (docModalSubjId === s.id) renderDocModal();
     }
   }
 }
@@ -6105,6 +7563,7 @@ async function showAddSubject() {
 async function deleteSubject(id: number): Promise<void> {
   const subj = S.subjects.find(s => s.id === id);
   const scope = sessionScope();   // "subject <id>" means someone else's after a sign-out
+  const moves = _idMoves;         // ...and maybe another device's after a merge (liveItem)
   const ok = await showConfirm({
     title:        'Remove subject?',
     message:      subj ? `"${subj.name}" and all its flashcards, notes and files will be deleted.` : 'This subject will be removed.',
@@ -6112,9 +7571,11 @@ async function deleteSubject(id: number): Promise<void> {
     dangerous:    true,
   });
   if (!ok || !scope.alive()) return;
+  const target = liveItem(S.subjects, subj, id, moves);
+  if (!target) return;
   // Its files in Storage go with it, as deleteDoc() does for one file.
-  for (const d of S.subjects.find(s => s.id === id)?.documents || []) if (d.storagePath) deleteStoredFile(d.storagePath);
-  S.subjects = S.subjects.filter(s => s.id !== id);
+  for (const d of target.documents || []) if (d.storagePath) deleteStoredFile(d.storagePath);
+  S.subjects = S.subjects.filter(s => s !== target);
   save();
   renderLibrary();
 }
@@ -7433,24 +8894,28 @@ async function deleteAccount(): Promise<void> {
   // document, and the data would outlive the account.
   tellTabs('deleting', uid);
   let ref: any = null;
+  let del: Promise<void> | null = null;   // the SDK's own promise for the delete
 
   // ── 1) Firestore: the study data ──
   // First, because it decides: if it can't be deleted, nothing has been.
   try {
     ref = userDoc();
-    if (ref) await withTimeout<void>(ref.delete(), DELETE_STEP_MS);
+    if (ref) { del = Promise.resolve(ref.delete()); await withTimeout<void>(del, DELETE_STEP_MS); }
   } catch (err: any) {
     console.error('[delete] firestore failed', err?.code, err?.message);
     track('account.delete.firestore.error', { code: err?.code, message: err?.message });
     if (!same()) return;
     // Whatever the error (unreachable, refused, ...): stop here with the
-    // account whole, and the app carries on as before, in every tab. After a
-    // time-out the delete may yet go through, so the data is written back
-    // after it (Firestore keeps the order).
+    // account whole, and the app carries on as before, in every tab. A delete
+    // that only timed out may yet go through: if it does, the data is written
+    // back after it, and the document going missing meanwhile is not taken for
+    // a deletion elsewhere (deleteMayLand). One the server refused can't land.
     _sessionClosing = false;
     _deleting = false;
+    const mayLand = err?.code === 'timeout' && !!del;
+    if (mayLand) followLateDelete(del!, uid, epoch);
     signOutCalledOff();
-    tellTabs('resume', uid);
+    tellTabs('resume', uid, { mayLand });
     endBusy();
     save(true);
     notice('Your account wasn’t deleted', err?.code === 'timeout'
@@ -7619,7 +9084,7 @@ function friendlyAuthError(code: string): string {
 // resolveStateAfterAuth, so the auth observer firing in parallel is harmless.
 async function onFirebaseSignIn(user: any, displayName?: string): Promise<void> {
   await resolveStateAfterAuth(user, displayName);
-  if (firebaseUser?.uid === user.uid) goTo('home');   // not if signed out (or switched) meanwhile
+  if (firebaseUser?.uid === user.uid && !_sessionClosing) goTo('home');   // not if signed out (or switched, or ending) meanwhile
 }
 
 function handleSignIn(): void {
@@ -8749,7 +10214,7 @@ function init() {
       // Reconcile cloud state (merging any unsynced local edits). Memoized, so if an
       // explicit sign-in handler is also resolving, we await the same result.
       await resolveStateAfterAuth(user);
-      if (firebaseUser?.uid !== user.uid) return;   // signed out (or switched) meanwhile
+      if (firebaseUser?.uid !== user.uid || _sessionClosing) return;   // signed out (or switched, or ending) meanwhile
       // Auto-navigate ONLY from active auth flows (signin/signup) — NOT from
       // splash. Splash exists so returning users can click their personalised
       // "Continue as <name>" button intentionally; auto-redirecting them
@@ -8809,6 +10274,10 @@ const TT_HOURS = Array.from({length:17}, (_,i) => i + 6); // 06:00 – 23:00
 const TT_ROW_H = 52; // px per hour
 let ttEditId: number | null = null;
 let ttSelectedColor = '#7c3aed';
+// The block as the edit dialog showed it when it opened (null: adding a block).
+// Saving keeps the block's current value for any field the user left as shown,
+// since another device may have changed it meanwhile (AUDIT-2026-10-17.md, P0-3).
+let ttOpened: { title: string; day: number; start: string; end: string; color: string } | null = null;
 
 function renderTimetable(): void {
   if (!S.timetable) S.timetable = [];
@@ -9022,6 +10491,7 @@ function openTTModal(id?: number): void {
     startInp.value  = block.start;
     endInp.value    = block.end;
     ttSelectedColor = safeDeckColor(block.color);
+    ttOpened = { title: titleInp.value.trim(), day: +dayInp.value, start: startInp.value, end: endInp.value, color: ttSelectedColor };
     titleEl.textContent     = 'Edit Block';
     deleteBtn.style.display = 'block';
   } else {
@@ -9037,6 +10507,7 @@ function openTTModal(id?: number): void {
     startInp.value  = `${pad(sh)}:00`;
     endInp.value    = `${pad(eh)}:00`;
     ttSelectedColor = '#7c3aed';
+    ttOpened = null;
     titleEl.textContent     = 'Add Block';
     deleteBtn.style.display = 'none';
   }
@@ -9076,7 +10547,20 @@ function saveTTBlock(): void {
 
   if (ttEditId != null) {
     const idx = S.timetable.findIndex(b => b.id === ttEditId);
-    if (idx !== -1) S.timetable[idx] = { id: ttEditId, title, day, start, end, color: safeDeckColor(ttSelectedColor) };
+    if (idx !== -1) {
+      // Only what the user changed in the dialog (see ttOpened). Start and end
+      // go together, so the pair always comes from one side and stays valid.
+      const cur = S.timetable[idx], o = ttOpened;
+      const times = !o || start !== o.start || end !== o.end;
+      S.timetable[idx] = {
+        id:    ttEditId,
+        title: !o || title !== o.title ? title : cur.title,
+        day:   !o || day !== o.day ? day : cur.day,
+        start: times ? start : cur.start,
+        end:   times ? end : cur.end,
+        color: safeDeckColor(!o || ttSelectedColor !== o.color ? ttSelectedColor : cur.color),
+      };
+    }
   } else {
     S.timetable.push({ id: S.nextId++, title, day, start, end, color: safeDeckColor(ttSelectedColor) });
   }
@@ -9295,14 +10779,21 @@ function initSettings(): void {
 
   // Clear local cache
   el('setClearLocalBtn')?.addEventListener('click', async () => {
+    const unsent = !!firebaseUser && hasUnsynced(firebaseUser.uid);
     const ok = await showConfirm({
       title:        'Clear local cache?',
-      message:      'Removes data stored on this device only. Cloud-synced data is unaffected and will reload on next sign-in.',
+      message:      'Removes data stored on this device only. Cloud-synced data is unaffected and will reload on next sign-in.'
+                    + (unsent ? ' Changes on this device that haven’t synced yet will be lost.' : ''),
       confirmLabel: 'Clear cache',
       dangerous:    true,
     });
     if (!ok) return;
-    try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+    // The copy goes with its sync marker and stored base: a marker left behind
+    // would have the next sign-in merge "no data" as this device's edits and
+    // delete everything in the account (P0-3). Another account's unsent edits
+    // in the copy are set aside for it, as at any account switch.
+    vacateWorkingCopy(firebaseUser?.uid ?? null);
+    _cacheCleared = true;                  // ...and nothing (the closing page's 'pagehide' included) stores it again
     showToast('Local cache cleared — reloading', 'info');
     setTimeout(() => location.reload(), 600);
   });

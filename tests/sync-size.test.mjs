@@ -677,7 +677,11 @@ test('an account signing in over a copy that could not be set aside leaves it al
       assert.equal(tag(), 'other/true', '…and stays tagged as theirs (never loaded as the new account\'s)');
       assert.equal(ctx.localBelongsTo('me'), false);
       // A confirmed cloud write doesn't tag it as the new account's either.
-      assert.equal(await ctx.writeCloud({ set: () => Promise.resolve() }, 'me', epoch(), runInContext('S', ctx)), true);
+      // (Every write is a transaction since P0-3: a Firestore stub that runs one.)
+      ctx.firebase = { firestore: () => ({ runTransaction: fn => fn({ get: async () => ({ exists: false }), set() {} }) }) };
+      try {
+        assert.equal(await ctx.writeCloud({}, 'me', epoch(), runInContext('S', ctx)), true);
+      } finally { delete ctx.firebase; }
       assert.equal(tag(), 'other/true');
       const t = toasts();
       assert.equal(t.length, 1);
